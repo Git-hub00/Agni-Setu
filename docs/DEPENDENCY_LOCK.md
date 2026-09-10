@@ -73,6 +73,7 @@ Resolution source: PyPI JSON API and each project's release notes. Columns are f
 | drf-spectacular | compatible with Django 5.2 / DRF 3.17 | **0.30.0** | PyPI via `uv lock` | BSD-3-Clause | no advisory | resolved together with DRF 3.17.2 without conflict |
 | django-environ | current | **0.14.0** | PyPI via `uv lock` | MIT | no advisory | no py.typed -> mypy override in pyproject |
 | Authlib | current (Django OIDC client) | **1.8.0** | PyPI via `uv lock` | BSD-3-Clause | no advisory | EV-B00-03 |
+| requests (added B03) | `>=2.32,<3` | **2.34.2** (already transitive via pip-audit; now a direct runtime dependency) | PyPI via `uv lock` | Apache-2.0 | no advisory | s.9 DEV-04: Authlib's Django client imports `requests` at runtime; the production image (no dev group) failed to boot without it (EV-B03-05) |
 | celery | `5.6` compatible stable patch | **5.6.3** (kombu 5.6.2, amqp 5.3.1, billiard 4.2.4) | PyPI via `uv lock` | BSD-3-Clause | no advisory | L-04 CLOSED: 5.6.x exists on PyPI |
 | boto3 | current | **1.43.91** (botocore 1.43.91, s3transfer 0.19.2) | PyPI via `uv lock` | Apache-2.0 | no advisory | EV-B00-03 |
 | redis (Valkey client, Redis protocol) | current | **6.4.0** | PyPI via `uv lock` | MIT | no advisory | EV-B00-03 |
@@ -172,6 +173,7 @@ Upgrades after B00 require an ADR-style note in this file (reason, compatibility
 | DEV-01 | 2026-09-10 | djangorestframework family 3.16 -> **3.17.2** (`>=3.17.2,<3.18`) | pip-audit PYSEC-2026-3827 and PYSEC-2026-3828 affect 3.16.1; fix version 3.17.2 | `uv lock` resolved with Django 5.2.17, drf-spectacular 0.30.0, djangorestframework-stubs 3.16.9; `manage.py check` PASS; API surface unused yet (B00), so no behavioral regression possible; B01+ tests run against 3.17 | Removes two known vulnerabilities |
 | DEV-02 | 2026-09-10 | weasyprint 69.0 -> **70.0** (`>=70,<71`) | PYSEC-2026-3940 affects 69.0; fixed in 70.0 | import-level only at B00 (rendering worker arrives B12); container build will exercise it | Removes one known vulnerability |
 | DEV-03 | 2026-09-10 | pytest 8.4.2 -> **9.1.1** (`>=9.0.3,<10`) | PYSEC-2026-1845 affects 8.x; fixed in 9.0.3 | dev-only; pytest-django 4.14.0 resolved compatibly; no tests exist yet at B00 | Removes one known vulnerability (dev tooling) |
+| DEV-04 | 2026-09-10 (B03) | add direct runtime dependency **requests 2.34.2** (`>=2.32,<3`) | `authlib.integrations.django_client` imports `requests`; the api container (built with `--no-dev`) crashed at import until it was declared (found by the container health check, not by host tests, which had it through the dev group) | `uv lock` re-resolved with no other change; container rebuilt and healthy; requirements.txt re-exported | Apache-2.0; pip-audit clean |
 
 ---
 [Documentation index](../README.md) | [Build guide](10_BUILD_GUIDE.md) | [Implementation status](21_IMPLEMENTATION_STATUS.md)

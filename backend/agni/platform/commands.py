@@ -45,6 +45,10 @@ from .errors import (
 from .locks import load_locked_principal
 from .models import CommandReceipt, VersionedModel
 
+# Command aggregates: every VersionedModel plus the custom Principal (which carries its own
+# `version` column but derives from AbstractBaseUser).
+Versioned = VersionedModel | Principal
+
 RECEIPT_RETENTION = timedelta(days=7)  # demo minimum for online commands (data model s.9)
 
 
@@ -104,7 +108,7 @@ class OutboxIntent:
 
 
 @dataclass
-class CommandOutcome[T: VersionedModel]:
+class CommandOutcome[T: Versioned]:
     """What a handler produced. `aggregate` is version-bumped by the kernel unless `created`."""
 
     status: int
@@ -143,7 +147,7 @@ class UnitOfWork:
         return self.envelope.actor.request_id
 
 
-class CommandHandler[T: VersionedModel](Protocol):
+class CommandHandler[T: Versioned](Protocol):
     def authorize(self, uow: UnitOfWork) -> None:
         """Raise Forbidden/ResourceNotFound/AuthorityRevoked; deny by default."""
 
@@ -165,7 +169,7 @@ def _replay(receipt: CommandReceipt) -> CommandResult:
     )
 
 
-def execute[T: VersionedModel](
+def execute[T: Versioned](
     envelope: CommandEnvelope, handler: CommandHandler[T], *, clock: Clock | None = None
 ) -> CommandResult:
     if not envelope.idempotency_key:

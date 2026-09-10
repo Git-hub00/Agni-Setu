@@ -16,7 +16,7 @@ Update this file at the end of each agent task. Read actual repository/branch/di
 | B00 | Baseline and dependency lock | READY_FOR_REVIEW (2026-09-10T19:1xZ; PR pending) | Repository inspected, user work preserved, ADR-01..15 accepted (`docs/DEPENDENCY_LOCK.md` s.3). Environment: Python 3.12.7, Node 24.14.1, uv 0.11.28, pnpm 12.3.4, Git 2.45.2, Docker 28.5.1 + Compose v2.40.3, WSL2 Ubuntu; host RAM 5.9 GB (L-05), port 5432 occupied (L-06). Locks: `backend/uv.lock` (100 pkgs: Django 5.2.17, DRF 3.17.2, psycopg 3.3.5, celery 5.6.3, ...), `web/pnpm-lock.yaml` (164 pkgs: React 19.3.0, Vite 8.2.2, TS 5.9.3, ...), `infra/images.lock.json` (postgres 17.11, rabbitmq 4.3.5-management, valkey 8.1.10, seaweedfs 4.46, keycloak 26.7.3, clamav 1.5.4 with registry digests). Proofs PASS: `uv sync --frozen`, `manage.py check`, `ruff check`, `ruff format --check`, `mypy` strict, `pip-audit` (after DEV-01..03 security bumps), `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm build`, `pnpm audit`. Evidence EV-B00-02..08 in DEPENDENCY_LOCK s.7; handoff record s.3b below | Open PR `feat/b00-baseline-lock`, self-review, merge; then B01 |
 | B01 | Repository and runnable skeleton | READY_FOR_REVIEW (2026-09-10T19:5xZ; PR pending) | Compose stack `infra/compose/compose.dev.yml` (profiles default/full/app; digest-pinned images; loopback ports; PostgreSQL on 55432; healthchecks; mem limits) - minimal and app profiles brought up locally: **6/6 services healthy**. Images `agni-setu-api:dev` (543 MB, non-root, gunicorn) and `agni-setu-web:dev` (94 MB, unprivileged nginx). API-121/122 probes: live 200, ready 200 (database/schema/configuration pass) both directly and through nginx; SPA index and deep-route fallback 200; security headers present. Settings base/local/test/production with fail-closed production validation; `.env.example` contract; `backend/docker-entrypoint.sh`. Tests: backend **22 passed** (18 unit incl. 12 bad-production-config refusals + 4 integration on real PostgreSQL), web **10 passed** (shell landmarks, 7 placeholders, readiness states, api client CSRF/If-Match/idempotency); ruff, `ruff format`, `mypy --strict` (incl. tests), eslint (0 warnings), tsc all PASS. Scripts `scripts/dev/{doctor,up,down}.sh`, `scripts/ci/verify.sh`, CI workflow `.github/workflows/ci.yml`, root README quick start (Windows/macOS). Evidence EV-B01-01..06 in `handover.md` B7; record s.3c | Open PR `feat/b01-runnable-skeleton`; then B02. Limitations: shell scripts could not be executed by the agent (harness gate) - syntax/behaviour UNVERIFIED until run by CI or user; `full` profile (Keycloak/ClamAV) not started locally (RAM) |
 | B02 | Domain persistence and command kernel | READY_FOR_REVIEW (2026-09-10T20:23Z; PR pending) | Custom `identity.Principal` (AUTH_USER_MODEL, no client-writable role) + `PrincipalFence` lock row; `platform` tables `CommandReceipt`, `OutboxMessage`, `AuditEvent` (per-entity hash chain); master data `Jurisdiction`, `Service` (activation fence), `DutyQueue`; cases `Premises`, `Application` (eleven-state enum + DB check, received-has-submitted_at check, source-tuple uniqueness), `StageInstance` (one open stage per case), `CaseEvent` (append-only, ordered by aggregate version). Kernel `agni.platform.commands.execute`: fence lock -> authorize -> receipt replay/conflict -> FOR UPDATE target -> 428/412 version checks -> apply -> version bump -> audit (abort on failure) -> outbox -> immutable receipt (same command_id referenced by events in-transaction) -> on_commit wake-up. Typed error catalogue (51 codes) + RFC 9457 problem handler + request-id middleware + injected clock. First commands RegisterPremises (API-011) and CreateDraftApplication (API-021). Migrations 0001/0002 per app; applied forward on the local dev DB (7 migrations, readiness schema pass). Tests: **64 passed** (unit 33, properties 6, integration 25 on real PostgreSQL incl. rollback-leaves-nothing, duplicate-command-one-result, stale-version-412, missing-precondition-428, audit-failure-aborts, disabled-principal, cross-principal-not-found, per-principal receipt scope, 2-thread same-key race -> exactly one receipt); ruff/format/mypy strict clean; `makemigrations --check` clean. Record s.3d | Push `feat/b02-command-kernel`, PR; then B03 |
-| B03 | Identity, sessions and scoped permissions | NOT_STARTED | None | Complete prerequisites and task card |
+| B03 | Identity, sessions and scoped permissions | READY_FOR_REVIEW (2026-09-10T22:0xZ; PR pending) | Applicant OTP (6-digit keyed-MAC challenge, 5 min, 5 attempts, 60 s resend, 5/contact/h + 20/IP/h in Valkey/cache failing closed, demo sink, enumeration-safe), staff OIDC via Authlib (PKCE/state/nonce, issuer+subject mapping to provisioned principals only), DB sessions with key+CSRF rotation, 30 min idle / 8 h absolute / epoch recheck, CSRF enforced on every unsafe request incl. anonymous login endpoints, `/me` projection, logout, role bindings + authority grants (DB separation-of-duties constraints) + access requests, governance commands (provision from approved request, approve/revoke grant, disable with epoch bump), scope-first selectors, encrypted verified contacts, demo-only inbox route and `provision_demo_staff` command (refuse outside demo). Web: `/sign-in` (OTP form, countdowns, staff OIDC link, error mapping), `/account`, route guard, granted-workspace nav. Tests: backend **105 passed** (AT-01-01..05, AT-02-01..05 incl. two race tests), web **15 passed**, lint/mypy/tsc clean. **End-to-end against the containers via nginx** (`scripts/dev/smoke_identity.py`): OTP 11/11 steps PASS; OIDC against real Keycloak 26.7.3 realm import: unprovisioned subject refused, provisioned subject signs in, `/me` STAFF ['supervisor']. Fixes found only by the container run: `requests` runtime dep (DEV-04), nginx dynamic upstream + `$http_host`, Keycloak full-URL hostname for dynamic backchannel, 503 for unreachable provider. Record s.3e | Push `feat/b03-identity`, PR; then B04 |
 | B04 | Service policy and master data | NOT_STARTED | None | Complete prerequisites and task card |
 | B05 | Drafts, files and application wizard | NOT_STARTED | None | Complete prerequisites and task card |
 | B06 | Submission, routing and case visibility | NOT_STARTED | None | Complete prerequisites and task card |
@@ -213,6 +213,57 @@ Remaining defects and reproduction: NONE known. Risk: per-entity audit chain doe
   entities (documented); `Throttled.wait` read via getattr (DRF stub gap).
 Required human input: review/merge PRs (gh not authenticated).
 Next safe task: B03 - Identity, sessions and scoped permissions.
+End commit and worktree status: recorded in handover.md B12 after commit/push.
+```
+
+## 3e. Handoff record - B03 session claude-20260910T172516Z-b00b (2026-09-10)
+
+```text
+Task: B03 - Identity, sessions and scoped permissions (FR-01, FR-02; task card B03; docs 07 s.1-6,
+  06 s.2 + API-001..007, 13 s.3, 03 UI-02/03, 11 AT-01/AT-02)
+Baseline: implementation spec 2.0.0
+Branch and start commit: feat/b03-identity from feat/b02-command-kernel @ 312bcb8
+Files inspected: FR-01/02/10, security 07 s.1-6, API 06 s.2/s.7 + rows API-001..009, demo 13 s.3,
+  UI 03 s.3 + UI-01/02/03, test plan AT-01-*/AT-02-*, build guide s.5 (issuer reachability).
+Changes made and architecture decisions: agni/identity/{models (0002), domain/roles, contacts, otp,
+  authz, sessions, backends, authentication, oidc, api/{views,urls}, application/commands,
+  management/commands/provision_demo_staff}; agni/notifications/{models (0001), ports, adapters,
+  api/demo_views}; agni/platform/api/views.ApiView (CSRF on all unsafe requests); agni/platform/
+  errors explicit classes (+OTP codes); kernel aggregate bound VersionedModel | Principal;
+  agni/cases/selectors; config settings (sessions, CSRF cookie readable, CACHES from CACHE_URL,
+  OTP/OIDC settings incl. OIDC_METADATA_URL, TRUST_X_FORWARDED_FOR; production requires the three
+  independent secrets + CACHE_URL); config/urls (identity routes, gated demo inbox);
+  web src/api/auth.ts, features/identity/{useSession,SignInPage,AccountPage,RequireSession},
+  router, AppShell, locales; infra: Keycloak realm import + backchannel-dynamic env, api
+  OIDC_METADATA_URL, web depends_on restart, nginx resolver + $http_host; scripts/dev/
+  smoke_identity.py; pyproject (+requests, authlib mypy override); DEPENDENCY_LOCK DEV-04.
+  Decisions: contact plaintext stored Fernet-encrypted with HMAC lookup; OTP attempt counter is
+  persisted before the failure is raised; sessions keep only policy facts; epoch mismatch flushes
+  the session; NULL scope on a binding is never global; demo provisioning is a guarded command.
+Migrations/data impact: identity 0002 (5 tables + principal.version), notifications 0001; applied
+  on the LOCAL dev DB; synthetic smoke applicants and one demo staff mapping (chitra) exist there.
+Tests actually executed (Windows host, 2026-09-10T20:5x-22:0xZ):
+  uv run --directory backend ruff format/check, mypy config agni tests -> PASS (100 files)
+  uv run --directory backend pytest tests -q -> 105 passed
+  corepack pnpm --dir web lint/typecheck/test --run/build -> 0 problems, 15 passed, built
+  docker compose ... up -d --build api web keycloak -> all healthy (keycloak 60 s boot)
+  uv run --directory backend python ../scripts/dev/smoke_identity.py http://127.0.0.1:5173 --oidc
+    -> ALL OTP SMOKE STEPS PASSED (11) and ALL OIDC SMOKE STEPS PASSED (9)
+Tests not executed and concrete reason: browser/keyboard/viewport checks for UI-02/UI-03 (AT-01-06,
+  AT-02-06) - Playwright suite arrives B16/B19; UI-21 (staff admin screen) is B14; SMS channel only
+  through the demo sink (no provider); ClamAV not started (RAM).
+Screens inspected: /sign-in and /account rendered in jsdom tests only; served bundle not opened in a
+  browser this session.
+Processes restarted and smoke-check result: api rebuilt 4x (requests dep, env, 503 mapping), web
+  rebuilt 2x (resolver, Host header), keycloak recreated 2x (hostname URL) - all healthy after.
+Security/privacy or external-effect considerations: codes never logged/returned; keyed MAC with
+  dedicated pepper; limits fail closed; CSRF on anonymous login endpoints; sessions HttpOnly; issuer
+  validation never disabled; demo inbox and demo provisioning absent when demo controls are off;
+  Keycloak start-dev + synthetic users only.
+Remaining defects and reproduction: NONE known. Note: Python cookie jars cannot log in to Keycloak
+  over http (Secure cookies) - smoke script mimics browser localhost handling; browsers unaffected.
+Required human input: review/merge PRs.
+Next safe task: B04 - Service policy and master data.
 End commit and worktree status: recorded in handover.md B12 after commit/push.
 ```
 

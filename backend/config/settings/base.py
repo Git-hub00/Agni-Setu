@@ -48,10 +48,58 @@ INSTALLED_APPS = [
     "agni.policies",
     "agni.routing",
     "agni.cases",
+    "agni.notifications",
 ]
 
 # Custom principal is the user model from the first migration (data model s.8).
 AUTH_USER_MODEL = "identity.Principal"
+AUTHENTICATION_BACKENDS = ["agni.identity.backends.PrincipalBackend"]
+
+# ---- Sessions (security s.3): DB-backed, 30 min idle (sliding), 8 h absolute ----------------
+SESSION_COOKIE_AGE = env.int("SESSION_IDLE_SECONDS", default=1800)
+SESSION_SAVE_EVERY_REQUEST = True
+AGNI_SESSION_ABSOLUTE_SECONDS = env.int("SESSION_ABSOLUTE_SECONDS", default=28800)
+AGNI_STEP_UP_SECONDS = env.int("SESSION_STEP_UP_SECONDS", default=900)
+
+# ---- CSRF: the token cookie must be readable by the same-origin SPA (API s.2) --------------
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_NAME = "csrftoken"
+CSRF_HEADER_NAME = "HTTP_X_CSRFTOKEN"
+
+# ---- Abuse controls / OTP (security s.2 defaults) -------------------------------------------
+OTP_PEPPER = env.str("OTP_PEPPER", default="")
+CONTACT_LOOKUP_KEY = env.str("CONTACT_LOOKUP_KEY", default="")
+DATA_ENCRYPTION_KEY = env.str("DATA_ENCRYPTION_KEY", default="")
+AGNI_OTP = {
+    "LIFETIME_SECONDS": env.int("OTP_LIFETIME_SECONDS", default=300),
+    "MAX_ATTEMPTS": env.int("OTP_MAX_ATTEMPTS", default=5),
+    "RESEND_COOLDOWN_SECONDS": env.int("OTP_RESEND_COOLDOWN_SECONDS", default=60),
+    "SENDS_PER_CONTACT_PER_HOUR": env.int("OTP_SENDS_PER_CONTACT_PER_HOUR", default=5),
+    "SENDS_PER_IP_PER_HOUR": env.int("OTP_SENDS_PER_IP_PER_HOUR", default=20),
+}
+# Honour X-Forwarded-For only behind the project's own reverse proxy (containers).
+TRUST_X_FORWARDED_FOR = env.bool("TRUST_X_FORWARDED_FOR", default=False)
+
+# ---- Staff OIDC (Authlib) ------------------------------------------------------------------
+OIDC_ISSUER = env.str("OIDC_ISSUER", default="")
+# Optional container-reachable discovery URL; the issuer claim stays canonical.
+OIDC_METADATA_URL = env.str("OIDC_METADATA_URL", default="")
+OIDC_CLIENT_ID = env.str("OIDC_CLIENT_ID", default="agni-web")
+OIDC_CLIENT_SECRET = env.str("OIDC_CLIENT_SECRET", default="")
+AUTHLIB_OAUTH_CLIENTS: dict[str, dict[str, str]] = {}
+
+# ---- Disposable cache / rate-limit store (Valkey; ADR-07). Outage fails closed for OTP. -----
+_cache_url = env.str("CACHE_URL", default="")
+if _cache_url:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": _cache_url,
+            "TIMEOUT": 300,
+        }
+    }
+else:
+    CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
 
 # Injected clock; tests override with agni.platform.clock.FrozenClock via fixtures.
 AGNI_CLOCK = env.str("AGNI_CLOCK", default="agni.platform.clock.SystemClock")
@@ -114,7 +162,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.SessionAuthentication",
+        "agni.identity.authentication.PrincipalSessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",

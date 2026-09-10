@@ -140,34 +140,115 @@ class DomainError(Exception):
         return body
 
 
-def _define(code: str) -> type[DomainError]:
-    cls = type(
-        "".join(part.capitalize() for part in code.split("_")),
-        (DomainError,),
-        {"code": code, "__module__": __name__, "__doc__": CATALOGUE[code].title},
-    )
-    return cls
+# Explicit subclasses (real types, so they can be used in annotations and `type[...]`).
 
 
-MalformedRequest = _define("MALFORMED_REQUEST")
-AuthenticationRequired = _define("AUTHENTICATION_REQUIRED")
-SessionExpired = _define("SESSION_EXPIRED")
-CsrfFailed = _define("CSRF_FAILED")
-Forbidden = _define("FORBIDDEN")
-ResourceNotFound = _define("RESOURCE_NOT_FOUND")
-PreconditionRequired = _define("PRECONDITION_REQUIRED")
-VersionConflict = _define("VERSION_CONFLICT")
-IdempotencyConflict = _define("IDEMPOTENCY_CONFLICT")
-CommandInProgress = _define("COMMAND_IN_PROGRESS")
-InvalidTransition = _define("INVALID_TRANSITION")
-ValidationFailed = _define("VALIDATION_FAILED")
-ServiceDisabled = _define("SERVICE_DISABLED")
-AuthorityRevoked = _define("AUTHORITY_REVOKED")
-AuthorityScopeMismatch = _define("AUTHORITY_SCOPE_MISMATCH")
-SeparationOfDuties = _define("SEPARATION_OF_DUTIES")
-RateLimited = _define("RATE_LIMITED")
-DependencyUnavailable = _define("DEPENDENCY_UNAVAILABLE")
-InternalError = _define("INTERNAL_ERROR")
+class MalformedRequest(DomainError):
+    code = "MALFORMED_REQUEST"
+
+
+class AuthenticationRequired(DomainError):
+    code = "AUTHENTICATION_REQUIRED"
+
+
+class SessionExpired(DomainError):
+    code = "SESSION_EXPIRED"
+
+
+class OtpInvalid(DomainError):
+    code = "OTP_INVALID"
+
+
+class OtpExpired(DomainError):
+    code = "OTP_EXPIRED"
+
+
+class OtpThrottled(DomainError):
+    code = "OTP_THROTTLED"
+
+
+class CsrfFailed(DomainError):
+    code = "CSRF_FAILED"
+
+
+class Forbidden(DomainError):
+    code = "FORBIDDEN"
+
+
+class ResourceNotFound(DomainError):
+    code = "RESOURCE_NOT_FOUND"
+
+
+class PreconditionRequired(DomainError):
+    code = "PRECONDITION_REQUIRED"
+
+
+class VersionConflict(DomainError):
+    code = "VERSION_CONFLICT"
+
+
+class IdempotencyConflict(DomainError):
+    code = "IDEMPOTENCY_CONFLICT"
+
+
+class CommandInProgress(DomainError):
+    code = "COMMAND_IN_PROGRESS"
+
+
+class InvalidTransition(DomainError):
+    code = "INVALID_TRANSITION"
+
+
+class ValidationFailed(DomainError):
+    code = "VALIDATION_FAILED"
+
+
+class PolicyUnavailable(DomainError):
+    code = "POLICY_UNAVAILABLE"
+
+
+class PolicyAmbiguous(DomainError):
+    code = "POLICY_AMBIGUOUS"
+
+
+class PolicyReviewConflict(DomainError):
+    code = "POLICY_REVIEW_CONFLICT"
+
+
+class PolicyIntervalOverlap(DomainError):
+    code = "POLICY_INTERVAL_OVERLAP"
+
+
+class ServiceDisabled(DomainError):
+    code = "SERVICE_DISABLED"
+
+
+class AuthorityRevoked(DomainError):
+    code = "AUTHORITY_REVOKED"
+
+
+class AuthorityScopeMismatch(DomainError):
+    code = "AUTHORITY_SCOPE_MISMATCH"
+
+
+class SeparationOfDuties(DomainError):
+    code = "SEPARATION_OF_DUTIES"
+
+
+class RoutingUnresolved(DomainError):
+    code = "ROUTING_UNRESOLVED"
+
+
+class RateLimited(DomainError):
+    code = "RATE_LIMITED"
+
+
+class DependencyUnavailable(DomainError):
+    code = "DEPENDENCY_UNAVAILABLE"
+
+
+class InternalError(DomainError):
+    code = "INTERNAL_ERROR"
 
 
 class AppendOnlyViolation(RuntimeError):

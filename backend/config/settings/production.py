@@ -57,6 +57,13 @@ def _startup_problems() -> list[str]:
     if SERVICE_MODE not in {"DEMO", "LIVE"}:
         problems.append("SERVICE_MODE must be DEMO or LIVE")
 
+    for name in ("OTP_PEPPER", "CONTACT_LOOKUP_KEY", "DATA_ENCRYPTION_KEY"):
+        value = env.str(name, default="")
+        if len(value) < 32 or any(marker in value for marker in _INSECURE_KEY_MARKERS):
+            problems.append(f"{name} must be an independent secret of at least 32 characters")
+    if not env.str("CACHE_URL", default=""):
+        problems.append("CACHE_URL is required (abuse controls fail closed without the store)")
+
     if SERVICE_MODE == "LIVE":
         if ENABLE_DEMO_CONTROLS:
             problems.append(

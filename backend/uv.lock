@@ -18,6 +18,7 @@ dependencies = [
     { name = "psycopg", extra = ["binary"] },
     { name = "qrcode", extra = ["pil"] },
     { name = "redis" },
+    { name = "requests" },
     { name = "weasyprint" },
 ]
 
@@ -46,6 +47,7 @@ requires-dist = [
     { name = "psycopg", extras = ["binary"], specifier = ">=3,<4" },
     { name = "qrcode", extras = ["pil"], specifier = ">=8,<9" },
     { name = "redis", specifier = ">=6,<7" },
+    { name = "requests", specifier = ">=2.32,<3" },
     { name = "weasyprint", specifier = ">=70,<71" },
 ]
 

@@ -15,6 +15,13 @@ from .base import env  # noqa: E402
 
 DEBUG = False
 SECRET_KEY = "test-only-secret-key-not-for-any-deployed-environment"  # noqa: S105
+OTP_PEPPER = "test-only-otp-pepper-0123456789abcdef0123456789"  # noqa: S105
+CONTACT_LOOKUP_KEY = "test-only-contact-lookup-key-0123456789abcdef"  # noqa: S105
+DATA_ENCRYPTION_KEY = "test-only-data-encryption-key-0123456789abcdef"  # noqa: S105
+# Hermetic tests use the in-memory store; the fail-closed path is tested by faulting it.
+CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+ENABLE_DEMO_CONTROLS = True
+OIDC_ISSUER = "http://localhost:8080/realms/agni-dev"
 ALLOWED_HOSTS = ["testserver", "127.0.0.1", "localhost"]
 DATABASES["default"]["TEST"] = {"NAME": env.str("TEST_DATABASE_NAME", default="agni_test")}  # noqa: F405
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]

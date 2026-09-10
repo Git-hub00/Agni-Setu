@@ -38,6 +38,13 @@ scripts/dev/down.sh --remove   # remove containers and network, keep data volume
 scripts/dev/down.sh --destroy-volumes   # delete ALL local data; asks you to type "agni-dev"
 ```
 
+Smoke-check the identity flows against the running stack (OTP through the demo inbox, and with
+`--oidc` the staff sign-in against the local Keycloak realm):
+
+```bash
+uv run --directory backend python ../scripts/dev/smoke_identity.py http://127.0.0.1:5173 --oidc
+```
+
 Volumes (`postgres-data`, `rabbitmq-data`, `objectstore-data`, `keycloak-data`, `clamav-data`)
 persist across stop/start. `down -v` is never used as a routine restart.
 

@@ -24,11 +24,15 @@ brotlicffi==1.2.0.2 ; platform_python_implementation != 'CPython'
     # via fonttools
 celery==5.6.3
     # via agni-setu-backend
+certifi==2026.7.22
+    # via requests
 cffi==2.1.1
     # via
     #   brotlicffi
     #   cryptography
     #   weasyprint
+charset-normalizer==3.5.1
+    # via requests
 click==8.5.0
     # via
     #   celery
@@ -56,7 +60,7 @@ django==5.2.17
     #   drf-spectacular
 django-environ==0.14.0
     # via agni-setu-backend
-djangorestframework==3.16.1
+djangorestframework==3.17.2
     # via
     #   agni-setu-backend
     #   drf-spectacular
@@ -66,6 +70,8 @@ fonttools==4.65.0
     # via weasyprint
 gunicorn==23.0.0
     # via agni-setu-backend
+idna==3.19
+    # via requests
 inflection==0.5.1
     # via drf-spectacular
 jmespath==1.1.0
@@ -114,6 +120,8 @@ referencing==0.37.0
     # via
     #   jsonschema
     #   jsonschema-specifications
+requests==2.34.2
+    # via agni-setu-backend
 rpds-py==2026.6.3
     # via
     #   jsonschema
@@ -145,7 +153,9 @@ tzlocal==5.4.4
 uritemplate==4.2.0
     # via drf-spectacular
 urllib3==2.7.0
-    # via botocore
+    # via
+    #   botocore
+    #   requests
 vine==5.1.0
     # via
     #   amqp
@@ -153,7 +163,7 @@ vine==5.1.0
     #   kombu
 wcwidth==0.8.3
     # via prompt-toolkit
-weasyprint==69.0
+weasyprint==70.0
     # via agni-setu-backend
 webencodings==0.6.1
     # via

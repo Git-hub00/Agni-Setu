@@ -21,8 +21,10 @@ dependencies = [
     "drf-spectacular>=0.28,<1",
     "psycopg[binary]>=3,<4",
     "django-environ>=0.12,<1",
-    # Identity adapters (staff OIDC client)
+    # Identity adapters (staff OIDC client). Authlib's Django client needs `requests` at runtime
+    # (not declared by Authlib as a hard dependency) - see DEPENDENCY_LOCK s.9 DEV-04.
     "authlib>=1.6,<2",
+    "requests>=2.32,<3",
     # Background execution and disposable cache client
     "celery>=5.5,<6",
     "redis>=6,<7",
@@ -73,8 +75,8 @@ strict = true
 plugins = ["mypy_django_plugin.main"]
 
 [[tool.mypy.overrides]]
-# django-environ ships no type information (no py.typed / stubs).
-module = ["environ", "environ.*"]
+# django-environ and Authlib ship no type information (no py.typed / stubs).
+module = ["environ", "environ.*", "authlib", "authlib.*"]
 ignore_missing_imports = true
 
 [tool.django-stubs]

@@ -4,8 +4,17 @@
  * response bodies because they may contain applicant data.
  */
 
+/** RFC 9457 problem details with the project extensions (docs/06 s.5). */
 export interface ApiErrorBody {
+  type?: string;
+  title?: string;
+  status?: number;
+  detail?: string;
   code?: string;
+  request_id?: string | null;
+  violations?: { pointer: string; code: string; message: string }[];
+  retry_after_seconds?: number;
+  /** Legacy/compat fields some clients send. */
   message?: string;
   details?: unknown;
 }
@@ -15,7 +24,7 @@ export class ApiError extends Error {
   readonly body: ApiErrorBody | null;
 
   constructor(status: number, body: ApiErrorBody | null) {
-    super(body?.message ?? `Request failed with status ${status}`);
+    super(body?.detail ?? body?.title ?? body?.message ?? `Request failed with status ${status}`);
     this.name = "ApiError";
     this.status = status;
     this.body = body;
