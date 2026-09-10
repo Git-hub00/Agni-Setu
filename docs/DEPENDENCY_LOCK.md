@@ -74,6 +74,8 @@ Resolution source: PyPI JSON API and each project's release notes. Columns are f
 | django-environ | current | **0.14.0** | PyPI via `uv lock` | MIT | no advisory | no py.typed -> mypy override in pyproject |
 | Authlib | current (Django OIDC client) | **1.8.0** | PyPI via `uv lock` | BSD-3-Clause | no advisory | EV-B00-03 |
 | requests (added B03) | `>=2.32,<3` | **2.34.2** (already transitive via pip-audit; now a direct runtime dependency) | PyPI via `uv lock` | Apache-2.0 | no advisory | s.9 DEV-04: Authlib's Django client imports `requests` at runtime; the production image (no dev group) failed to boot without it (EV-B03-05) |
+| jsonschema (added B04) | `>=4.23,<5` | **4.26.0** (already transitive; now a direct runtime dependency) | PyPI via `uv lock` | MIT | no advisory | s.9 DEV-05: policy packages are validated against a Draft 2020-12 JSON Schema (workflow s.6) |
+| types-jsonschema (added B04, dev) | `>=4.23,<5` | **4.26.0.20260518** | PyPI via `uv lock` | Apache-2.0 | n/a | dev; s.9 DEV-06: mypy strict needs the stubs |
 | celery | `5.6` compatible stable patch | **5.6.3** (kombu 5.6.2, amqp 5.3.1, billiard 4.2.4) | PyPI via `uv lock` | BSD-3-Clause | no advisory | L-04 CLOSED: 5.6.x exists on PyPI |
 | boto3 | current | **1.43.91** (botocore 1.43.91, s3transfer 0.19.2) | PyPI via `uv lock` | Apache-2.0 | no advisory | EV-B00-03 |
 | redis (Valkey client, Redis protocol) | current | **6.4.0** | PyPI via `uv lock` | MIT | no advisory | EV-B00-03 |
@@ -174,6 +176,8 @@ Upgrades after B00 require an ADR-style note in this file (reason, compatibility
 | DEV-02 | 2026-09-10 | weasyprint 69.0 -> **70.0** (`>=70,<71`) | PYSEC-2026-3940 affects 69.0; fixed in 70.0 | import-level only at B00 (rendering worker arrives B12); container build will exercise it | Removes one known vulnerability |
 | DEV-03 | 2026-09-10 | pytest 8.4.2 -> **9.1.1** (`>=9.0.3,<10`) | PYSEC-2026-1845 affects 8.x; fixed in 9.0.3 | dev-only; pytest-django 4.14.0 resolved compatibly; no tests exist yet at B00 | Removes one known vulnerability (dev tooling) |
 | DEV-04 | 2026-09-10 (B03) | add direct runtime dependency **requests 2.34.2** (`>=2.32,<3`) | `authlib.integrations.django_client` imports `requests`; the api container (built with `--no-dev`) crashed at import until it was declared (found by the container health check, not by host tests, which had it through the dev group) | `uv lock` re-resolved with no other change; container rebuilt and healthy; requirements.txt re-exported | Apache-2.0; pip-audit clean |
+| DEV-05 | 2026-09-10 (B04) | add direct runtime dependency **jsonschema 4.26.0** (`>=4.23,<5`) | Policy packages are data validated against a versioned Draft 2020-12 JSON Schema with `additionalProperties: false` (workflow s.6, FR-27); the library was already in the lock as a transitive dependency | `uv lock` resolved without other changes; `manage.py check` PASS; 122 backend tests PASS incl. schema-rejection tests; requirements.txt re-exported | MIT; pip-audit clean (already present transitively) |
+| DEV-06 | 2026-09-10 (B04) | add dev dependency **types-jsonschema 4.26.0.20260518** (`>=4.23,<5`) | mypy strict reported "Library stubs not installed for jsonschema" | dev group only; `mypy config agni tests` PASS (121 files) | none (typing stubs) |
 
 ---
 [Documentation index](../README.md) | [Build guide](10_BUILD_GUIDE.md) | [Implementation status](21_IMPLEMENTATION_STATUS.md)

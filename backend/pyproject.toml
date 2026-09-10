@@ -15,6 +15,9 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     # Core web/API (families fixed by the architecture baseline)
     "Django>=5.2,<5.3",
+    # Policy payload validation (docs/02 s.6: versioned JSON Schema, data not code). Already a
+    # transitive dependency of drf-spectacular; declared because we import it - DEPENDENCY_LOCK DEV-05.
+    "jsonschema>=4.23,<5",
     # 3.16.x carries PYSEC-2026-3827/3828 (pip-audit 2026-09-10); fixed in 3.17.2.
     # Deviation from the "3.16 compatible" family is recorded in docs/DEPENDENCY_LOCK.md s.9.
     "djangorestframework>=3.17.2,<3.18",
@@ -45,6 +48,7 @@ dev = [
     "mypy>=1.17,<2",
     "django-stubs[compatible-mypy]>=5.2,<6",
     "djangorestframework-stubs>=3.16,<4",
+    "types-jsonschema>=4.23,<5",
     "pip-audit>=2.9,<3",
 ]
 

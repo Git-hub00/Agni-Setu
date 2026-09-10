@@ -363,5 +363,83 @@ class AccessRequest(VersionedModel):
         return f"access-request:{self.status}:{self.id}"
 
 
+class DelegationState(models.TextChoices):
+    PROPOSED = "PROPOSED"
+    ACTIVE = "ACTIVE"
+    REVOKED = "REVOKED"
+    EXPIRED = "EXPIRED"
+
+
+class Delegation(VersionedModel):
+    """Assisted intake (FR-10, data model `delegation`): a beneficiary lets a delegate act on
+    bounded premises/service scope for a finite interval. Contacts never create ownership; the
+    beneficiary confirms, the proposer cannot self-confirm."""
+
+    beneficiary = models.ForeignKey(
+        Principal, on_delete=models.PROTECT, related_name="delegations_granted"
+    )
+    delegate = models.ForeignKey(
+        Principal, on_delete=models.PROTECT, related_name="delegations_received"
+    )
+    proposed_by = models.ForeignKey(Principal, on_delete=models.PROTECT, related_name="+")
+    premises = models.ForeignKey(
+        "cases.Premises",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="delegations",
+    )
+    service = models.ForeignKey(
+        "policies.Service", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    capabilities = models.JSONField(default=list)
+    effective_from = models.DateTimeField()
+    effective_until = models.DateTimeField()
+    state = models.CharField(
+        max_length=10, choices=DelegationState.choices, default=DelegationState.PROPOSED
+    )
+    evidence_document_id = models.UUIDField(null=True, blank=True)
+    reason = models.TextField()
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_by = models.ForeignKey(
+        Principal, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=~models.Q(beneficiary=models.F("delegate")),
+                name="chk_delegation_distinct_parties",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(effective_until__gt=models.F("effective_from")),
+                name="chk_delegation_interval",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(state__in=[s.value for s in DelegationState]),
+                name="chk_delegation_state",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(premises__isnull=False) | models.Q(service__isnull=False),
+                name="chk_delegation_has_scope",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["delegate", "state"], name="idx_delegation_delegate"),
+            models.Index(fields=["beneficiary", "state"], name="idx_delegation_beneficiary"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.state}:{self.beneficiary_id}->{self.delegate_id}"
+
+    def is_active_at(self, at: Any) -> bool:
+        return (
+            self.state == DelegationState.ACTIVE
+            and self.effective_from <= at < self.effective_until
+            and self.revoked_at is None
+        )
+
+
 # Re-exported for convenience in settings-driven code.
 AUTH_USER_MODEL_LABEL = settings.AUTH_USER_MODEL

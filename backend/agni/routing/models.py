@@ -1,7 +1,10 @@
-"""Duty queues (data model s.3 `duty_queue`): every submitted case has an accountable owner
-queue; the fallback queue keeps unowned work visible."""
+"""Duty queues and routing entries (data model s.3 `duty_queue`, `routing_entry`): every
+submitted case has an accountable owner queue; routing resolves to exactly one target or an
+owned exception."""
 
 from __future__ import annotations
+
+import uuid
 
 from django.conf import settings
 from django.db import models
@@ -41,3 +44,30 @@ class DutyQueue(VersionedModel):
 
     def __str__(self) -> str:
         return self.queue_key
+
+
+class RoutingEntry(models.Model):
+    """One row of a ROUTING artifact, materialised for indexed lookup. Rows are replaced only by
+    publishing a new artifact number; they are never edited in place."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    artifact = models.ForeignKey(
+        "policies.PolicyArtifact", on_delete=models.PROTECT, related_name="routing_entries"
+    )
+    ward_key = models.CharField(max_length=40)
+    category_key = models.CharField(max_length=40, null=True, blank=True)
+    target_jurisdiction = models.ForeignKey(
+        "policies.Jurisdiction", on_delete=models.PROTECT, related_name="+"
+    )
+    target_queue = models.ForeignKey(DutyQueue, on_delete=models.PROTECT, related_name="+")
+    priority = models.IntegerField(default=0)
+    effective_from = models.DateTimeField(null=True, blank=True)
+    effective_until = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["artifact", "ward_key", "category_key"], name="idx_routing_lookup")
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.ward_key}/{self.category_key or '*'} -> {self.target_queue_id}"

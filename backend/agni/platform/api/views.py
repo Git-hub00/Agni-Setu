@@ -3,6 +3,7 @@ request-id envelope helpers, and the actor context for commands."""
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -14,7 +15,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from agni.platform.commands import ActorContext
+from agni.platform.clock import get_clock
+from agni.platform.commands import ActorContext, CommandEnvelope, CommandHandler, execute
 from agni.platform.correlation import current_request_id
 from agni.platform.errors import CsrfFailed
 
@@ -78,12 +80,52 @@ class ApiView(APIView):
         key = request.headers.get("Idempotency-Key")
         return key.strip() if key else None
 
+    def run_command(
+        self,
+        request: Request,
+        handler: CommandHandler[Any],
+        *,
+        command_name: str,
+        target_type: str,
+        target_id: UUID,
+        payload: Mapping[str, Any] | None = None,
+        etag_type: str | None = None,
+    ) -> Response:
+        """Translate the validated request into one kernel command and envelope the result
+        (API s.3): `data` carries the canonical body incl. command_id/accepted_at/replayed."""
+        body = (
+            payload
+            if payload is not None
+            else (request.data if isinstance(request.data, dict) else {})
+        )
+        envelope = CommandEnvelope(
+            actor=self.actor_context(request),
+            command_name=command_name,
+            target_type=target_type,
+            target_id=target_id,
+            payload=dict(body),
+            idempotency_key=self.idempotency_key(request),
+            expected_version=self.expected_version(request),
+        )
+        result = execute(envelope, handler, clock=get_clock())
+        data = dict(result.body)
+        data["command_id"] = str(result.command_id)
+        data["accepted_at"] = result.accepted_at.isoformat()
+        data["replayed"] = result.replayed
+        headers: dict[str, str] = {}
+        if etag_type and result.resulting_version is not None:
+            resource_id = data.get(f"{etag_type}_id") or str(target_id)
+            headers["ETag"] = f'"{etag_type}:{resource_id}:v{result.resulting_version}"'
+        return ok(data, request, status=result.status, headers=headers)
+
     def expected_version(self, request: Request) -> int | None:
         """Parse `If-Match: "<type>:<uuid>:v<n>"` (API s.3) or a bare integer."""
         raw = request.headers.get("If-Match")
         if not raw:
             return None
-        token = raw.strip().strip('"')
+        # nginx marks proxied ETags weak (`W/"..."`) when gzip rewrites the body; the version
+        # component is unaffected, so the weak marker is ignored for the precondition.
+        token = raw.strip().removeprefix("W/").strip('"')
         tail = token.rsplit(":v", 1)[-1] if ":v" in token else token
         try:
             return int(tail)

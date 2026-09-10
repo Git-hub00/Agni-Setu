@@ -27,11 +27,24 @@ const WORKSPACE_LABEL: Record<Workspace, MessageKey> = {
   public: "workspace.public",
 };
 
+/** Workspaces with a mounted route (B04: applicant premises, policy governance). Admins share
+ *  the policy route because they prepare drafts there; approval stays with the approver. */
+const WORKSPACE_ROUTE: Partial<Record<Workspace, string>> = {
+  applicant: "/applicant/premises",
+  policy: "/policy",
+  admin: "/policy",
+};
+
 export function AppShell() {
   const { principal } = useSession();
   const navKeys: readonly MessageKey[] = principal
     ? [...principal.workspaces.map((w) => WORKSPACE_LABEL[w]), "workspace.public"]
     : WORKSPACE_KEYS;
+  const routeFor = (key: MessageKey): string | undefined => {
+    if (!principal) return undefined;
+    const workspace = (Object.keys(WORKSPACE_LABEL) as Workspace[]).find((w) => WORKSPACE_LABEL[w] === key);
+    return workspace && principal.workspaces.includes(workspace) ? WORKSPACE_ROUTE[workspace] : undefined;
+  };
 
   return (
     <div className="min-h-screen bg-canvas text-ink">
@@ -61,14 +74,23 @@ export function AppShell() {
         <nav aria-label={t("nav.workspaces")} className="md:w-[var(--sidebar-width)] md:shrink-0">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t("nav.workspaces")}</h2>
           <ul className="flex flex-col gap-1 rounded-[var(--radius-card)] border border-border bg-surface p-2 shadow-[var(--shadow-card)]">
-            {navKeys.map((key) => (
-              <li key={key}>
-                <span aria-disabled="true" className="flex min-h-11 flex-col justify-center rounded-md px-3 text-sm text-muted">
-                  <span className="font-medium text-ink/70">{t(key)}</span>
-                  <span className="text-xs">{t("nav.comingLater")}</span>
-                </span>
-              </li>
-            ))}
+            {navKeys.map((key) => {
+              const route = routeFor(key);
+              return (
+                <li key={key}>
+                  {route ? (
+                    <Link to={route} className="flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-ink no-underline hover:bg-canvas">
+                      {t(key)}
+                    </Link>
+                  ) : (
+                    <span aria-disabled="true" className="flex min-h-11 flex-col justify-center rounded-md px-3 text-sm text-muted">
+                      <span className="font-medium text-ink/70">{t(key)}</span>
+                      <span className="text-xs">{t("nav.comingLater")}</span>
+                    </span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </nav>
 

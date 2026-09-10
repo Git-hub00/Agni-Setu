@@ -39,6 +39,77 @@
   ],
   "users": [
     {
+      "id": "5d9b0c4e-2a7f-4b1e-9c3d-000000000001",
+      "username": "arjun",
+      "enabled": true,
+      "firstName": "Arjun",
+      "lastName": "Rao",
+      "email": "arjun@example.test",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "demo-arjun-password", "temporary": false }]
+    },
+    {
+      "id": "5d9b0c4e-2a7f-4b1e-9c3d-000000000002",
+      "username": "meera",
+      "enabled": true,
+      "firstName": "Meera",
+      "lastName": "Shah",
+      "email": "meera@example.test",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "demo-meera-password", "temporary": false }]
+    },
+    {
+      "id": "5d9b0c4e-2a7f-4b1e-9c3d-000000000004",
+      "username": "neha",
+      "enabled": true,
+      "firstName": "Neha",
+      "lastName": "Bansal",
+      "email": "neha@example.test",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "demo-neha-password", "temporary": false }]
+    },
+    {
+      "id": "5d9b0c4e-2a7f-4b1e-9c3d-000000000011",
+      "username": "suresh",
+      "enabled": true,
+      "firstName": "Suresh",
+      "lastName": "Yadav",
+      "email": "suresh@example.test",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "demo-suresh-password", "temporary": false }]
+    },
+    {
+      "id": "5d9b0c4e-2a7f-4b1e-9c3d-000000000012",
+      "username": "priya",
+      "enabled": true,
+      "firstName": "Priya",
+      "lastName": "Nair",
+      "email": "priya@example.test",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "demo-priya-password", "temporary": false }]
+    },
+    {
+      "id": "5d9b0c4e-2a7f-4b1e-9c3d-000000000013",
+      "username": "dev",
+      "enabled": true,
+      "firstName": "Dev",
+      "lastName": "Malhotra",
+      "email": "dev@example.test",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "demo-dev-password", "temporary": false }]
+    },
+    {
+      "id": "5d9b0c4e-2a7f-4b1e-9c3d-000000000014",
+      "username": "asha",
+      "enabled": true,
+      "firstName": "Asha",
+      "lastName": "Singh",
+      "email": "asha@example.test",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "demo-asha-password", "temporary": false }]
+    },
+    {
+      "id": "5d9b0c4e-2a7f-4b1e-9c3d-000000000021",
       "username": "chitra",
       "enabled": true,
       "firstName": "Chitra",
@@ -48,6 +119,7 @@
       "credentials": [{ "type": "password", "value": "demo-chitra-password", "temporary": false }]
     },
     {
+      "id": "5d9b0c4e-2a7f-4b1e-9c3d-000000000003",
       "username": "anita",
       "enabled": true,
       "firstName": "Anita",

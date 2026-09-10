@@ -44,6 +44,7 @@ class Capability(StrEnum):
     CASE_DECIDE = "case.decide"
     CERTIFICATE_STATUS = "certificate.status"
     POLICY_APPROVE = "policy.approve"
+    POLICY_ACTIVATE = "policy.activate"
     GRANT_APPROVE = "grant.approve"
     STAFF_PROVISION = "staff.provision"
     EXPORT_SENSITIVE = "export.sensitive"

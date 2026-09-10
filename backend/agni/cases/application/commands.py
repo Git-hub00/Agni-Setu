@@ -183,6 +183,129 @@ class RegisterPremises(CommandHandler[Premises]):
         )
 
 
+class UpdatePremises(CommandHandler[Premises]):
+    """API-013: new master version of the owner's premises; never touches submitted snapshots."""
+
+    EDITABLE = frozenset(RegisterPremises.ALLOWED_FIELDS)
+
+    def authorize(self, uow: UnitOfWork) -> None:
+        _require_applicant(uow)
+
+    def lock_target(self, uow: UnitOfWork) -> Premises | None:
+        premises = (
+            Premises.objects.select_for_update()
+            .filter(pk=uow.envelope.target_id, owner=uow.actor)
+            .first()
+        )
+        if premises is None:
+            raise ResourceNotFound("Premises not found")
+        return premises
+
+    def apply(self, uow: UnitOfWork, target: Premises | None) -> CommandOutcome[Premises]:
+        if target is None:
+            raise ResourceNotFound("Premises not found")
+        payload = dict(uow.envelope.payload)
+        violations: list[Violation] = [
+            Violation(f"/{key}", "unknown_field", "not an editable field")
+            for key in sorted(set(payload) - self.EDITABLE)
+        ]
+        if not payload:
+            violations.append(Violation("/", "empty", "at least one editable field is required"))
+            raise ValidationFailed(violations=violations)
+        merged: dict[str, Any] = {
+            "display_name": target.display_name,
+            "address_line1": target.address_line1,
+            "address_line2": target.address_line2,
+            "locality": target.locality,
+            "ward_key": target.ward_key,
+            "postal_code": target.postal_code,
+            "category_key": target.category_key,
+            "area_sqm": str(target.area_sqm),
+            "height_m": str(target.height_m),
+            "floor_count": target.floor_count,
+            "occupancy_count": target.occupancy_count,
+        }
+        merged.update({k: v for k, v in payload.items() if k in self.EDITABLE})
+        try:
+            validated = validate_premises_fields(merged)
+        except ValidationFailed as exc:
+            # Report unknown fields and field errors together (one round trip for the client).
+            raise ValidationFailed(violations=[*violations, *exc.violations]) from None
+        if violations:
+            raise ValidationFailed(violations=violations)
+        changed = sorted(
+            k
+            for k in payload
+            if merged[k] != getattr(target, k, None) or k in ("area_sqm", "height_m")
+        )
+        for key, value in validated.items():
+            setattr(target, key, value)
+        target.save(update_fields=[*validated.keys(), "updated_at"])
+        return CommandOutcome(
+            status=200,
+            body={"premises_id": str(target.id), "display_name": target.display_name},
+            aggregate=target,
+            audits=[
+                AuditEntry("premises", target.id, "premises.updated", {"changed_fields": changed})
+            ],
+        )
+
+
+def validate_premises_fields(payload: dict[str, Any]) -> dict[str, Any]:
+    """Shared field validation for register/update (DTO catalogue `PremisesCreate`)."""
+    violations: list[Violation] = []
+    display_name = _text(payload, "display_name", violations, max_length=160)
+    if display_name and len(display_name) < 2:
+        violations.append(Violation("/display_name", "min_length", "at least 2 characters"))
+    address_line1 = _text(payload, "address_line1", violations, max_length=200)
+    if address_line1 and len(address_line1) < 5:
+        violations.append(Violation("/address_line1", "min_length", "at least 5 characters"))
+    address_line2 = _text(payload, "address_line2", violations, max_length=200, required=False)
+    locality = _text(payload, "locality", violations, max_length=100)
+    if locality and len(locality) < 2:
+        violations.append(Violation("/locality", "min_length", "at least 2 characters"))
+    ward_key = _text(payload, "ward_key", violations, max_length=40)
+    postal_code = _text(payload, "postal_code", violations, max_length=6)
+    if postal_code and (len(postal_code) != 6 or not postal_code.isdigit()):
+        violations.append(Violation("/postal_code", "format", "must be a 6-digit postal code"))
+    category_key = _text(payload, "category_key", violations, max_length=40)
+    area = _decimal(payload.get("area_sqm"), "/area_sqm", violations, max_digits=12, places=2)
+    if area is not None and area <= 0:
+        violations.append(
+            Violation("/area_sqm", "min_value", "enter an area greater than zero in square metres")
+        )
+    height = _decimal(payload.get("height_m"), "/height_m", violations, max_digits=7, places=2)
+    floors = payload.get("floor_count")
+    if not isinstance(floors, int) or isinstance(floors, bool) or not 1 <= floors <= 300:
+        violations.append(
+            Violation("/floor_count", "range", "must be an integer between 1 and 300")
+        )
+    occupancy = payload.get("occupancy_count")
+    if occupancy is not None and (
+        not isinstance(occupancy, int)
+        or isinstance(occupancy, bool)
+        or not 0 <= occupancy <= 1_000_000
+    ):
+        violations.append(
+            Violation("/occupancy_count", "range", "must be an integer between 0 and 1000000")
+        )
+    if violations or area is None or height is None or not isinstance(floors, int):
+        raise ValidationFailed(violations=violations)
+    return {
+        "display_name": display_name,
+        "address_line1": address_line1,
+        "address_line2": address_line2,
+        "locality": locality,
+        "ward_key": ward_key,
+        "postal_code": postal_code,
+        "category_key": category_key,
+        "area_sqm": area,
+        "height_m": height,
+        "floor_count": floors,
+        "occupancy_count": occupancy,
+    }
+
+
 class CreateDraftApplication(CommandHandler[Application]):
     """API-021 / FR-04: create a DRAFT for one of the applicant's own premises under an active
     service. No receipt, no case target, no routing yet; the draft is not a received case."""
