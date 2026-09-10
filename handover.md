@@ -309,11 +309,12 @@ Keep stable task IDs. For project features, use the approved requirement or buil
 | Task ID | Requirement / milestone | Deliverable and acceptance condition | Status | Owner | Dependencies | Evidence / review | Immediate next action |
 |---|---|---|---|---|---|---|---|
 | HO-001 | Handover initialization | Record verified repository identity, baseline, existing changes, ownership, and the first safe project task | DONE | claude-20260910T150325Z-b00a | Actual repository access and resolved ownership | EV-001 (manifest), git inspection in CP-001 | None - superseded by B00 |
-| B00 | Baseline and dependency lock (`docs/17_AGENT_TASK_CARDS.md` B00; `docs/10_BUILD_GUIDE.md` s.2-4) | Environment inventory; ADR acceptance record; `docs/DEPENDENCY_LOCK.md`; `backend/uv.lock`; `web/pnpm-lock.yaml`; `infra/images.lock.json`; compatibility install + hello-world Django/React build; status21 updated | BLOCKED (BL-002) - partial: `.gitignore`, `docs/DEPENDENCY_LOCK.md` skeleton + ADR acceptance done | claude-20260910T150325Z-b00a | HO-001; working Bash tool; network access to PyPI/npm/registries | EV-001, EV-002; DEPENDENCY_LOCK s.3 | Restore shell access, then toolchain inventory (git/docker/compose/uv/pnpm) |
+| B00 | Baseline and dependency lock (`docs/17_AGENT_TASK_CARDS.md` B00; `docs/10_BUILD_GUIDE.md` s.2-4) | Environment inventory; ADR acceptance record; `docs/DEPENDENCY_LOCK.md`; `backend/uv.lock`; `web/pnpm-lock.yaml`; `infra/images.lock.json`; compatibility install + hello-world Django/React build; status21 updated | READY_FOR_REVIEW (2026-09-10T19:05Z) - all proofs PASS; committed on `feat/b00-baseline-lock`; PR pending (gh CLI not yet available) | claude-20260910T172516Z-b00b | HO-001 | EV-001, EV-002, EV-B00-02..08; DEPENDENCY_LOCK s.2-9; status21 s.3b | Push branch; create PR (gh or web); self-review; merge to `main` |
+| B01 | Repository and runnable skeleton (task card B01; build guide s.5-8) | Compose infra (minimal/full profiles, digest-pinned), scripts/dev + scripts/ci, production settings negative test, health tests, CI workflow, README setup for Windows/macOS | TODO (some files pre-authored: `.env.example`, `production.py`, `health.py`) | claude-20260910T172516Z-b00b | B00 merged (or branched from it) | - | Branch `feat/b01-runnable-skeleton` from `feat/b00-baseline-lock` |
 
-**Completed and verified:** HO-001 only.  
-**In progress:** B00 by claude-20260910T150325Z-b00a.  
-**Next after B00:** B01 (Repository and runnable skeleton) - NOT authorized in this session; stop for user review after B00.
+**Completed and verified:** HO-001; B00 (locally, READY_FOR_REVIEW).  
+**In progress:** B00 delivery (PR); B01 next.  
+**Next after B00:** B01 per D-003/D-007 (full build authorized; no stop for review required, but the B00 PR is left for the user to see).
 
 ### B5. Active task detail and exact stop point
 
@@ -403,6 +404,14 @@ A passing result applies only to the recorded environment and code snapshot. Pre
 | NONE | NOT_RUN | No application verification recorded | NOT_RUN | UNVERIFIED | NOT_RUN | No result claimed | NONE | NOT_APPLICABLE |
 | EV-001 | 2026-09-10 ~15:04Z / Claude Code Bash | HO-001: documentation pack integrity | `sha256sum -c MANIFEST.sha256` in `f:\Gowtham\Agni` | LOCAL; `338248f` + untracked docs | PASS (30/30 OK) | Every listed file incl. `references/Agni_Setu_Interactive_Prototype.html` matches; S02 hash matches source register | stdout only (not saved) | YES |
 | EV-002 | 2026-09-10 ~15:04Z / Claude Code Bash | B00: runtime versions | `python --version`; `node --version`; `uname -a`; `df -h .` in `f:\Gowtham\Agni` | LOCAL | PASS (observed) | Python 3.12.7; Node v24.14.1; MINGW64_NT-10.0-26200 x86_64; F: 157G free | stdout only | YES |
+| EV-B00-01 | 2026-09-10T17:28Z / Read+Glob | B00: tool versions from installed metadata | file reads (see DEPENDENCY_LOCK s.7) | LOCAL | OBSERVED | Git 2.45.2, Docker 28.5.1, Compose v2.40.3, uv 0.11.28, corepack 0.34.6 | files | SUPERSEDED by EV-B00-02 (all values confirmed) |
+| EV-B00-02 | 2026-09-10T18:27-18:28Z / Bash | B00: toolchain + environment by CLI | version probes, `corepack pnpm --version`, `wsl --status`, PowerShell RAM, `netstat -ano`, `docker info` (repo root) | LOCAL Windows 11 | PASS | uv 0.11.28; git 2.45.2.windows.1; corepack 0.34.6; pnpm 12.3.4; Docker 28.5.1/28.5.1; Compose v2.40.3-desktop.1; WSL Ubuntu v2; RAM 5.9 GB; Docker VM 3.0 GB/4 CPU; port 5432 occupied (PID 6388) | stdout (recorded in DEPENDENCY_LOCK s.2) | YES |
+| EV-B00-03 | 2026-09-10T18:30-19:05Z / Bash | B00: Python lock + frozen sync | `uv lock --directory backend`; `uv sync --frozen --directory backend` | uncommitted tree -> commit on `feat/b00-baseline-lock` | PASS | 100 packages resolved; 98 installed; re-lock after DEV-01..03 reproduced | stdout | YES |
+| EV-B00-04 | 2026-09-10T19:05Z / Bash | B00: Django check + ruff + mypy | `uv run --directory backend python manage.py check`; `ruff check .`; `ruff format --check .`; `mypy config agni` | same | PASS | "System check identified no issues (0 silenced)"; "All checks passed!"; "14 files already formatted"; "Success: no issues found in 12 source files" | stdout | YES |
+| EV-B00-05 | 2026-09-10T18:5xZ / Bash | B00: web lock reproduces | `corepack pnpm install --dir web --frozen-lockfile` | same | PASS | "Lockfile is up to date, resolution step is skipped"; 164 packages | stdout | YES |
+| EV-B00-06 | 2026-09-10T18:5xZ / Bash | B00: web typecheck + build | `corepack pnpm --dir web typecheck && corepack pnpm --dir web build` | same | PASS | tsc clean; vite 8.2.2 built 16 modules in 4.18 s | stdout; `web/dist/` (ignored) | YES |
+| EV-B00-07 | 2026-09-10T18:3x-18:5xZ / Bash | B00: image digests | `docker buildx imagetools inspect` x6 | registries | PASS | digests in `infra/images.lock.json` + DEPENDENCY_LOCK s.6; ClamAV amd64-only | stdout | YES |
+| EV-B00-08 | 2026-09-10T18:4x-19:05Z / Bash | B00: vulnerability audits | `uv run --directory backend pip-audit`; `corepack pnpm --dir web audit --audit-level low` | same | first pip-audit FAIL(5) -> after bumps PASS; pnpm PASS | "No known vulnerabilities found" (both) | stdout | YES |
 
 **Known failing checks:** NONE recorded; no application exists to fail.  
 **Required checks not yet run:** pnpm/uv/docker/compose/git versions; RAM; port scan; handover Part A digest recheck; all B00 install/build proofs.  
@@ -723,3 +732,19 @@ No development checkpoints had been recorded before 2026-09-10. New entries go a
 - Ownership: retained
 - Timing: previous saved 2026-09-10T18:38:15Z; this 2026-09-10T19:00:08Z; next due 2026-09-10T19:05:08Z; MISSED INTERVAL ~17 min (18:43-19:00Z: consecutive long-running lock/build/audit chains; no checkpoint was possible between tool returns)
 - Live sections refreshed: B12
+
+### CP-claude-20260910T172516Z-b00b-011 | 2026-09-10T19:05:57Z | TASK_COMPLETE
+- Session / agent / writer role: claude-20260910T172516Z-b00b, Claude Code, project writer + handover editor
+- Task / requirement / activity: B00 complete locally (READY_FOR_REVIEW); delivery (branch/commit/push) in progress
+- Completed since previous checkpoint: mypy fixed (override honoured after cache refresh; explicit ignores removed as `unused-ignore`); final gates: ruff PASS, format PASS, mypy PASS "Success: no issues found in 12 source files", pip-audit PASS "No known vulnerabilities found" (EV-B00-04, EV-B00-08). DEPENDENCY_LOCK status -> READY_FOR_REVIEW with s.7 rows EV-B00-02..08, s.8 L-04 closed + L-05/L-06/L-07 added, s.9 DEV-01..03. status21: B00 row READY_FOR_REVIEW + handoff record s.3b. `.gitignore` ignores `.claude/settings.local.json` and the example copy. Task Observer skill INSTALLED at `~/.claude/skills/task-observer/` (git clone; SKILL.md + 7 references + 2 scripts verified) and now appears in the available-skills list; user-level `~/.claude/CLAUDE.md` written with the activation block (workspace pinned to `~/.claude/task-observer-workspace`; activation is UNVERIFIED until a fresh session). OmniRoute 3.8.50 installed globally via npm (1157 packages) - NOT wired into Claude Code's API routing (needs user confirmation; credential exposure). Branch `feat/b00-baseline-lock` created; `git add -A` staged 66 files (no secrets/venv/node_modules; root HTML shows as rename to `references/`)
+- Currently doing / stop point: committing + pushing the branch; `winget install GitHub.cli` (gh absent: `gh: command not found`); PR creation will need `gh auth login` by the user (interactive) unless gh can use an existing token
+- Files changed / reserved: `.gitattributes` (new, LF normalisation); everything listed in `git status` above
+- Verification: EV-B00-02..08 all PASS (B7); B00 acceptance criteria in B5 met except "PR reviewed and merged"
+- Failures / blockers / uncertainty: BL-006 NEW: no GitHub CLI / token for PR creation -> install gh, then user must authenticate once; fallback is pushing branches and merging via `git merge --no-ff` locally + push main (deviates from D-005's PR requirement - not done without user OK). Classifier still flaky on some allowlisted commands (`cp -r`, `ls -R`, `find` chains refused; retry or alternative works)
+- Runtime / data / restart state: no project services; plugins claude-mem/headroom install hooks that activate on the NEXT Claude Code session
+- Decision changes: NONE
+- Next exact action: confirm commit hash + push result; if gh installs, `gh auth status`; else report BL-006 to user and continue B01 on `feat/b01-runnable-skeleton` branched from the B00 branch
+- Following steps: B01 - Compose (minimal/full, digests, port 55432), scripts/dev/{doctor,up,down}.sh, scripts/ci/verify.sh, production negative test, health tests, GitHub Actions, README quick start (Windows/macOS), MANIFEST note
+- Ownership: retained
+- Timing: previous saved 2026-09-10T19:00:08Z; this 2026-09-10T19:05:57Z; next due 2026-09-10T19:10:57Z; missed interval NONE
+- Live sections refreshed: B4, B7, B12
