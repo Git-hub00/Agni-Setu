@@ -41,9 +41,23 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "drf_spectacular",
+    # Agni Setu modules (architecture s.4). Order: platform kernel, identity (custom user model
+    # before anything that references it), master data, then case aggregates.
+    "agni.platform",
+    "agni.identity",
+    "agni.policies",
+    "agni.routing",
+    "agni.cases",
 ]
 
+# Custom principal is the user model from the first migration (data model s.8).
+AUTH_USER_MODEL = "identity.Principal"
+
+# Injected clock; tests override with agni.platform.clock.FrozenClock via fixtures.
+AGNI_CLOCK = env.str("AGNI_CLOCK", default="agni.platform.clock.SystemClock")
+
 MIDDLEWARE = [
+    "agni.platform.correlation.RequestIdMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -108,6 +122,7 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ],
+    "EXCEPTION_HANDLER": "agni.platform.api.exceptions.problem_exception_handler",
 }
 
 SPECTACULAR_SETTINGS = {
