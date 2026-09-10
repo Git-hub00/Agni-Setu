@@ -1,0 +1,76 @@
+{
+  "$schema_note": "Agni Setu container image lock (docs/10_BUILD_GUIDE.md s.4, docs/DEPENDENCY_LOCK.md s.6). Every digest below was copied from `docker buildx imagetools inspect <image>:<tag>` output on 2026-09-10 (EV-B00-07); none is hand-typed. Compose files must reference `<image>@<index_digest>`. Upgrades require an ADR-style note in DEPENDENCY_LOCK.md s.9.",
+  "resolved_at": "2026-09-10T18:35:00Z",
+  "resolver": "docker buildx imagetools inspect (Docker 28.5.1)",
+  "images": {
+    "postgres": {
+      "image": "docker.io/library/postgres",
+      "tag": "17.11",
+      "index_digest": "sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675",
+      "platforms": {
+        "linux/amd64": "sha256:d13db94ae661d517c5ed57c509a578d5ea64aae639871ba25294f4f42d83de28",
+        "linux/arm64/v8": "sha256:413da4542e091471785b7f18f1a2258df134bc6506ab4e1e53725aa8bcfdb650"
+      },
+      "base": "debian:trixie-slim",
+      "created": "2026-08-25T00:41:21Z",
+      "profile": "minimal",
+      "role": "canonical database (ADR-02)"
+    },
+    "rabbitmq": {
+      "image": "docker.io/library/rabbitmq",
+      "tag": "4.3.5-management",
+      "index_digest": "sha256:57bddb6fbc3498b5d8b5a14dc6f4506073ebcf94c66ba2a7678c335faa8dd631",
+      "platforms": {
+        "linux/amd64": "sha256:6e83d26931219c9e088e6eefcc877bcca2adc3690c7603f24f4ece8968b13262",
+        "linux/arm64/v8": "sha256:0077f3b9c0b2353ddd68f50fc9bb55551688a154c3e834ab821b81bf1cbac929"
+      },
+      "created": "2026-09-09T22:33:59Z",
+      "profile": "minimal",
+      "role": "Celery broker (ADR-07); management UI bound to loopback only"
+    },
+    "valkey": {
+      "image": "docker.io/valkey/valkey",
+      "tag": "8.1.10",
+      "index_digest": "sha256:3fbd2e3e4b6e85e046c1e7c215e8f79087bc0357789184305806664e320996f3",
+      "platforms": {
+        "linux/amd64": "sha256:f740fb12fb9dec890f4785ebd04ba184ab9bc556cc33063a01726a9180cc697c",
+        "linux/arm64": "sha256:bf810d180193bb7809af15379f844fe3d585c9e623ad6f43b22c302a5dd8cea2"
+      },
+      "profile": "minimal",
+      "role": "disposable cache / rate-limit store (ADR-07)"
+    },
+    "seaweedfs": {
+      "image": "docker.io/chrislusf/seaweedfs",
+      "tag": "4.46",
+      "index_digest": "sha256:08d516132314207d10c8e37cbffc1f32b147d870169688734cc61c6231625b62",
+      "platforms": {
+        "linux/amd64": "sha256:6a602956ac4915057199a5271343e9c86c403a561db7c21033362f6791aa29c9",
+        "linux/arm64": "sha256:cc476c229cb2b7c86401070ed791ec6c5c1f3193b37db5a13f510e770a15dc6c"
+      },
+      "profile": "minimal",
+      "role": "LOCAL S3 emulator only (ADR-08); never a production storage service"
+    },
+    "keycloak": {
+      "image": "quay.io/keycloak/keycloak",
+      "tag": "26.7.3",
+      "index_digest": "sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54",
+      "platforms": {
+        "linux/amd64": "sha256:88943b6ad06d6293a239f0dfca5acec64218c9b3ab327bf9c936acf408a6ae3b",
+        "linux/arm64": "sha256:a9a5820e4daea7dec93adfb631fc386c93cb57d6572cddd5eb06d4acd629794b"
+      },
+      "profile": "full",
+      "role": "local staff OIDC issuer for integration tests; start-dev never used live"
+    },
+    "clamav": {
+      "image": "docker.io/clamav/clamav",
+      "tag": "1.5.4",
+      "index_digest": "sha256:1fdfd24c6f0a0fb60788481487459a6d4eda8a9b448641594e04db8410d34422",
+      "platforms": {
+        "linux/amd64": "sha256:83b0541c2e69bc40b7721b340b97478f790e6126fc13e7b224584c8789d8ef51"
+      },
+      "platform_note": "amd64 only in this index; on Apple Silicon run under emulation (slow) or use the scanner simulator locally (BL-005)",
+      "profile": "full",
+      "role": "malware scanning adapter backend"
+    }
+  }
+}

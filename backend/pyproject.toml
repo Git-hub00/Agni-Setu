@@ -1,0 +1,75 @@
+# Agni Setu backend - Django/DRF modular monolith (docs/04_TECHNICAL_ARCHITECTURE.md s.2, s.5).
+#
+# Version policy (docs/10_BUILD_GUIDE.md s.4, docs/DEPENDENCY_LOCK.md):
+# - The ranges below are the *initial controlled resolution* constraints only.
+# - The authoritative exact versions live in uv.lock; every install after B00 must use
+#   `uv sync --frozen`. Never widen a range or adopt a new major without an ADR note in
+#   docs/DEPENDENCY_LOCK.md s.9 and refreshed compatibility/security evidence.
+
+[project]
+name = "agni-setu-backend"
+version = "0.1.0"
+description = "Agni Setu fire-safety case management - Django/DRF backend"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    # Core web/API (families fixed by the architecture baseline)
+    "Django>=5.2,<5.3",
+    # 3.16.x carries PYSEC-2026-3827/3828 (pip-audit 2026-09-10); fixed in 3.17.2.
+    # Deviation from the "3.16 compatible" family is recorded in docs/DEPENDENCY_LOCK.md s.9.
+    "djangorestframework>=3.17.2,<3.18",
+    "drf-spectacular>=0.28,<1",
+    "psycopg[binary]>=3,<4",
+    "django-environ>=0.12,<1",
+    # Identity adapters (staff OIDC client)
+    "authlib>=1.6,<2",
+    # Background execution and disposable cache client
+    "celery>=5.5,<6",
+    "redis>=6,<7",
+    # Object storage, document rendering, verification QR
+    "boto3>=1.40,<2",
+    "weasyprint>=70,<71",  # 69.0 has PYSEC-2026-3940; fixed in 70.0
+    "qrcode[pil]>=8,<9",
+    # Production WSGI serving (POSIX only; runs in containers, not on the Windows host)
+    "gunicorn>=23,<24",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3,<10",  # 8.4.2 has PYSEC-2026-1845; fixed in 9.0.3
+    "pytest-django>=4.9,<5",
+    "hypothesis>=6,<7",
+    "ruff>=0.12,<1",
+    "mypy>=1.17,<2",
+    "django-stubs[compatible-mypy]>=5.2,<6",
+    "djangorestframework-stubs>=3.16,<4",
+    "pip-audit>=2.9,<3",
+]
+
+[tool.uv]
+# Frozen, reproducible installs; the lockfile is the source of truth.
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "DJ", "S"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["mypy_django_plugin.main"]
+
+[[tool.mypy.overrides]]
+# django-environ ships no type information (no py.typed / stubs).
+module = ["environ", "environ.*"]
+ignore_missing_imports = true
+
+[tool.django-stubs]
+django_settings_module = "config.settings.test"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+testpaths = ["tests"]

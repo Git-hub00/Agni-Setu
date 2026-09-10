@@ -1,0 +1,9 @@
+/* Tailwind CSS 4 entry point with semantic design tokens (docs/04 s.2 "Styling").
+   Token values are placeholders at B00; B01 maps them to the prototype's visual language
+   from references/Agni_Setu_Interactive_Prototype.html and docs/03_UI_UX_SPECIFICATION.md. */
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #ffffff;
+  --color-on-surface: #1a1a1a;
+}

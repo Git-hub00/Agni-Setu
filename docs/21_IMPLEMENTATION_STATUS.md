@@ -1,0 +1,159 @@
+# Implementation progress, evidence and unresolved decisions
+
+**Agni Setu implementation baseline 2.0.0 | 2026-09-09**  
+**Status:** build specification; not evidence of a completed implementation or government approval.
+
+## 1. Initial status
+
+**Documentation baseline:** 2.0.0. **New production implementation:** NOT_STARTED in this deliverable. **Application test execution:** NOT_RUN. A browser prototype exists as reference; it is not the Django/PostgreSQL application. No build phase is marked complete on the basis of this documentation alone.
+
+Update this file at the end of each agent task. Read actual repository/branch/diff first: a later developer may already have implemented work, and this initial status must not cause an agent to overwrite it. A phase is DONE only after the specified acceptance evidence exists for the current commit.
+
+## 2. Phase ledger
+
+| Phase | Deliverable | Initial status | Evidence/commit | Next action |
+| --- | --- | --- | --- | --- |
+| B00 | Baseline and dependency lock | READY_FOR_REVIEW (2026-09-10T19:1xZ; PR pending) | Repository inspected, user work preserved, ADR-01..15 accepted (`docs/DEPENDENCY_LOCK.md` s.3). Environment: Python 3.12.7, Node 24.14.1, uv 0.11.28, pnpm 12.3.4, Git 2.45.2, Docker 28.5.1 + Compose v2.40.3, WSL2 Ubuntu; host RAM 5.9 GB (L-05), port 5432 occupied (L-06). Locks: `backend/uv.lock` (100 pkgs: Django 5.2.17, DRF 3.17.2, psycopg 3.3.5, celery 5.6.3, ...), `web/pnpm-lock.yaml` (164 pkgs: React 19.3.0, Vite 8.2.2, TS 5.9.3, ...), `infra/images.lock.json` (postgres 17.11, rabbitmq 4.3.5-management, valkey 8.1.10, seaweedfs 4.46, keycloak 26.7.3, clamav 1.5.4 with registry digests). Proofs PASS: `uv sync --frozen`, `manage.py check`, `ruff check`, `ruff format --check`, `mypy` strict, `pip-audit` (after DEV-01..03 security bumps), `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm build`, `pnpm audit`. Evidence EV-B00-02..08 in DEPENDENCY_LOCK s.7; handoff record s.3b below | Open PR `feat/b00-baseline-lock`, self-review, merge; then B01 |
+| B01 | Repository and runnable skeleton | NOT_STARTED (some files pre-authored 2026-09-10 while B00 execution was gated: `backend/.env.example`, `config/settings/production.py` startup validation, `agni/platform/health.py` + `/api/v1/health/*`, `evidence/README.md`; all IMPLEMENTED_UNVERIFIED, listed in `handover.md` B6) | None executed | Complete B00 first; then Compose, scripts, CI and B01 tests including the bad-production-config negative |
+| B02 | Domain persistence and command kernel | NOT_STARTED | None | Complete prerequisites and task card |
+| B03 | Identity, sessions and scoped permissions | NOT_STARTED | None | Complete prerequisites and task card |
+| B04 | Service policy and master data | NOT_STARTED | None | Complete prerequisites and task card |
+| B05 | Drafts, files and application wizard | NOT_STARTED | None | Complete prerequisites and task card |
+| B06 | Submission, routing and case visibility | NOT_STARTED | None | Complete prerequisites and task card |
+| B07 | Assignment and appointment management | NOT_STARTED | None | Complete prerequisites and task card |
+| B08 | Inspection reports and checklist evaluation | NOT_STARTED | None | Complete prerequisites and task card |
+| B09 | Notices, responses and correction cycles | NOT_STARTED | None | Complete prerequisites and task card |
+| B10 | Clocks, outbox dispatch and notifications | NOT_STARTED | None | Complete prerequisites and task card |
+| B11 | Offline field application | NOT_STARTED | None | Complete prerequisites and task card |
+| B12 | Decisions, issuance and verification | NOT_STARTED | None | Complete prerequisites and task card |
+| B13 | Lifecycle, support and conditional routes | NOT_STARTED | None | Complete prerequisites and task card |
+| B14 | Reporting, audit and operational UI | NOT_STARTED | None | Complete prerequisites and task card |
+| B15 | Integration contracts and reconciliation | NOT_STARTED | None | Complete prerequisites and task card |
+| B16 | Security and accessibility hardening | NOT_STARTED | None | Complete prerequisites and task card |
+| B17 | Reliability, performance and recovery proof | NOT_STARTED | None | Complete prerequisites and task card |
+| B18 | Production packaging and release evidence | NOT_STARTED | None | Complete prerequisites and task card |
+| B19 | Full demonstration acceptance | NOT_STARTED | None | Complete prerequisites and task card |
+| B20 | Agency pilot activation | NOT_STARTED | None | Complete prerequisites and task card |
+
+## 3. Required handoff record
+
+```text
+Task: Bxx / requirement IDs / issue reference
+Baseline: implementation spec 2.0.0
+Branch and start commit:
+Files inspected:
+Changes made and architecture decisions:
+Migrations/data impact:
+Tests actually executed (exact command, environment and result):
+Tests not executed and concrete reason:
+Screens inspected (role, viewport, state):
+Processes restarted and smoke-check result:
+Security/privacy or external-effect considerations:
+Remaining defects and reproduction:
+Required human input (no secrets pasted into chat):
+Next safe task:
+End commit and worktree status:
+```
+
+## 3a. Handoff record - B00 session claude-20260910T150325Z-b00a (2026-09-10, partial)
+
+```text
+Task: B00 - Baseline and dependency lock (docs/17_AGENT_TASK_CARDS.md; docs/10_BUILD_GUIDE.md s.2-4)
+Baseline: implementation spec 2.0.0
+Branch and start commit: main @ 338248f (only commit); pre-existing unstaged deletion of root
+  Agni_Setu_Interactive_Prototype.html and untracked docs pack preserved, not staged.
+Files inspected: AGENTS.md, CLAUDE.md, README.md, handover.md, docs 00/04/10/12/14/17/18/20/21,
+  references/README.md, MANIFEST.sha256.
+Changes made and architecture decisions: added .gitignore; added docs/DEPENDENCY_LOCK.md
+  (inspection, environment inventory, ADR-01..15 ACCEPTED for implementation, unresolved
+  dependency/image tables, proof ledger, open items L-01..L-04); handover.md Part B updated;
+  this row. No backend/, web/, infra/ created. No framework change.
+Migrations/data impact: NONE.
+Tests actually executed: `sha256sum -c MANIFEST.sha256` (repo root) -> PASS 30/30;
+  `python --version` -> 3.12.7; `node --version` -> v24.14.1; `uname -a`, `df -h .` observed.
+Tests not executed and concrete reason: git/docker/compose/uv/pnpm version probes, registry
+  resolution, `uv lock`, `pnpm install`, `docker manifest inspect`, `manage.py check`,
+  `pnpm build`, vulnerability scans - the Claude Code permission classifier was unavailable
+  and rejected Bash (except trivial read-only commands) and all WebFetch calls 15:03-15:10Z.
+Screens inspected: NONE (no UI exists).
+Processes restarted and smoke-check result: NONE started.
+Security/privacy or external-effect considerations: no secrets created; no network side effects.
+Remaining defects and reproduction: NONE in code (no code). Environment deviation: Windows 11
+  + Git Bash host vs guide-preferred Linux/macOS/WSL2 (DEPENDENCY_LOCK L-03).
+Required human input: restore agent tool access (permission mode/allowlist); confirm
+  Windows-native dev environment or provide WSL2 (L-03).
+Next safe task: finish B00 (see DEPENDENCY_LOCK s.7-8). B01 not started.
+End commit and worktree status: no commit made; new untracked files .gitignore,
+  docs/DEPENDENCY_LOCK.md; modified docs/21_IMPLEMENTATION_STATUS.md, handover.md.
+```
+
+## 3b. Handoff record - B00 session claude-20260910T172516Z-b00b (2026-09-10, completion)
+
+```text
+Task: B00 - Baseline and dependency lock (docs/17_AGENT_TASK_CARDS.md; docs/10_BUILD_GUIDE.md s.2-4)
+Baseline: implementation spec 2.0.0
+Branch and start commit: main @ 338248f; work committed on feat/b00-baseline-lock (see handover B12).
+Files inspected: AGENTS.md, CLAUDE.md, README.md, handover.md, docs 04/06/07/10/12/14/17/18/19/21,
+  DEPENDENCY_LOCK.md, installed-tool metadata, registry tag lists (Docker Hub, quay.io).
+Changes made and architecture decisions: backend/ (pyproject with bounded initial ranges, uv.lock,
+  requirements.txt export, .python-version, manage.py, config/settings base/local/test/production,
+  urls, wsgi, asgi, agni/platform/health.py, .env.example, README); web/ (package.json exact pins +
+  packageManager pnpm@12.3.4, pnpm-lock.yaml, .nvmrc, index.html, vite.config.ts, tsconfig.json,
+  src/main.tsx, App.tsx, vite-env.d.ts, design/global.css, README); infra/images.lock.json;
+  evidence/README.md; .gitignore; docs/DEPENDENCY_LOCK.md completed; this file. Security-driven
+  deviations DEV-01..03 (DRF 3.17.2, weasyprint 70.0, pytest 9.1.1) recorded in DEPENDENCY_LOCK s.9.
+  No framework change; ADR-01..15 accepted.
+Migrations/data impact: NONE (no models, no migrations, no database created).
+Tests actually executed (repo root, Windows 11 host, 2026-09-10T18:27-19:1xZ):
+  uv lock --directory backend -> Resolved 100 packages
+  uv sync --frozen --directory backend -> Installed 98 packages
+  uv run --directory backend python manage.py check -> System check identified no issues (0 silenced)
+  uv run --directory backend ruff check . -> All checks passed!
+  uv run --directory backend ruff format --check . -> 14 files already formatted
+  uv run --directory backend mypy config agni -> Success: no issues found in 12 source files
+  uv run --directory backend pip-audit -> No known vulnerabilities found (first run had 5; fixed)
+  corepack pnpm install --dir web --frozen-lockfile -> Lockfile is up to date
+  corepack pnpm --dir web typecheck -> PASS; corepack pnpm --dir web build -> built in 4.18s
+  corepack pnpm --dir web audit --audit-level low -> No known vulnerabilities found
+  docker buildx imagetools inspect x6 -> digests recorded
+Tests not executed and concrete reason: no application tests exist yet (B01+); production.py
+  negative test and health endpoint tests are B01 deliverables; no service was started (no Compose yet).
+Screens inspected: NONE (hello-world shell built, not served).
+Processes restarted and smoke-check result: NONE started.
+Security/privacy or external-effect considerations: no secrets created (.env.example placeholders
+  only); network use limited to PyPI, npm, Docker Hub, quay.io, GitHub; pip-audit findings resolved
+  by upgrade, not suppression. Agent tooling installed at user scope per D-008 (see handover B10).
+Remaining defects and reproduction: NONE known in code. Environment limits L-05 (RAM), L-06 (port
+  5432), L-07 (ClamAV amd64-only) carried into B01 design.
+Required human input: review/merge of the B00 PR; optional: raise Docker Desktop memory limit.
+Next safe task: B01 - Repository and runnable skeleton.
+End commit and worktree status: recorded in handover.md B12 after commit/push.
+```
+
+## 4. Initial owner decisions and blockers
+
+| ID | Required decision/input | Build impact | Safe current behavior |
+| --- | --- | --- | --- |
+| OPEN-01 | Agency-approved service applicability, building categories, form/checklist and valid source version | Blocks live intake | Use labelled demo profile and synthetic records only. |
+| OPEN-02 | Actual ward/circle/service map and assignment authority | Blocks real routing | Fictional reviewed demo mapping; visible unresolved exception. |
+| OPEN-03 | Qualified approving officers and delegations | Blocks live decisions | Synthetic separate actor/grant fixtures only. |
+| OPEN-04 | Deadline, pause, holiday, deficiency and appeal rules | Blocks statutory timing/appeal activation | Explicit example clocks; disabled/referral conditional paths. |
+| OPEN-05 | Certificate template, validity, lifecycle powers and digital-signing authority | Blocks live issuance/status instruments | Watermarked sample certificates; no unsigned-live fallback. |
+| OPEN-06 | Identity provider, SMS/email and service credentials | Blocks real identity/delivery adapters | Local sinks and dev IdP; never request raw secrets in chat. |
+| OPEN-07 | Hosting approval, retention/deletion and managed-device policy | Blocks sensitive live storage/offline mode | Isolated demo data; managed live requirements remain gated. |
+| OPEN-08 | Existing agency-system ownership and partner contract/schema | Blocks real external import/registration | Documented adapter simulators and disabled source-specific connection. |
+| OPEN-09 | Target hardware, users, throughput and accepted SLO/RPO/RTO | Blocks capacity/recovery claims | Measure proposed workload; revise by recorded evidence. |
+| OPEN-10 | Exact patched dependency versions, image digests and license review | Blocks reproducible build completion | B00 resolves and records lock files; no `latest` deployment tags. |
+
+An absent live credential does not block safe local implementation of domain logic and simulator contracts. It does block claiming that the real integration works. An absent authoritative rule must not be guessed by a coding agent.
+
+## 5. Defect and specification issue ledger
+
+Initially no implementation defects have been tested because the new application is not built. Do not label that "zero bugs." Create records with ISSUE-ID, affected rule/API/screen, observed versus expected, reproduction, impact, owner, status, test and evidence. A spec ambiguity becomes a documented decision/change before inconsistent code is merged.
+
+## 6. Readiness labels
+
+NOT_STARTED means no verified implementation evidence. IN_PROGRESS means changed work lacks full acceptance. BLOCKED means a concrete dependency prevents a required proof. READY_FOR_REVIEW means local evidence exists but independent review is pending. DONE means verified required evidence and review are recorded. DEFERRED requires approved scoped exclusion and a safe disabled user path. A live gate can never be marked DONE solely from demo-mode success.
+
+---
+[Documentation index](../README.md) | [Source register](20_SOURCE_REGISTER_AND_GLOSSARY.md) | [Implementation status](21_IMPLEMENTATION_STATUS.md)

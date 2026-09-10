@@ -1,0 +1,60 @@
+# Agni Setu - repository ignore rules (created at B00; see docs/10_BUILD_GUIDE.md s.3)
+# Keep tracked: lockfiles (uv.lock, pnpm-lock.yaml, infra/images.lock.json), schemas,
+# migrations, fixture definitions, .env.example.
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+.coverage
+coverage.xml
+htmlcov/
+backend/staticfiles/
+backend/media/
+
+# Node / web
+node_modules/
+web/dist/
+web/dev-dist/
+web/coverage/
+web/playwright-report/
+web/test-results/
+.pnpm-store/
+*.tsbuildinfo
+
+# Local infrastructure volumes and generated local data
+infra/volumes/
+infra/**/data/
+*.sqlite3
+*.db
+
+# Evidence: keep the directory structure, exclude generated sensitive output
+evidence/**
+!evidence/README.md
+!evidence/.gitkeep
+
+# Agent harness local permission files (per-developer, never shared)
+.claude/settings.local.json
+claude.settings.local.example.json
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
