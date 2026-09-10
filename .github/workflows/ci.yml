@@ -1,0 +1,152 @@
+name: CI
+
+# Verification gates from docs/10_BUILD_GUIDE.md s.11, run on every push and pull request.
+# Frozen lockfiles only (docs/DEPENDENCY_LOCK.md); no `latest` tags; no secrets required.
+
+on:
+  push:
+    branches: ["main", "feat/**", "fix/**"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.11.28"
+  PNPM_VERSION: "12.3.4"
+  NODE_VERSION: "24"
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  backend:
+    name: Backend (lint, types, tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres@sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675
+        env:
+          POSTGRES_USER: agni_ci
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: agni_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U agni_ci -d agni_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://agni_ci:ci-only-password@127.0.0.1:5432/agni_ci
+      TEST_DATABASE_NAME: agni_ci_test
+      DJANGO_SETTINGS_MODULE: config.settings.test
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - name: Install frozen dependencies
+        run: uv sync --frozen
+      - name: Ruff lint
+        run: uv run ruff check .
+      - name: Ruff format check
+        run: uv run ruff format --check .
+      - name: mypy (strict)
+        run: uv run mypy config agni tests
+      - name: Django system checks
+        run: uv run python manage.py check
+      - name: Migration drift check
+        run: uv run python manage.py makemigrations --check --dry-run
+      - name: Unit tests
+        run: uv run pytest tests/unit -q
+      - name: Integration tests (real PostgreSQL)
+        run: uv run pytest tests/integration -q
+      - name: Dependency audit
+        run: uv run pip-audit --progress-spinner off
+
+  web:
+    name: Web (lint, types, tests, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Enable pinned pnpm via corepack
+        run: corepack enable && corepack prepare pnpm@${{ env.PNPM_VERSION }} --activate
+      - name: Install frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Unit tests
+        run: pnpm test --run
+      - name: Build
+        run: pnpm build
+      - name: Dependency audit
+        run: pnpm audit --audit-level low
+
+  scripts:
+    name: Shell scripts (syntax, shellcheck, doctor)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax check
+        run: |
+          for f in scripts/dev/*.sh scripts/ci/*.sh backend/docker-entrypoint.sh; do bash -n "$f"; done
+      - name: shellcheck
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q shellcheck
+          shellcheck -S warning scripts/dev/*.sh scripts/ci/*.sh backend/docker-entrypoint.sh
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: doctor.sh runs and reports (no .env.local yet is a warning, not a failure)
+        run: bash scripts/dev/doctor.sh
+
+  containers:
+    name: Compose config and image builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render a throwaway env file (CI-only values, never real secrets)
+        run: |
+          sed -e 's/<[^>]*>/ci-placeholder-value/g' backend/.env.example > .env.local
+          sed -i 's#^DATABASE_URL=.*#DATABASE_URL=postgresql://agni_app:ci-placeholder-value@127.0.0.1:55432/agni_dev#' .env.local
+          mkdir -p infra/volumes/objectstore
+          printf '{"identities":[{"name":"ci","credentials":[{"accessKey":"ci-placeholder-value","secretKey":"ci-placeholder-value"}],"actions":["Admin","Read","Write","List","Tagging"]}]}\n' > infra/volumes/objectstore/s3-identities.json
+      - name: Validate Compose configuration (all profiles)
+        run: docker compose -p agni-ci --env-file .env.local -f infra/compose/compose.dev.yml --profile full --profile app config -q
+      - name: Build API image
+        run: docker build -f infra/containers/api.Dockerfile -t agni-setu-api:ci backend
+      - name: Build web image
+        run: docker build -f infra/containers/web.Dockerfile -t agni-setu-web:ci web
+      - name: Smoke boot (minimal profile + api) and probe health
+        run: |
+          docker compose -p agni-ci --env-file .env.local -f infra/compose/compose.dev.yml --profile app up -d --wait --wait-timeout 240
+          docker compose -p agni-ci --env-file .env.local -f infra/compose/compose.dev.yml ps
+          curl -fsS http://127.0.0.1:8000/api/v1/health/live
+          curl -fsS http://127.0.0.1:8000/api/v1/health/ready
+          curl -fsS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:5173/
+      - name: Collect logs on failure
+        if: failure()
+        run: docker compose -p agni-ci --env-file .env.local -f infra/compose/compose.dev.yml --profile app logs --tail 100
+      - name: Tear down (CI-only project; volumes are disposable here)
+        if: always()
+        run: docker compose -p agni-ci --env-file .env.local -f infra/compose/compose.dev.yml --profile app down -v

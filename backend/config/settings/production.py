@@ -14,8 +14,9 @@ from .base import DATABASES, DEMO_PROVIDER_VALUES, SERVICE_MODE, env
 DEBUG = False
 
 SECRET_KEY = env.str("DJANGO_SECRET_KEY", default="")
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
-CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+# Empty strings from `ALLOWED_HOSTS=` must not count as a configured host.
+ALLOWED_HOSTS = [h for h in env.list("ALLOWED_HOSTS", default=[]) if h]
+CSRF_TRUSTED_ORIGINS = [o for o in env.list("CSRF_TRUSTED_ORIGINS", default=[]) if o]
 
 # TLS is terminated by the approved reverse proxy (deployment s.2).
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

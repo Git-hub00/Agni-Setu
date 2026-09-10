@@ -1,0 +1,225 @@
+# Agni Setu - LOCAL development stack (docs/10_BUILD_GUIDE.md s.5, s.8).
+# Not a production deployment (docs/12 s.1). Start it with scripts/dev/up.sh, which generates the
+# repository-root .env.local this file reads (--env-file). Images are pinned by digest from
+# infra/images.lock.json.
+#
+# Profiles:
+#   (default)  postgres, rabbitmq, valkey, objectstore        - "minimal" infrastructure
+#   full       + keycloak, clamav                              - identity + scanning (needs RAM)
+#   app        + api, web                                      - containerized application
+#
+# Everything binds to 127.0.0.1. PostgreSQL is published on ${POSTGRES_HOST_PORT} (default 55432)
+# because host port 5432 is commonly occupied. Memory limits assume a 3 GB Docker Desktop VM.
+
+name: agni-dev
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  postgres:
+    <<: *restart
+    image: docker.io/library/postgres@sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set in .env}
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    command: ["postgres", "-c", "shared_buffers=128MB", "-c", "max_connections=60"]
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-55432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    mem_limit: 512m
+
+  rabbitmq:
+    <<: *restart
+    image: docker.io/library/rabbitmq@sha256:57bddb6fbc3498b5d8b5a14dc6f4506073ebcf94c66ba2a7678c335faa8dd631
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?set in .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?set in .env}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-agni_dev}
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 90s
+    mem_limit: 512m
+
+  valkey:
+    <<: *restart
+    image: docker.io/valkey/valkey@sha256:3fbd2e3e4b6e85e046c1e7c215e8f79087bc0357789184305806664e320996f3
+    # Disposable cache (ADR-07): authenticated, memory-bounded, no persistence.
+    command:
+      - valkey-server
+      - --requirepass
+      - ${VALKEY_PASSWORD:?set in .env}
+      - --maxmemory
+      - 64mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+    environment:
+      VALKEY_PASSWORD: ${VALKEY_PASSWORD:?set in .env}
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli -a \"$$VALKEY_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    mem_limit: 128m
+
+  objectstore:
+    <<: *restart
+    # SeaweedFS is the LOCAL S3 emulator only (ADR-08). Credentials come from the identities file
+    # rendered by scripts/dev/up.sh; anonymous access is denied.
+    image: docker.io/chrislusf/seaweedfs@sha256:08d516132314207d10c8e37cbffc1f32b147d870169688734cc61c6231625b62
+    command:
+      - server
+      - -dir=/data
+      - -ip=objectstore
+      - -ip.bind=0.0.0.0
+      - -master.volumeSizeLimitMB=256
+      - -volume.max=8
+      - -s3
+      - -s3.port=8333
+      - -s3.config=/etc/seaweedfs/s3-identities.json
+    ports:
+      - "127.0.0.1:8333:8333"
+    volumes:
+      - objectstore-data:/data
+      - ../volumes/objectstore/s3-identities.json:/etc/seaweedfs/s3-identities.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9333/cluster/status | grep -q Leader"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    mem_limit: 256m
+
+  keycloak:
+    <<: *restart
+    profiles: ["full"]
+    # Local staff OIDC issuer for integration tests only; start-dev is never used live.
+    image: quay.io/keycloak/keycloak@sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54
+    command: ["start-dev"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:?set in .env}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?set in .env}
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_PORT: "8080"
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_STRICT: "false"
+      JAVA_OPTS_KC_HEAP: "-Xms128m -Xmx512m"
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '"status": "UP"' <&3
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 90s
+    mem_limit: 768m
+
+  clamav:
+    <<: *restart
+    profiles: ["full"]
+    # Scanner backend for the documents module. amd64-only image (DEPENDENCY_LOCK L-07).
+    image: docker.io/clamav/clamav@sha256:1fdfd24c6f0a0fb60788481487459a6d4eda8a9b448641594e04db8410d34422
+    platform: linux/amd64
+    environment:
+      CLAMAV_NO_FRESHCLAMD: "false"
+    volumes:
+      - clamav-data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 30s
+      timeout: 15s
+      retries: 20
+      start_period: 300s
+    mem_limit: 1536m
+
+  api:
+    <<: *restart
+    profiles: ["app"]
+    build:
+      context: ../../backend
+      dockerfile: ../infra/containers/api.Dockerfile
+    image: agni-setu-api:dev
+    env_file:
+      - ../../.env.local
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.local
+      RUN_MIGRATIONS_ON_START: "true"
+      ALLOWED_HOSTS: api,localhost,127.0.0.1
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      CELERY_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-agni_dev}
+      CACHE_URL: redis://:${VALKEY_PASSWORD}@valkey:6379/0
+      OBJECT_ENDPOINT: http://objectstore:8333
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      objectstore:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/v1/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    mem_limit: 512m
+
+  web:
+    <<: *restart
+    profiles: ["app"]
+    build:
+      context: ../../web
+      dockerfile: ../infra/containers/web.Dockerfile
+    image: agni-setu-web:dev
+    ports:
+      - "127.0.0.1:${WEB_HOST_PORT:-5173}:8080"
+    depends_on:
+      api:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    mem_limit: 64m
+
+volumes:
+  postgres-data:
+  rabbitmq-data:
+  objectstore-data:
+  keycloak-data:
+  clamav-data:

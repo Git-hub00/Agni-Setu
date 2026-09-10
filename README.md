@@ -1,4 +1,61 @@
-# Agni Setu - implementation documentation pack
+# Agni Setu
+
+Fire-safety certificate case management for a fire service: accountable application intake,
+inspection evidence, information/deficiency loops, time-bound follow-up, reasoned decisions,
+certificate publication and public verification. Seven role workspaces, eleven application
+states, server-side authority for every decision.
+
+**Stack:** Django 5.2 LTS + Django REST Framework + PostgreSQL 17 · React 19 + TypeScript + Vite 8 ·
+Celery / RabbitMQ · Valkey · private S3-compatible object storage · Docker Compose.
+**Status:** implementation in progress, phase by phase (see [implementation status](docs/21_IMPLEMENTATION_STATUS.md)).
+This is a demonstration build; it is not an official government service and issues no real certificates.
+
+## Quick start (Windows and macOS)
+
+You need **Docker Desktop** (running), **Git**, and a POSIX shell: on macOS use Terminal; on Windows
+use **Git Bash** (installed with Git for Windows). Everything else runs inside containers.
+
+```bash
+git clone https://github.com/Git-hub00/Agni-Setu.git
+cd Agni-Setu
+scripts/dev/doctor.sh        # checks Docker, ports and tooling; explains anything missing
+scripts/dev/up.sh app        # generates .env.local with random secrets, starts infrastructure + api + web
+```
+
+Then open <http://localhost:5173>. The API answers at <http://127.0.0.1:8000/api/v1/health/ready>.
+PostgreSQL is published on **127.0.0.1:55432** (5432 is often taken by a local install).
+Stop with `scripts/dev/down.sh`; data volumes are kept. Details, profiles and memory notes:
+[infra/compose/README.md](infra/compose/README.md).
+
+### Developing on the host (optional)
+
+For code changes with hot reload, run the infrastructure in Docker and the app on your machine.
+Toolchain: Python 3.12, [uv](https://docs.astral.sh/uv/) 0.11.x, Node 24 LTS (pnpm comes via corepack).
+
+```bash
+scripts/dev/up.sh                                   # infrastructure only
+cd backend && uv sync --frozen && uv run python manage.py migrate && uv run python manage.py runserver 127.0.0.1:8000
+cd web && corepack pnpm install --frozen-lockfile && corepack pnpm dev      # http://localhost:5173, proxies /api
+```
+
+`backend/requirements.txt` is exported from `uv.lock` for readers without uv; the lockfiles are authoritative.
+Run every quality gate with `scripts/ci/verify.sh` (lint, types, tests, build, Compose validation).
+
+### Repository layout
+
+| Path | Contents |
+| --- | --- |
+| `backend/` | Django project (`config/`), business modules (`agni/`), tests, `uv.lock` |
+| `web/` | React/TypeScript SPA, `pnpm-lock.yaml`, nginx config for the container |
+| `infra/` | Compose stack, Dockerfiles, `images.lock.json` (digest-pinned images) |
+| `scripts/` | `dev/` (doctor, up, down), `ci/verify.sh` |
+| `docs/` | Implementation specification 2.0.0 (this pack) and the dependency lock record |
+| `references/` | Read-only HTML prototype used as the visual reference |
+| `handover.md` | Live agent handover record (Part A fixed, Part B updated every session) |
+
+---
+
+# Implementation documentation pack
 
 **Version 2.0.0 | 09 September 2026 | Target: Codex, Claude Code and human engineers**
 

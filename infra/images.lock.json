@@ -61,6 +61,45 @@
       "profile": "full",
       "role": "local staff OIDC issuer for integration tests; start-dev never used live"
     },
+    "python-base": {
+      "image": "docker.io/library/python",
+      "tag": "3.12-slim",
+      "index_digest": "sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea",
+      "platforms": {
+        "linux/amd64": "sha256:2fe5997d249a808b8eeea52c58a1dbffbba28754dc11699ef5c029f2d818ce79"
+      },
+      "created": "2026-09-01T00:02:51Z",
+      "profile": "build",
+      "role": "api/worker/scheduler runtime base (Debian trixie slim); pinned by digest, tag is informational"
+    },
+    "uv-distribution": {
+      "image": "ghcr.io/astral-sh/uv",
+      "tag": "0.11.28",
+      "index_digest": "NOT_RESOLVED - copied into the api image build stage by tag matching the host uv version; resolve digest at B18 packaging",
+      "profile": "build",
+      "role": "uv binary source for container builds"
+    },
+    "node-base": {
+      "image": "docker.io/library/node",
+      "tag": "24-alpine",
+      "index_digest": "sha256:50c8e8ca1d27439048670df5883f32d57cf81cff6233222c893fd0d9884cbd81",
+      "platforms": {
+        "linux/amd64": "sha256:333f6b3eca25980d5682c26207665b93c9417786b21760b2764d5821d9704c8a"
+      },
+      "profile": "build",
+      "role": "web build stage"
+    },
+    "nginx-base": {
+      "image": "docker.io/library/nginx",
+      "tag": "1.29-alpine",
+      "index_digest": "sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de",
+      "platforms": {
+        "linux/amd64": "sha256:3bcf852aed06467cf075c6105892e4d5a6ebbbafa0ce22d35062db9e90ddef4c"
+      },
+      "base": "nginx:1.29.8-alpine-slim",
+      "profile": "app",
+      "role": "static web + /api reverse proxy runtime"
+    },
     "clamav": {
       "image": "docker.io/clamav/clamav",
       "tag": "1.5.4",

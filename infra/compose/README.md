@@ -1,0 +1,54 @@
+# Local development stack (Compose)
+
+This is the **local** stack from docs/10_BUILD_GUIDE.md s.5. It is not the production
+deployment (docs/12 s.1, s.13): production uses hardened images, an approved TLS proxy, a
+supported PostgreSQL service and approved external providers.
+
+| Profile | Services | Purpose |
+| --- | --- | --- |
+| default | postgres, rabbitmq, valkey, objectstore | minimal infrastructure for host-run Django/Vite |
+| `full` | + keycloak, clamav | staff OIDC issuer and malware scanner (needs ~2 GB more RAM) |
+| `app` | + api, web | fully containerized application (Windows and macOS, D-004) |
+
+All ports bind to 127.0.0.1 only.
+
+| Service | Host address | Note |
+| --- | --- | --- |
+| PostgreSQL | 127.0.0.1:`POSTGRES_HOST_PORT` (default **55432**) | 5432 is often taken by a host PostgreSQL |
+| RabbitMQ | 5672; management 15672 | non-default credentials from `.env` |
+| Valkey | 6379 | password required; no persistence (disposable cache) |
+| SeaweedFS S3 | 8333 | credentials from `.env`; anonymous access denied |
+| Keycloak | http://localhost:8080 | `start-dev`, never used live |
+| ClamAV | private network only | amd64 image; emulated on Apple Silicon |
+| API | 127.0.0.1:8000 | `app` profile; migrations applied on start in dev |
+| Web | http://localhost:`WEB_HOST_PORT` (default 5173) | `app` profile; nginx serves the SPA and proxies `/api/` |
+
+Images are pinned by digest from `infra/images.lock.json`. Do not edit tags here; change the
+lock record first (docs/DEPENDENCY_LOCK.md s.9).
+
+## Commands
+
+```bash
+scripts/dev/doctor.sh          # check toolchain, ports, Docker, .env.local
+scripts/dev/up.sh              # minimal profile (generates .env.local on first run)
+scripts/dev/up.sh app          # + containerized api and web
+scripts/dev/up.sh all          # everything
+scripts/dev/down.sh            # stop containers, keep data
+scripts/dev/down.sh --remove   # remove containers and network, keep data volumes
+scripts/dev/down.sh --destroy-volumes   # delete ALL local data; asks you to type "agni-dev"
+```
+
+Volumes (`postgres-data`, `rabbitmq-data`, `objectstore-data`, `keycloak-data`, `clamav-data`)
+persist across stop/start. `down -v` is never used as a routine restart.
+
+## Memory
+
+The stack carries `mem_limit`s sized for a Docker Desktop VM with about 3 GB RAM: the minimal
+profile needs roughly 1.4 GB; `full` adds Keycloak (768 MB) and ClamAV (1.5 GB) and may not fit
+on small machines. Raise the Docker Desktop memory limit or run `full` on CI / a larger host.
+
+## Secrets
+
+`scripts/dev/up.sh` generates `.env.local` at the repository root from `backend/.env.example` with
+random values and renders the SeaweedFS identities file under `infra/volumes/` (both gitignored).
+Nothing in this directory contains a real secret.

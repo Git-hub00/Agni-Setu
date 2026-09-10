@@ -112,10 +112,13 @@ Resolution source: npm registry. Exact versions come from `web/package.json` (ex
 | zod | 4.x compatible | **4.5.4** | MIT | none | EV-B00-05 |
 | dexie | 4.x | **4.4.5** | Apache-2.0 | none | EV-B00-05 |
 | workbox (via vite-plugin-pwa or explicit build) | Vite-compatible SW build | NOT_RESOLVED - deferred to B11 (first phase that needs a service worker); will be added through the same lock discipline | MIT | NOT_RUN | B11 |
-| vitest, @testing-library/react, axe-core, @playwright/test | current | NOT_RESOLVED - added at B01 together with the first tests (`scripts/ci/verify.sh` needs them) | MIT / MPL-2.0 (axe-core) | NOT_RUN | dev; B01 |
-| eslint, typescript-eslint | current | NOT_RESOLVED - added at B01 with the lint script | MIT | NOT_RUN | dev; B01 |
+| vitest / jsdom | current | **5.0.0** / **30.0.1** (B01) | MIT | none | dev; unit tests |
+| @testing-library/react / jest-dom / user-event | current | **16.3.3** / **7.0.1** / **14.6.7** (B01) | MIT | none | dev |
+| eslint / @eslint/js / typescript-eslint / globals | current | **10.10.0** / **10.0.1** / **8.70.0** / **17.12.0** (B01) | MIT | none | dev; flat config, type-checked rules |
+| eslint-plugin-react-hooks / eslint-plugin-jsx-a11y | current | **7.1.1** / **6.10.2** (B01) | MIT | none | dev |
+| axe-core, @playwright/test | current | NOT_RESOLVED - added at B16/B19 with browser and accessibility suites | MPL-2.0 / Apache-2.0 | NOT_RUN | dev; later phases |
 
-164 packages are locked in `web/pnpm-lock.yaml` (lockfile regenerated from exact specifiers; `pnpm install --frozen-lockfile` reproduces - EV-B00-05). `pnpm audit --audit-level low`: "No known vulnerabilities found" (EV-B00-08). License values are the well-known upstream licenses; identification only, no formal compliance review.
+164 packages were locked at B00; B01 added the test/lint tooling above (lockfile regenerated from exact specifiers, frozen install verified) in `web/pnpm-lock.yaml` (lockfile regenerated from exact specifiers; `pnpm install --frozen-lockfile` reproduces - EV-B00-05). `pnpm audit --audit-level low`: "No known vulnerabilities found" (EV-B00-08). License values are the well-known upstream licenses; identification only, no formal compliance review.
 
 ## 6. Container images (`infra/images.lock.json`)
 

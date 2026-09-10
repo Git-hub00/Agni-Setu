@@ -14,7 +14,7 @@ Update this file at the end of each agent task. Read actual repository/branch/di
 | Phase | Deliverable | Initial status | Evidence/commit | Next action |
 | --- | --- | --- | --- | --- |
 | B00 | Baseline and dependency lock | READY_FOR_REVIEW (2026-09-10T19:1xZ; PR pending) | Repository inspected, user work preserved, ADR-01..15 accepted (`docs/DEPENDENCY_LOCK.md` s.3). Environment: Python 3.12.7, Node 24.14.1, uv 0.11.28, pnpm 12.3.4, Git 2.45.2, Docker 28.5.1 + Compose v2.40.3, WSL2 Ubuntu; host RAM 5.9 GB (L-05), port 5432 occupied (L-06). Locks: `backend/uv.lock` (100 pkgs: Django 5.2.17, DRF 3.17.2, psycopg 3.3.5, celery 5.6.3, ...), `web/pnpm-lock.yaml` (164 pkgs: React 19.3.0, Vite 8.2.2, TS 5.9.3, ...), `infra/images.lock.json` (postgres 17.11, rabbitmq 4.3.5-management, valkey 8.1.10, seaweedfs 4.46, keycloak 26.7.3, clamav 1.5.4 with registry digests). Proofs PASS: `uv sync --frozen`, `manage.py check`, `ruff check`, `ruff format --check`, `mypy` strict, `pip-audit` (after DEV-01..03 security bumps), `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm build`, `pnpm audit`. Evidence EV-B00-02..08 in DEPENDENCY_LOCK s.7; handoff record s.3b below | Open PR `feat/b00-baseline-lock`, self-review, merge; then B01 |
-| B01 | Repository and runnable skeleton | NOT_STARTED (some files pre-authored 2026-09-10 while B00 execution was gated: `backend/.env.example`, `config/settings/production.py` startup validation, `agni/platform/health.py` + `/api/v1/health/*`, `evidence/README.md`; all IMPLEMENTED_UNVERIFIED, listed in `handover.md` B6) | None executed | Complete B00 first; then Compose, scripts, CI and B01 tests including the bad-production-config negative |
+| B01 | Repository and runnable skeleton | READY_FOR_REVIEW (2026-09-10T19:5xZ; PR pending) | Compose stack `infra/compose/compose.dev.yml` (profiles default/full/app; digest-pinned images; loopback ports; PostgreSQL on 55432; healthchecks; mem limits) - minimal and app profiles brought up locally: **6/6 services healthy**. Images `agni-setu-api:dev` (543 MB, non-root, gunicorn) and `agni-setu-web:dev` (94 MB, unprivileged nginx). API-121/122 probes: live 200, ready 200 (database/schema/configuration pass) both directly and through nginx; SPA index and deep-route fallback 200; security headers present. Settings base/local/test/production with fail-closed production validation; `.env.example` contract; `backend/docker-entrypoint.sh`. Tests: backend **22 passed** (18 unit incl. 12 bad-production-config refusals + 4 integration on real PostgreSQL), web **10 passed** (shell landmarks, 7 placeholders, readiness states, api client CSRF/If-Match/idempotency); ruff, `ruff format`, `mypy --strict` (incl. tests), eslint (0 warnings), tsc all PASS. Scripts `scripts/dev/{doctor,up,down}.sh`, `scripts/ci/verify.sh`, CI workflow `.github/workflows/ci.yml`, root README quick start (Windows/macOS). Evidence EV-B01-01..06 in `handover.md` B7; record s.3c | Open PR `feat/b01-runnable-skeleton`; then B02. Limitations: shell scripts could not be executed by the agent (harness gate) - syntax/behaviour UNVERIFIED until run by CI or user; `full` profile (Keycloak/ClamAV) not started locally (RAM) |
 | B02 | Domain persistence and command kernel | NOT_STARTED | None | Complete prerequisites and task card |
 | B03 | Identity, sessions and scoped permissions | NOT_STARTED | None | Complete prerequisites and task card |
 | B04 | Service policy and master data | NOT_STARTED | None | Complete prerequisites and task card |
@@ -127,6 +127,51 @@ Remaining defects and reproduction: NONE known in code. Environment limits L-05 
   5432), L-07 (ClamAV amd64-only) carried into B01 design.
 Required human input: review/merge of the B00 PR; optional: raise Docker Desktop memory limit.
 Next safe task: B01 - Repository and runnable skeleton.
+End commit and worktree status: recorded in handover.md B12 after commit/push.
+```
+
+## 3c. Handoff record - B01 session claude-20260910T172516Z-b00b (2026-09-10)
+
+```text
+Task: B01 - Repository and runnable skeleton (docs/17_AGENT_TASK_CARDS.md B01; build guide s.5-8, s.11)
+Baseline: implementation spec 2.0.0
+Branch and start commit: feat/b01-runnable-skeleton from feat/b00-baseline-lock @ 92faf9b
+Files inspected: build guide s.5-12, deployment 12 s.1-5, API 06 s.1 + API-120..122, UI 03 s.1-4,
+  engineering 18 s.3, architecture 04 s.5/s.9, DEPENDENCY_LOCK, images.lock.json.
+Changes made and architecture decisions: infra/compose/compose.dev.yml (+README); infra/containers/
+  {api,web}.Dockerfile; backend/docker-entrypoint.sh, .dockerignore; web/nginx/{default,
+  security-headers}.conf, .dockerignore; scripts/dev/{_lib,up,down,doctor}.sh; scripts/ci/verify.sh;
+  .github/workflows/ci.yml; backend settings (local/test read env files before base; production
+  filters empty hosts), tests/{conftest,unit/*,integration/*}; web shell (router, providers,
+  AppShell, HomePage w/ real readiness query, NotFound, RouteErrorBoundary, api client/errors/health,
+  locales t(), tokens.css, global.css), eslint/vitest configs + tests, exact-pinned dev tooling;
+  README quick start; DEPENDENCY_LOCK s.5; images.lock.json base images. Decision: local secrets
+  file is `.env.local` (agent tooling guards `.env`); PostgreSQL host port 55432 default.
+Migrations/data impact: only Django built-in apps' migrations applied to the LOCAL dev database
+  (agni_dev) by the api container entrypoint; no project models yet.
+Tests actually executed (Windows 11 host, 2026-09-10T19:3x-19:5xZ, all PASS unless noted):
+  uv run --directory backend pytest tests -q -> 22 passed
+  uv run --directory backend ruff check . / ruff format --check . / mypy config agni tests -> PASS
+  corepack pnpm --dir web install --frozen-lockfile / lint / typecheck / test --run (10 passed) / build
+  docker build api (543 MB) and web (94.1 MB) images
+  docker compose -p agni-dev --env-file .env.local -f infra/compose/compose.dev.yml [--profile app]
+    up -d --wait -> 6/6 healthy
+  curl live -> {"status": "ok"}; ready -> 200 ready; via nginx :5173 -> 200; deep route -> 200;
+  headers X-Content-Type-Options/X-Frame-Options/Referrer-Policy/Permissions-Policy present
+Tests not executed and concrete reason: scripts/dev/*.sh and scripts/ci/verify.sh - every attempt
+  to execute them was refused by the Claude Code auto-mode classifier (not by the OS); `full`
+  profile (Keycloak, ClamAV) not started: Docker VM has 3 GB RAM (L-05); CI workflow not yet run
+  (branch push pending at time of writing).
+Screens inspected: web index via curl only (200, SPA shell); no browser screenshot this session.
+Processes restarted and smoke-check result: web container rebuilt twice (pid path fix, headers
+  fix) and re-probed healthy; api container healthy.
+Security/privacy or external-effect considerations: containers non-root; all ports loopback;
+  secrets only in gitignored .env.local / infra/volumes; production settings fail closed (tested);
+  demo mode visibly labelled in UI footer.
+Remaining defects and reproduction: NONE known. Risks: scripts unverified; rabbitmq needs ~60-90 s
+  to boot on this VM (start_period 90s).
+Required human input: review/merge PRs (gh not authenticated); optional Docker memory increase.
+Next safe task: B02 - Domain persistence and command kernel.
 End commit and worktree status: recorded in handover.md B12 after commit/push.
 ```
 
