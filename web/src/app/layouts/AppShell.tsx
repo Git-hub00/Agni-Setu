@@ -117,12 +117,13 @@ export function AppShell() {
         </div>
       ) : null}
 
-      <header className="flex min-h-16 items-center justify-between gap-4 border-b border-border bg-surface px-4 md:px-8">
+      <header className="flex min-h-16 flex-wrap items-center justify-between gap-2 border-b border-border bg-surface px-4 py-2 md:px-8">
         <Link to="/" className="flex min-h-11 items-center gap-2 text-lg font-semibold text-ink no-underline">
           <span aria-hidden="true" className="inline-block size-3 rounded-full bg-primary" />
           {t("app.name")}
         </Link>
-        <nav aria-label={t("nav.account")} className="flex items-center gap-3 text-sm">
+        {/* Wraps onto a second row below 640 px so no width ever scrolls horizontally (UI s.2). */}
+        <nav aria-label={t("nav.account")} className="flex flex-wrap items-center gap-1 text-sm sm:gap-3">
           <Link to="/verify" className="inline-flex min-h-11 items-center rounded-md px-3 text-ink hover:bg-canvas">
             {t("nav.verify")}
           </Link>

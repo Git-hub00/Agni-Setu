@@ -41,7 +41,11 @@ Demo sign-in: applicants use the one-time code shown in the local demo inbox
 (`GET /api/v1/demo/inbox?channel=EMAIL&contact=<address>`); staff sign in through the local
 Keycloak realm (`arjun`, `meera`, `anita`, ... with the demo passwords in
 `infra/identity/realm-agni-dev.json`). Everything is synthetic; nothing is sent to a real inbox.
-End-to-end smoke checks against the running stack live in `scripts/dev/smoke_*.py`.
+End-to-end smoke checks against the running stack live in `scripts/dev/smoke_*.py`. The browser
+and accessibility suite (Playwright + axe-core, WCAG 2.2 AA) runs against the same stack with
+`corepack pnpm --dir web test:e2e` after `corepack pnpm --dir web exec playwright install chromium`;
+the security boundary suite is `uv run --directory backend pytest tests/security` and the tracked-file
+secret scan is `python scripts/ci/scan_secrets.py` (both are part of `scripts/ci/verify.sh` and CI).
 
 Field officers can install the web app (PWA). The service worker caches only the static
 application shell and never API responses; case data for offline work is downloaded per attempt

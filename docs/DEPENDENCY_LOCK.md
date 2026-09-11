@@ -121,7 +121,8 @@ Resolution source: npm registry. Exact versions come from `web/package.json` (ex
 | @testing-library/react / jest-dom / user-event | current | **16.3.3** / **7.0.1** / **14.6.7** (B01) | MIT | none | dev |
 | eslint / @eslint/js / typescript-eslint / globals | current | **10.10.0** / **10.0.1** / **8.70.0** / **17.12.0** (B01) | MIT | none | dev; flat config, type-checked rules |
 | eslint-plugin-react-hooks / eslint-plugin-jsx-a11y | current | **7.1.1** / **6.10.2** (B01) | MIT | none | dev |
-| axe-core, @playwright/test | current | NOT_RESOLVED - added at B16/B19 with browser and accessibility suites | MPL-2.0 / Apache-2.0 | NOT_RUN | dev; later phases |
+| @playwright/test | current 1.x | **1.63.0** (B16; Chromium build downloaded by `playwright install chromium`) | Apache-2.0 | none (`pnpm audit`, B16) | dev; `web/e2e/**` browser + accessibility suite against the running Compose stack (`pnpm test:e2e`) |
+| @axe-core/playwright (axe-core) | current 4.x | **4.13.0** (B16) | MPL-2.0 | none (same audit) | dev; WCAG 2.2 AA scans in the e2e suite (serious/critical violations fail) |
 
 164 packages were locked at B00; B01 added the test/lint tooling above (lockfile regenerated from exact specifiers, frozen install verified) in `web/pnpm-lock.yaml` (lockfile regenerated from exact specifiers; `pnpm install --frozen-lockfile` reproduces - EV-B00-05). `pnpm audit --audit-level low`: "No known vulnerabilities found" (EV-B00-08). License values are the well-known upstream licenses; identification only, no formal compliance review.
 
@@ -180,6 +181,7 @@ Upgrades after B00 require an ADR-style note in this file (reason, compatibility
 | DEV-04 | 2026-09-10 (B03) | add direct runtime dependency **requests 2.34.2** (`>=2.32,<3`) | `authlib.integrations.django_client` imports `requests`; the api container (built with `--no-dev`) crashed at import until it was declared (found by the container health check, not by host tests, which had it through the dev group) | `uv lock` re-resolved with no other change; container rebuilt and healthy; requirements.txt re-exported | Apache-2.0; pip-audit clean |
 | DEV-05 | 2026-09-10 (B04) | add direct runtime dependency **jsonschema 4.26.0** (`>=4.23,<5`) | Policy packages are data validated against a versioned Draft 2020-12 JSON Schema with `additionalProperties: false` (workflow s.6, FR-27); the library was already in the lock as a transitive dependency | `uv lock` resolved without other changes; `manage.py check` PASS; 122 backend tests PASS incl. schema-rejection tests; requirements.txt re-exported | MIT; pip-audit clean (already present transitively) |
 | DEV-06 | 2026-09-10 (B04) | add dev dependency **types-jsonschema 4.26.0.20260518** (`>=4.23,<5`) | mypy strict reported "Library stubs not installed for jsonschema" | dev group only; `mypy config agni tests` PASS (121 files) | none (typing stubs) |
+| DEV-07 | 2026-09-12 (B16) | add web dev dependencies **@playwright/test 1.63.0** and **@axe-core/playwright 4.13.0** (exact pins; lockfile re-resolved) | Task card B16 / test plan s.2 require a browser end-to-end and accessibility layer (Playwright + axe-core) | `pnpm install --frozen-lockfile` reproduces; `tsc`/`eslint` cover `web/e2e/**`; suite executed against the Compose stack (status21 s.3r) | dev only; `pnpm audit --audit-level low` clean; browsers downloaded from Playwright's CDN into the user cache, not committed |
 
 ---
 [Documentation index](../README.md) | [Build guide](10_BUILD_GUIDE.md) | [Implementation status](21_IMPLEMENTATION_STATUS.md)

@@ -2,7 +2,9 @@
    Semantic names only; components never use raw hex values. */
 :root {
   --color-ink: #182b3b;
-  --color-muted: #687786;
+  /* B16: darkened from the prototype's #687786 (4.27:1 on the canvas) to reach WCAG 2.2 AA
+     4.5:1 for small muted text on --color-canvas (5.3:1) and --color-surface (6.6:1). */
+  --color-muted: #5a6978;
   --color-canvas: #f5f7f9;
   --color-surface: #ffffff;
   --color-border: #e3e8ed;

@@ -7,7 +7,7 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist/", "dev-dist/", "node_modules/", "coverage/", "nginx/"] },
+  { ignores: ["dist/", "dev-dist/", "node_modules/", "coverage/", "nginx/", "playwright-report/", "test-results/"] },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
@@ -24,6 +24,14 @@ export default tseslint.config(
       "@typescript-eslint/consistent-type-imports": "error",
       "@typescript-eslint/no-unnecessary-condition": "warn",
     },
+  },
+  {
+    files: ["e2e/**/*.ts"],
+    languageOptions: {
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+      globals: { ...globals.browser, ...globals.node },
+    },
+    rules: { "@typescript-eslint/consistent-type-imports": "error" },
   },
   {
     files: ["*.config.{js,ts}", "vitest.setup.ts"],

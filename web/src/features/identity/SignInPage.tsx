@@ -83,7 +83,11 @@ export function SignInPage() {
       return verifyOtp({ challengeId: challenge.challenge_id, code: code.trim(), channel, contact: contact.trim() });
     },
     onSuccess: async (principal) => {
-      queryClient.clear();
+      // Identity changed: drop every cached scoped read (security s.4) but keep the session
+      // query alive - `clear()` would orphan the shell's mounted observer, which then never
+      // sees the new principal until a full reload (found by the B16 browser suite).
+      await queryClient.cancelQueries();
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== "session" });
       queryClient.setQueryData(["session", "me"], principal);
       await navigate(next, { replace: true });
     },

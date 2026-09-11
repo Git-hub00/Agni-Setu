@@ -42,6 +42,19 @@ describe("api client", () => {
     await expect(request("/things")).rejects.toBeInstanceOf(ApiError);
   });
 
+  it("parses RFC 9457 problem+json refusals so the code and request id reach the UI", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ code: "FORBIDDEN", detail: "Action is not permitted", request_id: "r-1", status: 403 }), {
+          status: 403,
+          headers: { "content-type": "application/problem+json" },
+        }),
+      ),
+    );
+    await expect(request("/jobs")).rejects.toMatchObject({ name: "ApiError", status: 403, code: "FORBIDDEN", body: { request_id: "r-1" } });
+  });
+
   it("adds X-CSRFToken from the csrftoken cookie on unsafe methods only", async () => {
     document.cookie = "csrftoken=abc123";
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(201, {}));

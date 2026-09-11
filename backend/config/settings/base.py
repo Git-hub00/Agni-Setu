@@ -176,6 +176,7 @@ AGNI_CLOCK = env.str("AGNI_CLOCK", default="agni.platform.clock.SystemClock")
 
 MIDDLEWARE = [
     "agni.platform.correlation.RequestIdMiddleware",
+    "agni.platform.hardening.HardeningMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -214,6 +215,15 @@ DATABASES = {
 DATABASES["default"]["CONN_MAX_AGE"] = env.int("DB_CONN_MAX_AGE", default=60)
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Browser policy (security s.4): every environment, not only production.
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "same-origin"
+X_FRAME_OPTIONS = "DENY"
+# Resource limits (security s.9): JSON command bodies are small; files use the upload endpoint.
+API_MAX_JSON_BODY_BYTES = env.int("API_MAX_JSON_BODY_BYTES", default=1024 * 1024)
+DATA_UPLOAD_MAX_MEMORY_SIZE = API_MAX_JSON_BODY_BYTES
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 200
+
 # Database-backed sessions; no browser token storage (ADR-04).
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
 SESSION_COOKIE_HTTPONLY = True
@@ -238,7 +248,7 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_RENDERER_CLASSES": [
-        "rest_framework.renderers.JSONRenderer",
+        "agni.platform.api.renderers.SafeJSONRenderer",
     ],
     "EXCEPTION_HANDLER": "agni.platform.api.exceptions.problem_exception_handler",
 }

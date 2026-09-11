@@ -19,7 +19,7 @@ T0 = datetime(2026, 9, 1, 9, 0, tzinfo=UTC)
 
 
 def test_state_at_picks_the_stage_in_force_at_the_cutoff() -> None:
-    stages = [
+    stages: list[tuple[str, datetime, datetime | None]] = [
         ("SUBMITTED", T0, T0 + timedelta(hours=1)),
         ("SCRUTINY", T0 + timedelta(hours=1), T0 + timedelta(days=2)),
         ("INSPECTION_PENDING", T0 + timedelta(days=2), None),
@@ -30,7 +30,10 @@ def test_state_at_picks_the_stage_in_force_at_the_cutoff() -> None:
     assert state_at(stages, T0 + timedelta(days=1)) == "SCRUTINY"
     assert state_at(stages, T0 + timedelta(days=30)) == "INSPECTION_PENDING"
     # Two entries at the same instant: the later entry wins.
-    same = [("A", T0, None), ("B", T0 + timedelta(microseconds=1), None)]
+    same: list[tuple[str, datetime, datetime | None]] = [
+        ("A", T0, None),
+        ("B", T0 + timedelta(microseconds=1), None),
+    ]
     assert state_at(same, T0 + timedelta(hours=1)) == "B"
 
 

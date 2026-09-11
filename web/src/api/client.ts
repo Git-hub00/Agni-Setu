@@ -40,7 +40,8 @@ export function readCookie(name: string, cookieSource: string = document.cookie)
 
 async function parseBody(response: Response): Promise<unknown> {
   const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.includes("application/json")) {
+  // Success envelopes are application/json; refusals are RFC 9457 application/problem+json.
+  if (!/^application\/(problem\+)?json\b/i.test(contentType)) {
     return null;
   }
   try {

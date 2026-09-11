@@ -26,11 +26,14 @@ if [ "$unit_only" = false ]; then
       DATABASE_URL="$(sed -n 's/^DATABASE_URL=//p' "$REPO_ROOT/.env.local" | head -1)"; export DATABASE_URL
     fi
     uv run --directory backend pytest tests/integration -q
+    step "backend: security boundary tests (real PostgreSQL)"
+    uv run --directory backend pytest tests/security -q
   else
     step "backend: integration tests SKIPPED (no DATABASE_URL and no .env.local; run scripts/dev/up.sh first)"
   fi
 fi
 step "backend: dependency audit";     uv run --directory backend pip-audit --progress-spinner off
+step "repository: secret scan";       uv run --directory backend python ../scripts/ci/scan_secrets.py
 
 step "web: frozen install";           corepack pnpm install --dir web --frozen-lockfile
 step "web: lint";                     corepack pnpm --dir web lint

@@ -7,6 +7,7 @@ import logging
 from typing import Any
 
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
+from django.core.exceptions import RequestDataTooBig, TooManyFieldsSent
 from django.http import Http404
 from rest_framework import exceptions as drf
 from rest_framework.response import Response
@@ -69,6 +70,10 @@ def _translate(exc: Exception) -> DomainError:
         return MalformedRequest(str(exc.detail))
     if isinstance(exc, drf.MethodNotAllowed):
         return MalformedRequest(str(exc.detail), extensions={"status_override": 405})
+    if isinstance(exc, RequestDataTooBig | TooManyFieldsSent):
+        return MalformedRequest(
+            "Request body exceeds the accepted size", extensions={"status_override": 413}
+        )
     if isinstance(exc, drf.Throttled):
         wait_raw = getattr(exc, "wait", None)
         wait = int(wait_raw) if wait_raw else None

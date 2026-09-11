@@ -27,7 +27,12 @@ export function ApplicationDetailPage() {
     return <p className="text-sm text-muted">{t("wizard.loading")}</p>;
   }
   if (query.isError) {
-    return <ProblemNotice error={query.error} />;
+    return (
+      <div className="flex flex-col gap-4">
+        <h1 className="text-2xl font-semibold text-ink">{t("applications.title")}</h1>
+        <ProblemNotice error={query.error} />
+      </div>
+    );
   }
   const { detail, etag } = query.data;
   const actions = new Map(detail.allowed_actions.map((a) => [a.key, a] as const));

@@ -29,7 +29,7 @@ Update this file at the end of each agent task. Read actual repository/branch/di
 | B13 | Lifecycle, support and conditional routes | READY_FOR_REVIEW (2026-09-11T20:2xZ; merged to `main` per D-009 - see s.3o) | `CaseHold` (cases 0005) with guarded withdrawal TR-13 (API-030: applicant only, profile stages, disposition of obligations / attempts / notices), holds (API-031/032: listed clocks paused through the B10 pause table, TRANSITIONS / DECISIONS block scope enforced in every transition and the issuance job), TR-14 return-for-clarification (API-063: new CLARIFICATION attempt, no-visit addendum refused as SERVICE_DISABLED); `CertificateStatusInstrument` (certificates 0003) with pure admissibility (expired never reinstated; revocation and supersession final), API-071 status actions needing the `certificate.status` grant + evidence, API-070 linked renewal drafts that never extend validity, registry history / renewals / allowed actions; NEW app `agni.support` (support 0001): tickets with audience-filtered messages, SUPPORT_ATTACHMENT uploads readable only through ticket scope, support status machine with requester reopen, routes + appeals answering 409 SERVICE_DISABLED with the referral; profile-gated API-072/119 stubs. Web: UI-07 lifecycle block (withdraw with confirmation, hold form + release, return form), UI-17 status dialog + renewal, UI-26 support pages. Tests: backend **210 passed** alone (incl. 4 lifecycle integration + 3 admissibility unit), web **39 passed** + build, e2e **29/29** steps (one holder step NOT_RUN, covered by tests). Evidence `handover.md` B7 EV-B13-01..05; record s.3o | B14 (reporting, audit and operational UI) |
 | B14 | Reporting, audit and operational UI | READY_FOR_REVIEW (2026-09-11T21:4xZ; merged to `main` per D-009 - see s.3p) | NEW app `agni.reporting` (migration 0001 `export_job`): single-cutoff reconciled metrics (API-081: population = visible received cases at `as_of`, status from the stage instance in force at the cutoff, open/completed/rejected/withdrawn partition checked, published certificates, overdue obligations, median/P90 resolution with an insufficient-sample flag, `metrics-v1` definitions in the body; failures 503, never zero); controlled exports (API-082..084: purpose, approved minimised field sets, frozen population, durable `export.generate` job writing CSV with formula neutralisation to private storage, 24 h expiry, access reauthorised against the CURRENT scope, audited, requester-bound ticket; PDF -> SERVICE_DISABLED); scoped audit reader (API-085/086: supervisors unredacted within their jurisdictions, leadership/admin redacted, applicants refused, every read recorded as `audit.read` on the reader's chain and excluded from ordinary listings, detail with `verify_chain`); operator recovery (API-105 retry of the same logical action refusing after an UNKNOWN outcome, API-106 reconcile with a per-kind procedure, both reasoned + audited, ADMIN only); staff governance over HTTP (API-087 roster with roles/grants/workload, 088 provision, 089 deactivate now also revoking grants, 090 reactivate from a NEW approved request, 091 propose, 092 approve, 093 revoke; separation of duties + ETags); web UI-22 `/reports`, UI-23 `/audit`, UI-21 `/team`, UI-27 `/settings`, UI-20 recovery actions; seed grants meera `grant.approve`, arjun `staff.provision` | Human review of `main`; B15 |
 | B15 | Integration contracts and reconciliation | READY_FOR_REVIEW (2026-09-11T22:1xZ; merged to `main` per D-009 - see s.3q) | NEW app `agni.integrations` (migration 0001: `integration` with mode SIMULATED/SANDBOX/LIVE, owned fields, endpoint allowlist, secret *reference*, state, freshness budget, health; `integration_inbox` unique per (integration, source_event_id) with payload hash and auth evidence; `integration_conflict` with owner queue, reason, evidence-based resolution; `partner_entity_state` = the local reflection of partner-owned fields with the applied sequence/version). Partner intake API-109 authenticated by HMAC-SHA256 over timestamp + raw body with a bounded skew (401 INTEGRATION_SIGNATURE_INVALID before any storage; 422 structural; 409 reused id with another body + PAYLOAD_MISMATCH conflict; exact duplicate acknowledged with the prior receipt; 202 PROCESSING is never applied success); durable `integration.apply` job with the pure ordering rule (applied+1 applies, lower is older or duplicate, higher is a gap; version/time when unsequenced), owned fields only, automatic release of the next-in-sequence event, conflicts audited + `integration.conflict_detected.v1`; API-107 sanitised cards (secret references only), API-108 allowlisted probes through the adapter (SANDBOX/LIVE unconfigured adapters report FAIL and degrade the row - nothing fabricated), API-110 scoped conflicts (ADMIN global / SUPERVISOR of the owner queue), API-111 resolution with reason + evidence + ETag: APPLY_VERIFIED_SOURCE fetches the record from the approved source, refuses a version the source does not confirm, refuses when unreachable (503) / ambiguous (409 EXTERNAL_OUTCOME_UNKNOWN) / missing; IGNORE_DUPLICATE / REQUEST_RESEND / KEEP_QUARANTINED keep data out of the reflection; production LIVE refuses demo partner secrets; seed rows `demo-partner-case-source` (SIMULATED, ENABLED) and `demo-external-certificate-source` (DISABLED); web UI-25 `/integrations` | Human review of `main`; B16 |
-| B16 | Security and accessibility hardening | NOT_STARTED | None | Complete prerequisites and task card |
+| B16 | Security and accessibility hardening | READY_FOR_REVIEW (2026-09-11T23:5xZ; merged to `main` per D-009 - see s.3r) | Security: `HardeningMiddleware` (API-wide CSP `default-src 'none'; frame-ancestors 'none'`, nosniff, DENY, same-origin referrer, Permissions-Policy, CORP/COOP, `Cache-Control: private, no-store` on authenticated JSON, 1 MiB JSON body cap answered as problem+json 413 before any view; the file transfer endpoint keeps its reservation bound), `SafeJSONRenderer` (`<`, `>`, `&` emitted as JSON escapes so API bodies are inert as HTML), Django `RequestDataTooBig` mapped to 413, `SECURE_*`/`X_FRAME_OPTIONS` in every environment, nginx CSP for the SPA (`script-src 'self'`, `frame-ancestors 'none'`, `object-src 'none'`, COOP), `tests/security` (boundary matrix over anonymous / applicant / officer / supervisor / foreign supervisor / leadership / admin / policy approver; substituted ids; disallowed methods; injection-shaped params; caller-supplied authority; headers; cookie flags; login + command CSRF; oversized body; stored-XSS neutrality; verification rate limit; secrets/OTP absent from responses and logs), `scripts/ci/scan_secrets.py` (tracked-file secret scan, in verify.sh + CI). Accessibility: Playwright + axe-core suite `web/e2e` (`pnpm test:e2e`) over public, applicant (real OTP form) and staff (real Keycloak) routes at 360/390/768/1280/1440 with keyboard-only, reduced-motion, CSP-console and header checks; fixes it forced: muted text token 4.27:1 -> 5.3:1, content links underlined (link-in-text-block), header wraps below 640 px (no horizontal scroll), problem+json refusals now parsed by the client (codes/request ids were being dropped), OTP sign-in no longer orphans the session observer (stayed signed-out until reload) | Human review of `main`; B17 |
 | B17 | Reliability, performance and recovery proof | NOT_STARTED | None | Complete prerequisites and task card |
 | B18 | Production packaging and release evidence | NOT_STARTED | None | Complete prerequisites and task card |
 | B19 | Full demonstration acceptance | NOT_STARTED | None | Complete prerequisites and task card |
@@ -1762,6 +1762,164 @@ Self-review (D-009): task card B15 proofs - duplicate event no duplicate effect 
 Required human input: approved partner contract(s) before any SANDBOX/LIVE adapter; docs/07
   review of the conflict-ownership rule (decision 5); BL-007.
 Next safe task: B16 - Security and accessibility hardening.
+End commit and worktree status: recorded in handover.md B12 after commit/push.
+```
+
+## 3r. Handoff record - B16 session claude-20260910T172516Z-b00b (2026-09-12)
+
+```text
+Task: B16 - Security and accessibility hardening (task card B16; docs 07 s.4 browser policy,
+  s.5 permission matrix, s.7 attachment safety, s.9 threat scenarios, s.10 release gates; 11
+  s.2 layers (Playwright + axe), s.8 accessibility and device acceptance, s.10 exit criteria;
+  03 s.2 breakpoints, s.8 WCAG 2.2 AA; 10 s.11 `tests/security` + `pnpm test:e2e`; 06 s.10
+  boundary matrix; 18 s.3)
+Baseline: implementation spec 2.0.0
+Branch and start commit: feat/b16-hardening from main @ ede4d66
+Files inspected: ApiView CSRF enforcement, exception handler, settings MIDDLEWARE /
+  SESSION / REST_FRAMEWORK, nginx default.conf + security-headers.conf, upload transfer view
+  (streams bytes against the reservation), MAGIC sniffing at completion, existing security
+  coverage (OTP CSRF, session revocation, upload refusals, kernel idempotency), SignInPage,
+  AppShell, tokens.css, client.ts, demo inbox view, seed personas.
+Changes made and architecture decisions:
+  backend: platform/hardening.py HardeningMiddleware (request guard: JSON bodies above
+    API_MAX_JSON_BODY_BYTES = 1 MiB answered 413 application/problem+json MALFORMED_REQUEST
+    with max_bytes before any view, the /uploads/<id>/content transfer excluded because the
+    reservation bounds it; response headers on every /api response: CSP "default-src 'none';
+    frame-ancestors 'none'; base-uri 'none'; form-action 'none'", X-Content-Type-Options
+    nosniff, X-Frame-Options DENY, Referrer-Policy same-origin, Permissions-Policy
+    camera/microphone/geolocation/payment/usb off, Cross-Origin-Resource-Policy and
+    Cross-Origin-Opener-Policy same-origin, Cache-Control "private, no-store" on
+    authenticated JSON responses without an explicit cache policy); platform/api/renderers.py
+    SafeJSONRenderer (default DRF renderer; `<` `>` `&` -> < > & so a JSON body
+    can never be read as HTML even if a client mislabels it); exceptions.py maps Django
+    RequestDataTooBig / TooManyFieldsSent to 413 MALFORMED_REQUEST; settings: middleware
+    order (request id -> hardening -> SecurityMiddleware ...), SECURE_CONTENT_TYPE_NOSNIFF /
+    SECURE_REFERRER_POLICY / X_FRAME_OPTIONS in base (every environment), DATA_UPLOAD_MAX_*
+    aligned to the JSON cap.
+  web/nginx/security-headers.conf: Content-Security-Policy for the SPA - default-src 'self';
+    script-src 'self' (no inline scripts exist: Vite bundles + PWA register through the
+    bundle); style-src 'self' 'unsafe-inline' (framework-managed style attributes only; no
+    user HTML is ever rendered); img-src 'self' data: blob: (QR / icons); font-src 'self'
+    data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none';
+    frame-ancestors 'none'; base-uri 'self'; form-action 'self'; plus Cross-Origin-Opener-
+    Policy same-origin. Verified in the browser: zero CSP refusals in the console across all
+    e2e journeys.
+  tests/security (NEW; shares the integration fixtures): test_boundaries.py (anonymous 401
+    uniformly with problem+json and no case data; applicants 403 on staff planes, OWN_CASES
+    metrics only, 404 for another applicant's case/timeline/revisions, 403 for inspections
+    real or unknown alike, 404 withdraw, case unchanged; officer: case yes, planes 403;
+    supervisor: case + reports, admin planes 403; foreign supervisor: 404 case, empty lists,
+    zero metrics, empty audit; leadership reads its region but cannot decide; operations admin:
+    jobs yes, case content 403/404 without premises data, decisions refused; policy approver:
+    jobs 403; substituted UUIDs 404 across applications/documents/certificates/exports/
+    tickets/notices and admin planes; DELETE/PUT/PATCH on a case 405 MALFORMED_REQUEST;
+    injection-shaped params 400/422; caller-supplied actor_id / certificate_number / status
+    refused; draft creation never honours a caller status or owner queue; /me reports server-
+    derived workspaces only) and test_headers_limits_and_leaks.py (headers + no-store on /me
+    and case detail, headers on public and 401 responses; real OTP sign-in over HTTP ->
+    sessionid HttpOnly SameSite=Lax Path=/, the code absent from the response and from DEBUG
+    logs, business command without CSRF token 403 CSRF_FAILED, login without CSRF 403;
+    oversized JSON body 413 problem+json with CSP header; stored XSS strings returned as data
+    with JSON escapes and nosniff for applicant and staff; public verification 429
+    RATE_LIMITED with Retry-After after the per-client limit; integration listing never
+    carries the demo secret or SECRET_KEY; malformed JSON -> 400 without traceback).
+  scripts/ci/scan_secrets.py (tracked files via git ls-files; private key blocks, AWS/GitHub/
+    Slack tokens, JWT-like strings, URLs with embedded credentials, literal password/secret/
+    token assignments; documented placeholders and ${}/$()/{{}} interpolation allowlisted);
+    wired into scripts/ci/verify.sh and .github/workflows/ci.yml together with
+    `pytest tests/security`.
+  web e2e (NEW `web/e2e`, `playwright.config.ts`, `pnpm test:e2e`, exact pins
+    @playwright/test 1.63.0 + @axe-core/playwright 4.13.0 - DEPENDENCY_LOCK DEV-07):
+    helpers (axe WCAG 2.2 AA scan failing on serious/critical, no-horizontal-overflow sweep
+    at 360/390/768/1280/1440 with culprit reporting, CSP console collector, real OTP sign-in
+    through the form + demo inbox API, real Keycloak sign-in through the IdP form);
+    public-a11y (home / sign-in / verify accessible + reflow + CSP clean; security headers
+    reach the browser for the shell and the API; keyboard-only: skip link first, Tab to
+    "Sign in" + Enter, verify form by typing + Enter; reduced motion + 200 % zoom);
+    applicant-a11y (real OTP sign-in, every applicant route accessible, reload restores the
+    session, keyboard reaches the workspace links, deep link to another case shows a scoped
+    error); staff-a11y (anita: overview / inspections / schedule / reviews / monitoring /
+    reports / audit / team / certificates accessible after Keycloak; arjun: operations /
+    integrations / team / policy / audit accessible and no secret value on screen; priya is
+    refused on /operations by the server and her own queue is accessible).
+  UI fixes the suite forced (all real defects): (1) --color-muted #687786 -> #5a6978 (4.27:1
+    failed WCAG AA on the canvas; now 5.3:1 / 6.6:1 on surface); (2) content links inside text
+    blocks were colour-only -> underlined by a global rule, navigation / button-styled links
+    opt out; (3) the header account navigation did not wrap -> 181 px horizontal overflow at
+    360 px -> header wraps below 640 px; (4) api/client.ts only parsed `application/json`, so
+    every real refusal (application/problem+json) lost its code and request id and the UI
+    showed "Request failed with status 403" - fixed (regression test added); (5) SignInPage
+    called queryClient.clear() after OTP verify, orphaning the shell's mounted session observer
+    -> the app looked signed out until a full reload (server session was fine) - identity
+    change now removes every non-session query and sets the session data; (6) case detail
+    error state now has a level-one heading (axe moderate finding).
+  Decisions: (1) the API CSP is fully closed (`default-src 'none'`) because the API serves data
+    only; the SPA CSP keeps `style-src 'unsafe-inline'` for framework-managed style
+    attributes (documented residual; nonces for inline styles are a later refinement); (2)
+    JSON escaping of HTML metacharacters is applied at the renderer, not per field; clients
+    decode identical strings; (3) the request-size guard is a middleware (not DRF parser
+    config) so it answers before authentication and CSRF work; (4) inspections answer 403 to
+    applicants for real and unknown ids alike (a staff resource; no existence leak) while case
+    resources answer 404 - both are accepted by the matrix and documented; (5) the secret scan
+    is a project script (no network, no extra dependency) rather than gitleaks/trufflehog,
+    which are not installed on this host; container image scanning (trivy / docker scout) was
+    not run - recorded as NOT_RUN for B18; (6) the browser suite runs against the running
+    Compose stack and never starts or resets services; it signs in through the real forms with
+    fresh synthetic contacts; (7) the header wraps on narrow widths instead of the drawer the UI
+    spec describes for mobile - deviation recorded for B19 visual review.
+Migrations/data impact: none. New dev dependencies (web) only. No new Compose service.
+Tests actually executed (Windows host, 2026-09-12):
+  uv run --directory backend ruff check/format agni config tests; mypy agni config tests ->
+    "Success: no issues found in 328 source files" (also fixed a pre-existing list-variance
+    typing error in tests/unit/test_reporting_rules.py that `mypy tests` in CI would have
+    caught); manage.py check; makemigrations --check --dry-run -> clean
+  uv run --directory backend pytest tests/security -q -> **11 passed in 72 s** (after
+    correcting two test-side expectations: applicants DO read OWN_CASES metrics; inspections
+    answer 403 not 404 to applicants)
+  python scripts/ci/scan_secrets.py -> "secret scan: 508 files, no findings" (first run
+    flagged Compose/shell `${VAR}` URLs - interpolation allowlisted, not real values)
+  corepack pnpm --dir web exec tsc / eslint src e2e playwright.config.ts / vitest run ->
+    clean; **43 passed (22 files)** incl. the new client problem+json test
+  corepack pnpm --dir web audit --audit-level low -> "No known vulnerabilities found"
+    (Playwright + axe added)
+  Container proof: docker compose build api web (api 524782506e1e 22:43:55Z; web rebuilt
+    three times as fixes landed - 35d2ced3f908 -> 86bc72faecde -> de077ce0ef6c ->
+    bd6efcf9c46d 23:2xZ); up -d --wait -> healthy; curl -I / -> CSP + X-Frame-Options served
+  corepack pnpm --dir web exec playwright test (Chromium 153, 10 tests, against
+    http://127.0.0.1:5173): run 1 -> 3 passed / 7 failed (contrast, staff link role, shared
+    OTP contact); run 2 -> 5 / 5 (reports 360 px overflow, officer 403 message, applicant
+    session); run 3 -> 6 / 4 (link-in-text-block, session observer); run 4 -> **10 passed in
+    2.3 min**, axe reporting only one moderate "page-has-heading-one" on the case-not-found
+    state (fixed afterwards); final run after the heading fix on web `9b68d1ab3219` (23:4xZ):
+    **10 passed in 2.1 min, no axe notes at any impact level** (evidence/B16-e2e.log)
+  uv run --directory backend pytest -q -p no:cacheprovider (full suite incl. tests/security,
+    ALONE, 23:33-23:42Z) -> **262 passed in 508.80 s**; 0 PostgreSQL termination / recovery
+    lines since 23:30Z (evidence/B16-backend-tests.log)
+Tests not executed and concrete reason: container image vulnerability scan (no trivy /
+  docker scout on this host - B18 packaging); Firefox / Safari / Android Chrome runs (only
+  Chromium installed; test plan s.8 asks for the officer offline suite on approved Android
+  Chrome - device not available); manual screen-reader pass (NVDA/JAWS not run; axe +
+  keyboard automation only); 200 % zoom tested by viewport halving, not browser zoom;
+  penetration test by an independent party (release gate for B20).
+Screens inspected: every mounted route through Playwright + axe with screenshots on failure
+  in web/test-results (gitignored); manual visual check of failure screenshots.
+Security/privacy or external-effect considerations: no secret value in any response, log or
+  tracked file (tested + scanned); refusals are uniform and data-free; CSP is enforcing in
+  every environment (not report-only); the JSON escaping changes bytes on the wire but not
+  decoded values; the request cap protects workers from oversized command bodies while the
+  upload path keeps its explicit reservation bound.
+Remaining defects and reproduction: NONE known in the product after the six fixes above.
+Self-review (D-009): task card B16 proofs - critical/high issues resolved (the six defects
+  found were all fixed and re-verified in the browser); keyboard and mobile core tasks
+  complete (sign-in, verify, workspace navigation by keyboard; 360-1440 px without horizontal
+  scroll); no token/PII leaks (headers, cookies, logs, responses tested); full authorization
+  matrix tested (tests/security/test_boundaries.py); forbidden shortcut respected: no check was
+  disabled or suppressed - failing axe / boundary assertions were fixed in the product or,
+  where the expectation was wrong (403 vs 404, applicant metrics), corrected with the reason
+  recorded here.
+Required human input: independent security review before live activation (B20 gate);
+  approved mobile drawer design decision (decision 7); BL-007.
+Next safe task: B17 - Reliability, performance and recovery proof.
 End commit and worktree status: recorded in handover.md B12 after commit/push.
 ```
 

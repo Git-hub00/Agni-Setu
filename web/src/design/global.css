@@ -44,6 +44,13 @@ body {
   outline-offset: 2px;
 }
 
+/* Links inside content are distinguishable without colour (WCAG 1.4.1; axe link-in-text-block,
+   found by the B16 browser suite). Navigation and button-styled links opt out explicitly. */
+main a:not(.no-underline):not([class*="inline-flex"]):not([class*="rounded-"]) {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
