@@ -69,6 +69,13 @@ scope (redacted for wide roles) and records each search on your own chain. **Tea
 shows roles, powers and workload; a power is proposed by one administrator and approved by
 another. Personal preferences live at `/settings`.
 
+Partner integrations (`/integrations`, administrators) are adapters with a declared mode:
+SIMULATED, SANDBOX or LIVE. The demo ships a simulated partner case source that accepts
+HMAC-signed events; every event is stored before processing, duplicates are acknowledged
+without a second effect, an older or out-of-order event never overwrites a newer record, and
+conflicts are resolved with evidence from the approved source. Nothing in the demo is a
+government integration, and a passing probe is never proof that one exists.
+
 ### Developing on the host (optional)
 
 For code changes with hot reload, run the infrastructure in Docker and the app on your machine.

@@ -80,6 +80,7 @@ function toolLinks(workspaces: Workspace[]): { to: string; label: MessageKey }[]
   }
   if (workspaces.includes("admin")) {
     links.push({ to: "/operations", label: "nav.operations" });
+    links.push({ to: "/integrations", label: "nav.integrations" });
   }
   return links;
 }

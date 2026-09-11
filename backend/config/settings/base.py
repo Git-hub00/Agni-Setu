@@ -32,6 +32,20 @@ DEMO_PROVIDER_VALUES = frozenset(
     {"demo_sink", "demo_watermark", "console", "demo_eicar", "memory", "simulated"}
 )
 
+# Partner intake authentication (integrations s.10, security s.2). A partner secret is looked
+# up by the *reference* stored on the integration row: the process environment first (the
+# approved secret store injects it), then - never in LIVE - this demo table for the simulator.
+PARTNER_SIGNATURE_SKEW_SECONDS = env.int("PARTNER_SIGNATURE_SKEW_SECONDS", default=300)
+INTEGRATION_DEMO_SECRETS: dict[str, str] = (
+    {}
+    if SERVICE_MODE == "LIVE"
+    else {
+        "DEMO_PARTNER_SHARED_SECRET": env.str(
+            "DEMO_PARTNER_SHARED_SECRET", default="demo-partner-shared-secret-not-for-live"
+        )
+    }
+)
+
 DEBUG = False
 ALLOWED_HOSTS: list[str] = env.list("ALLOWED_HOSTS", default=[])
 
@@ -60,6 +74,7 @@ INSTALLED_APPS = [
     "agni.certificates",
     "agni.support",
     "agni.reporting",
+    "agni.integrations",
 ]
 
 # Custom principal is the user model from the first migration (data model s.8).

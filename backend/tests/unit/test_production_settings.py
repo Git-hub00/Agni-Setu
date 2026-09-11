@@ -110,6 +110,19 @@ def test_live_mode_with_approved_providers_loads(monkeypatch: pytest.MonkeyPatch
 
 
 @pytest.mark.usefixtures("clean_settings_modules")
+def test_live_mode_has_no_demo_partner_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Partner secrets come from the approved secret store only (integrations s.10)."""
+    module = _load_production(monkeypatch, {**GOOD_ENV, "SERVICE_MODE": "LIVE"})
+    assert module.INTEGRATION_DEMO_SECRETS == {}
+
+
+@pytest.mark.usefixtures("clean_settings_modules")
+def test_demo_mode_keeps_the_simulator_partner_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    demo = _load_production(monkeypatch, GOOD_ENV)
+    assert "DEMO_PARTNER_SHARED_SECRET" in demo.INTEGRATION_DEMO_SECRETS
+
+
+@pytest.mark.usefixtures("clean_settings_modules")
 def test_all_problems_are_reported_together(monkeypatch: pytest.MonkeyPatch) -> None:
     """An operator should see every misconfiguration in one startup failure."""
     with pytest.raises(ImproperlyConfigured) as excinfo:

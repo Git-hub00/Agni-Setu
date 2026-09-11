@@ -28,7 +28,7 @@ Update this file at the end of each agent task. Read actual repository/branch/di
 | B12 | Decisions, issuance and verification | READY_FOR_REVIEW (2026-09-11T19:1xZ; merged to `main` per D-009 - see s.3n) | NEW app `agni.decisions` (migration 0001): server-calculated readiness guard list (API-064), `RecordDecision` TR-10 / TR-12 (API-065) binding the accepted submission revision, accepted report, findings, pinned policy and the `case.decide` grant in force, immutable rationale (INTERNAL) + public reason, one final decision per case, approval opens ISSUANCE_TASK and the issuance request in the same transaction, rejection cancels open obligations; API-066 list. NEW app `agni.certificates` (migrations 0001/0002): IssuanceRequest with a stable identity (number `AGNI-DEMO-<year>-<n>`, uuid5 logical action, frozen render snapshot, hashed + encrypted 256-bit verification token), `certificate.issue` durable job through renderer / signer / verifier ports (WeasyPrint in the containers, simulated PDF in tests; `demo_watermark` receipt that states it is NOT a digital signature; hash-match verifier), lookup-before-resubmit, RECONCILIATION_REQUIRED on unknown outcomes with `reconcile_issuance`, guarded TR-11 publication (SYSTEM event, obligations satisfied, audit, outbox), registry API-067/068, audited reader-bound artifact tickets API-069, anonymous rate-limited no-store public verification API-073 (approved subset only; unknown 404 != revoked; 503 on store failure; exact-number lookup DEMO-only). Web: UI-14 review queue + review page (readiness panel, no preselected outcome, acknowledgment, confirmation with evidence versions, "certificate processing"), UI-16 register, UI-17 detail (download, verification link), UI-18 public verify page, UI-01 public actions. Tests: backend **198 passed** alone (incl. `test_decisions.py` 3 + domain unit 6), web **37 passed** + build, e2e **35/35** with a real WeasyPrint PDF; pip-audit + pnpm audit clean. Two contract regressions caught by the suite and fixed before commit (catalogue size, LIVE default). Evidence `handover.md` B7 EV-B12-01..06; record s.3n | B13 (lifecycle, support and conditional routes) |
 | B13 | Lifecycle, support and conditional routes | READY_FOR_REVIEW (2026-09-11T20:2xZ; merged to `main` per D-009 - see s.3o) | `CaseHold` (cases 0005) with guarded withdrawal TR-13 (API-030: applicant only, profile stages, disposition of obligations / attempts / notices), holds (API-031/032: listed clocks paused through the B10 pause table, TRANSITIONS / DECISIONS block scope enforced in every transition and the issuance job), TR-14 return-for-clarification (API-063: new CLARIFICATION attempt, no-visit addendum refused as SERVICE_DISABLED); `CertificateStatusInstrument` (certificates 0003) with pure admissibility (expired never reinstated; revocation and supersession final), API-071 status actions needing the `certificate.status` grant + evidence, API-070 linked renewal drafts that never extend validity, registry history / renewals / allowed actions; NEW app `agni.support` (support 0001): tickets with audience-filtered messages, SUPPORT_ATTACHMENT uploads readable only through ticket scope, support status machine with requester reopen, routes + appeals answering 409 SERVICE_DISABLED with the referral; profile-gated API-072/119 stubs. Web: UI-07 lifecycle block (withdraw with confirmation, hold form + release, return form), UI-17 status dialog + renewal, UI-26 support pages. Tests: backend **210 passed** alone (incl. 4 lifecycle integration + 3 admissibility unit), web **39 passed** + build, e2e **29/29** steps (one holder step NOT_RUN, covered by tests). Evidence `handover.md` B7 EV-B13-01..05; record s.3o | B14 (reporting, audit and operational UI) |
 | B14 | Reporting, audit and operational UI | READY_FOR_REVIEW (2026-09-11T21:4xZ; merged to `main` per D-009 - see s.3p) | NEW app `agni.reporting` (migration 0001 `export_job`): single-cutoff reconciled metrics (API-081: population = visible received cases at `as_of`, status from the stage instance in force at the cutoff, open/completed/rejected/withdrawn partition checked, published certificates, overdue obligations, median/P90 resolution with an insufficient-sample flag, `metrics-v1` definitions in the body; failures 503, never zero); controlled exports (API-082..084: purpose, approved minimised field sets, frozen population, durable `export.generate` job writing CSV with formula neutralisation to private storage, 24 h expiry, access reauthorised against the CURRENT scope, audited, requester-bound ticket; PDF -> SERVICE_DISABLED); scoped audit reader (API-085/086: supervisors unredacted within their jurisdictions, leadership/admin redacted, applicants refused, every read recorded as `audit.read` on the reader's chain and excluded from ordinary listings, detail with `verify_chain`); operator recovery (API-105 retry of the same logical action refusing after an UNKNOWN outcome, API-106 reconcile with a per-kind procedure, both reasoned + audited, ADMIN only); staff governance over HTTP (API-087 roster with roles/grants/workload, 088 provision, 089 deactivate now also revoking grants, 090 reactivate from a NEW approved request, 091 propose, 092 approve, 093 revoke; separation of duties + ETags); web UI-22 `/reports`, UI-23 `/audit`, UI-21 `/team`, UI-27 `/settings`, UI-20 recovery actions; seed grants meera `grant.approve`, arjun `staff.provision` | Human review of `main`; B15 |
-| B15 | Integration contracts and reconciliation | NOT_STARTED | None | Complete prerequisites and task card |
+| B15 | Integration contracts and reconciliation | READY_FOR_REVIEW (2026-09-11T22:1xZ; merged to `main` per D-009 - see s.3q) | NEW app `agni.integrations` (migration 0001: `integration` with mode SIMULATED/SANDBOX/LIVE, owned fields, endpoint allowlist, secret *reference*, state, freshness budget, health; `integration_inbox` unique per (integration, source_event_id) with payload hash and auth evidence; `integration_conflict` with owner queue, reason, evidence-based resolution; `partner_entity_state` = the local reflection of partner-owned fields with the applied sequence/version). Partner intake API-109 authenticated by HMAC-SHA256 over timestamp + raw body with a bounded skew (401 INTEGRATION_SIGNATURE_INVALID before any storage; 422 structural; 409 reused id with another body + PAYLOAD_MISMATCH conflict; exact duplicate acknowledged with the prior receipt; 202 PROCESSING is never applied success); durable `integration.apply` job with the pure ordering rule (applied+1 applies, lower is older or duplicate, higher is a gap; version/time when unsequenced), owned fields only, automatic release of the next-in-sequence event, conflicts audited + `integration.conflict_detected.v1`; API-107 sanitised cards (secret references only), API-108 allowlisted probes through the adapter (SANDBOX/LIVE unconfigured adapters report FAIL and degrade the row - nothing fabricated), API-110 scoped conflicts (ADMIN global / SUPERVISOR of the owner queue), API-111 resolution with reason + evidence + ETag: APPLY_VERIFIED_SOURCE fetches the record from the approved source, refuses a version the source does not confirm, refuses when unreachable (503) / ambiguous (409 EXTERNAL_OUTCOME_UNKNOWN) / missing; IGNORE_DUPLICATE / REQUEST_RESEND / KEEP_QUARANTINED keep data out of the reflection; production LIVE refuses demo partner secrets; seed rows `demo-partner-case-source` (SIMULATED, ENABLED) and `demo-external-certificate-source` (DISABLED); web UI-25 `/integrations` | Human review of `main`; B16 |
 | B16 | Security and accessibility hardening | NOT_STARTED | None | Complete prerequisites and task card |
 | B17 | Reliability, performance and recovery proof | NOT_STARTED | None | Complete prerequisites and task card |
 | B18 | Production packaging and release evidence | NOT_STARTED | None | Complete prerequisites and task card |
@@ -1579,6 +1579,189 @@ Required human input: BL-007; docs/07 capability model review (holds/support fro
   export/audit matrix implemented as described above); whether leadership should hold
   `export.sensitive` in the demo seed.
 Next safe task: B15 - Integration contracts and reconciliation.
+End commit and worktree status: recorded in handover.md B12 after commit/push.
+```
+
+## 3q. Handoff record - B15 session claude-20260910T172516Z-b00b (2026-09-12)
+
+```text
+Task: B15 - Integration contracts and reconciliation (FR-29; task card B15; docs 16 s.1-2
+  adapter contract + ports, s.10 partner-owned case monitoring, s.12 acceptance checklist;
+  05 integration / integration_inbox / integration_conflict; 06 API-107..111 + event
+  integration.conflict_detected.v1; 07 s.2 partner callbacks never inherit browser exemptions;
+  08 s.7 INTEGRATION_SEQUENCE_GAP / INTEGRATION_SIGNATURE_INVALID; 24 IntegrationTest /
+  PartnerEvent / IntegrationResolution; 03 UI-25; 11 AT-29-01..06; 13 DS-24)
+Baseline: implementation spec 2.0.0
+Branch and start commit: feat/b15-integrations from main @ 85ae91e
+Files inspected: platform commands (OutboxIntent, CommandOutcome), outbox.enqueue_intent,
+  notifications fanout (ignores non-application aggregates - no template needed for the
+  integration events), ApiView CSRF enforcement (bypassed only by the partner view through
+  plain APIView + partner auth), certificates issuance publish() pattern for job-side outbox
+  writes, production settings LIVE checks, seed_demo structure.
+Changes made and architecture decisions:
+  integrations (NEW app, migration 0001): models Integration (key, display_name, mode
+    SIMULATED/SANDBOX/LIVE, provider_kind, system_of_record_fields, endpoint_allowlist,
+    capabilities, credential_secret_ref - a NAME only -, state DISABLED/ENABLED/DEGRADED,
+    freshness_budget_seconds, owner_queue, last_health_*, last_event_at, etag), IntegrationInbox
+    (unique (integration, source_event_id); source_entity_id, source_sequence?, event_type,
+    schema_version, occurred_at, received_at, payload, payload_sha256 = canonical hash,
+    auth_evidence {scheme, key_ref, timestamp, signature_prefix}, RECEIVED/PROCESSED/
+    QUARANTINED/CONFLICT, disposition, error_code), IntegrationConflict (inbox?, integration,
+    source_entity_id, reason SEQUENCE_GAP/OLDER_THAN_APPLIED/PAYLOAD_MISMATCH/SCHEMA_INVALID,
+    owner_queue, detail, OPEN/RESOLVED, outcome, resolution_basis, resolved_by/at, etag),
+    PartnerEntityState (unique (integration, source_entity_id); applied_sequence/
+    source_version/event_id/occurred_at, snapshot of OWNED fields only, optional application
+    link by `local_reference` = public_reference).
+  domain/ordering.py (pure): classify(applied, sequence, source_version, occurred_at) ->
+    APPLY / DUPLICATE / SEQUENCE_GAP / OLDER_THAN_APPLIED (sequenced: exactly applied+1 applies,
+    first contact must be 1, lower is older unless identical, higher is a gap; unsequenced:
+    same version duplicate, earlier occurrence older, else apply - clocks never decide when a
+    sequence exists); owned_fields; freshness FRESH/STALE/UNKNOWN; approved event types
+    partner.case.status_changed / partner.case.snapshot, schema 1.0.
+  ports.py (PartnerCaseSource: lookup_case, test; SourceRecord, ProbeResult; typed
+    Unavailable/Unknown/NotFound), adapters.py (SimulatedPartnerCaseSource with records,
+    force_unavailable/force_unknown fixtures, request ids, demo dataset UPG-DEMO-2026-0001 seq 3;
+    UnconfiguredPartnerSource for SANDBOX/LIVE: lookup raises Unavailable, probe FAIL "not
+    configured" - a Connected badge is never fabricated), auth.py (AGNI-HMAC-SHA256 over
+    "<timestamp>.<raw body>", headers X-Agni-Partner-Key / X-Agni-Timestamp / X-Agni-Signature,
+    skew PARTNER_SIGNATURE_SKEW_SECONDS = 300, secret resolved from the environment by the
+    reference, then INTEGRATION_DEMO_SECRETS outside LIVE; missing secret fails closed; evidence
+    never contains the secret or the full signature).
+  application/inbox.py: parse_partner_event (PartnerEvent structural rules, 256 KiB cap,
+    unknown fields 422); receive_event (API-109: DISABLED -> 409 SERVICE_DISABLED, authenticate
+    BEFORE parsing -> 401, duplicate body -> 202 with the prior receipt and duplicate=true,
+    reused id + other body -> PAYLOAD_MISMATCH conflict committed then 409 IDEMPOTENCY_CONFLICT
+    with receipt_id/conflict_id, else inbox row + last_event_at + durable `integration.apply`
+    job (logical action = inbox id) + audit integration.event_received); apply_inbox_event job
+    (locks inbox + entity state; APPLY reflects owned fields, PROCESSED/APPLIED, audit
+    integration.event_applied, outbox integration.source_applied.v1, release_successors
+    re-queues the applied+1 event waiting in CONFLICT/RECEIVED and resolves its gap conflict as
+    PREDECESSOR_ARRIVED; DUPLICATE -> IGNORED_DUPLICATE; gap / older -> CONFLICT + owned
+    conflict with expected/received/applied detail + audit + outbox
+    integration.conflict_detected.v1).
+  application/commands.py: TestIntegration (API-108: ADMIN, ETag, allowlisted test_case_key per
+    provider kind, reason 10..1000, DISABLED -> 409; `integration.test` job runs the adapter
+    probe and records last_health_* - FAIL degrades an ENABLED row, OK re-enables a DEGRADED
+    one - and audits integration.test_completed); conflict_scope (ADMIN global / SUPERVISOR
+    jurisdictions of the owner queue); ResolveConflict (API-111: OPEN only; outcome, reason
+    10..4000, 1..10 evidence refs, authoritative_source_version required to apply;
+    APPLY_VERIFIED_SOURCE = lookup through the adapter - Unavailable 503, Unknown 409
+    EXTERNAL_OUTCOME_UNKNOWN, NotFound 409, version mismatch 409 with the real source_version,
+    older than applied 409 - then reflection from the LOOKUP payload, inbox
+    SUPERSEDED_BY_VERIFIED_SOURCE, successors released, outbox integration.source_applied.v1;
+    IGNORE_DUPLICATE -> inbox PROCESSED/IGNORED_DUPLICATE; REQUEST_RESEND / KEEP_QUARANTINED ->
+    inbox QUARANTINED; basis records outcome, reason, refs, version and the lookup receipt;
+    audit integration.conflict_resolved).
+  application/projections.py (integration card: secret reference + configured flag only,
+    freshness, health, allowed probes, open conflicts, inbox counts, "not evidence of a live
+    integration" notice; inbox rows without payload; entity reflections; conflict body with
+    allowed_outcomes) and api/views.py (IntegrationListView / DetailView API-107 ADMIN;
+    IntegrationTestView API-108; PartnerEventView API-109 = plain APIView, no session, no CSRF,
+    partner auth only, Cache-Control no-store; ConflictListView / DetailView API-110 scoped;
+    ConflictResolveView API-111). urls /integrations, /integrations/<key|id>[/test|/events],
+    /integration-conflicts[/<id>[/resolve]].
+  platform/errors.py: IntegrationSequenceGap, IntegrationSignatureInvalid, ExternalOutcomeUnknown
+    classes for existing catalogue codes (catalogue unchanged at 51).
+  settings: INSTALLED_APPS + PARTNER_SIGNATURE_SKEW_SECONDS + INTEGRATION_DEMO_SECRETS ({} in
+    LIVE; the simulator secret otherwise); production LIVE refuses non-empty demo secrets;
+    process_jobs imports the two job kinds; seed_demo `_integrations` (demo-partner-case-source
+    SIMULATED ENABLED owned by central-review, demo-external-certificate-source DISABLED).
+  web: api/integrations.ts; features/integrations/IntegrationsPage (UI-25: cards with mode
+    badge, state, health, freshness, open conflicts, capabilities, secret reference; inspect
+    panel with owned fields, allowlist, reflections and sanitised inbox; allowlisted probe form
+    with reason; open conflicts with the evidence-based resolution form - outcome, source
+    version when applying, evidence refs, reason, conflict ETag); nav "Integrations" for
+    administrators; locales.
+  Decisions: (1) baseline partner scheme is HMAC-SHA256 over timestamp + raw body with a
+    300 s skew; mTLS/OAuth stay adapter concerns for an approved live partner; (2) dedup hash is
+    the canonical JSON hash of the parsed event (whitespace / key order differences are not
+    "different bodies"); authentication covers the raw bytes; (3) reused id with a different
+    body answers 409 IDEMPOTENCY_CONFLICT (the catalogue has no partner-specific code) and the
+    conflict row is committed before the error; (4) a first-contact event with sequence > 1 is a
+    SEQUENCE_GAP (only a verified lookup can start mid-stream); (5) conflicts are owned by the
+    integration's owner queue - ADMIN or a SUPERVISOR of that jurisdiction resolves them (no
+    `integration.reconcile` capability exists in the identity model; recorded for docs/07);
+    (6) REQUEST_RESEND records the decision only - in SIMULATED mode there is no outbound call
+    and none is faked; (7) the reflection never touches Application state: a linked case is
+    referenced, not transitioned (partner-owned fields are display/monitoring data); (8)
+    integration events go to the outbox for consumers; the notification fan-out ignores
+    non-application aggregates, so no notification template was added; (9) the external
+    certificate source stays DISABLED (conditional service, integrations s.9).
+Migrations/data impact: integrations 0001 (4 tables). No data rewrite. Seed adds two rows.
+Tests actually executed (Windows host, 2026-09-12):
+  uv run --directory backend ruff check/format agni config tests -> clean (322 files); mypy agni
+    config -> "Success: no issues found in 280 source files"; manage.py check -> no issues;
+    makemigrations --check --dry-run -> "No changes detected"
+  uv run --directory backend pytest tests/unit/test_integration_rules.py
+    tests/unit/test_production_settings.py tests/unit/test_problem_json.py -q -> 38 passed
+    (classify matrix incl. first contact > 1, same-sequence other body, unsequenced
+    version/time; owned fields; freshness; HMAC bound to timestamp/body/secret; LIVE has no
+    demo partner secrets, DEMO keeps the simulator secret; catalogue 51)
+  uv run --directory backend pytest tests/integration/test_integrations.py -q -> 4 passed after
+    two fixes on the way (conflict row rolled back with the 409 -> committed first; FOR UPDATE
+    on a nullable join -> `of=("self",)`): AT-29-01 (202 PROCESSING no-store, worker applies seq
+    1 with owned fields only, exact replay 202 duplicate with the same receipt and no second
+    effect / audit / job, other body 409 + PAYLOAD_MISMATCH conflict on the owner queue + outbox
+    event, reflection untouched); AT-29-02 (gap 3 after 1 -> CONFLICT expected 2; predecessor 2
+    applies and releases 3 -> reflection at 3 APPROVED, gap conflict RESOLVED
+    PREDECESSOR_ARRIVED; late 2 -> OLDER_THAN_APPLIED, reflection unchanged; exact head
+    duplicate IGNORED_DUPLICATE; wrong secret / stale timestamp / wrong key 401 with nothing
+    stored; empty entity 422; unknown event type 422; DISABLED 409; unknown integration 404);
+    AT-29-03/05 (resolve validation 422, no If-Match 428, applicant 403, foreign supervisor 404,
+    no source record 409, unreachable 503, ambiguous 409 EXTERNAL_OUTCOME_UNKNOWN, cited v9 vs
+    source v4 409 with source_version, supervisor applies v4 -> RESOLVED applied_sequence 4 with
+    lookup receipt, same-key replay replayed=true, stale ETag refused, reflection from the lookup,
+    inbox SUPERSEDED_BY_VERIFIED_SOURCE, audit; later 2 -> older conflict listed only for the
+    owning jurisdiction, foreign empty, applicant 403, IGNORE_DUPLICATE resolution);
+    API-107/108/AT-29-04 (supervisor 403 on cards; admin cards with secret reference and no
+    secret value; probe: supervisor 403, non-allowlisted / URL keys 422, 202 -> worker -> OK
+    with "no partner workflow proven" + audit; SANDBOX unconfigured -> FAIL + DEGRADED; sandbox
+    without secret refuses events 401; DISABLED probe 409)
+  corepack pnpm --dir web typecheck / lint (clean first pass) / test / build -> vitest **42
+    passed (22 files)** incl. IntegrationsPage.test (mode badge, secret reference without the
+    value, resolution body + conflict ETag); `vite build` PASS (precache 5 entries, 797 KiB)
+  uv run --directory backend pytest -q -p no:cacheprovider (full suite, ALONE, 21:58-22:05Z) ->
+    **251 passed in 376.74 s**; 0 PostgreSQL termination / recovery lines since 21:55Z
+    (evidence/B15-backend-tests.log)
+  Container proof: docker compose build api web -> api c083d49b5e65 (22:08:22Z), web
+    7298e75001aa (22:09:58Z); up -d --wait -> all healthy, running containers verified by image
+    id; showmigrations integrations -> 0001 applied on start; seed_demo re-run (idempotent; the
+    two integration rows exist)
+  uv run --directory backend python ../scripts/dev/smoke_integrations.py http://127.0.0.1:5173 ->
+    ALL INTEGRATION SMOKE STEPS PASSED (**26 steps** through nginx + Keycloak + the worker,
+    22:1xZ, third run - runs 1 and 2 stopped on smoke-script mistakes, not product defects: the
+    "replay" regenerated occurred_at (so it was rightly a 409 body mismatch) and the second
+    probe reused an ETag the first probe had bumped (rightly 412); both left honest rows in the
+    dev DB): cards SIMULATED/ENABLED with the secret reference and no secret value; signed
+    event #1 202 PROCESSING -> worker PROCESSED -> reflection seq 1 with owned fields; exact
+    replay 202 duplicate with the same receipt; other body 409 + conflict; unsigned 401; event
+    #4 202 -> CONFLICT SEQUENCE_GAP expected 2; gap listed; allowlisted probe 202 -> health OK
+    with the "no partner workflow proven" wording; URL probe key 422; applying a record the
+    simulator does not hold -> 409 "no outcome may be invented"; REQUEST_RESEND resolution 200,
+    event #4 stays QUARANTINED; payload-mismatch conflict KEEP_QUARANTINED; anita sees the
+    conflict list (owning desk) and gets 403 on the cards
+    (evidence/B15-smoke-integrations.log)
+  Dependency audits: no new dependencies in B15.
+Tests not executed and concrete reason: AT-29-06 browser + accessibility variants (Playwright,
+  B16/B19); a real SANDBOX partner (no approved partner contract or endpoint exists - the
+  unconfigured adapter is exercised instead, honestly reporting FAIL); mTLS/OAuth partner
+  schemes (adapter concern of a future approved partner); concurrent intake of the same event
+  id from two connections (unique constraint + FOR UPDATE; race drills are B17).
+Screens inspected: jsdom test of UI-25; the inspect panel and probe form by typecheck + build.
+Security/privacy or external-effect considerations: partner intake authenticates on raw bytes
+  before parsing and never reuses browser session/CSRF; secrets are referenced by name and
+  resolved from the environment (demo table only outside LIVE; production refuses it in LIVE);
+  responses and cards never carry secret values or full signatures; inbox rows are stored
+  before processing and never overwrite a newer reflection; conflicts are owned and resolved
+  with evidence; the simulator never claims government integration.
+Remaining defects and reproduction: NONE known in the product.
+Self-review (D-009): task card B15 proofs - duplicate event no duplicate effect (tested),
+  different body same id conflicts (tested), older source status cannot overwrite newer
+  (tested), unauthenticated callback rejected (tested); forbidden shortcut respected: nothing
+  claims actual government integration - modes, notices and the unconfigured adapter say so.
+Required human input: approved partner contract(s) before any SANDBOX/LIVE adapter; docs/07
+  review of the conflict-ownership rule (decision 5); BL-007.
+Next safe task: B16 - Security and accessibility hardening.
 End commit and worktree status: recorded in handover.md B12 after commit/push.
 ```
 

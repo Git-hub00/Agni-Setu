@@ -332,6 +332,7 @@ class Command(BaseCommand):
             staff = self._staff(issuer, jurisdiction, bootstrap, now)
             self._grants(staff, bootstrap, now)
             self._artifacts(jurisdiction, queues["central-scrutiny"])
+            self._integrations(queues["central-review"])
             applicant = self._applicant(now)
             report.append(
                 f"master data: jurisdiction={jurisdiction.code} queues={len(queues)} "
@@ -399,6 +400,53 @@ class Command(BaseCommand):
                 )
             staff[subject_key] = principal
         return staff
+
+    def _integrations(self, owner_queue: DutyQueue) -> None:
+        """Provider rows for UI-25 (FR-29): a SIMULATED partner case source that accepts signed
+        events, and the conditional external certificate source, DISABLED. Secret *references*
+        only; the simulator secret lives in settings/environment, never in a row."""
+        from agni.integrations.models import (
+            Integration,
+            IntegrationMode,
+            IntegrationState,
+            ProviderKind,
+        )
+
+        Integration.objects.get_or_create(
+            key="demo-partner-case-source",
+            defaults={
+                "display_name": "Demo partner case source (simulated)",
+                "mode": IntegrationMode.SIMULATED,
+                "provider_kind": ProviderKind.PARTNER_CASE_SOURCE,
+                "system_of_record_fields": [
+                    "source_status",
+                    "source_reference",
+                    "source_updated_at",
+                    "local_reference",
+                ],
+                "endpoint_allowlist": ["simulated://partner-case-source"],
+                "capabilities": ["receive_event", "lookup_case"],
+                "credential_secret_ref": "DEMO_PARTNER_SHARED_SECRET",
+                "state": IntegrationState.ENABLED,
+                "freshness_budget_seconds": 86400,
+                "owner_queue": owner_queue,
+            },
+        )
+        Integration.objects.get_or_create(
+            key="demo-external-certificate-source",
+            defaults={
+                "display_name": "External certificate source (conditional, not enabled)",
+                "mode": IntegrationMode.SIMULATED,
+                "provider_kind": ProviderKind.EXTERNAL_CERTIFICATE_SOURCE,
+                "system_of_record_fields": ["issuer", "instrument_status", "valid_until"],
+                "endpoint_allowlist": [],
+                "capabilities": ["verify_issuer", "lookup_instrument"],
+                "credential_secret_ref": "",
+                "state": IntegrationState.DISABLED,
+                "freshness_budget_seconds": 86400,
+                "owner_queue": owner_queue,
+            },
+        )
 
     def _grants(self, staff: dict[str, Principal], bootstrap: Principal, now: datetime) -> None:
         wanted = [

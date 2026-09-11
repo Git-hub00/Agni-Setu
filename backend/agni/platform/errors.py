@@ -315,6 +315,18 @@ class ExportExpired(DomainError):
     code = "EXPORT_EXPIRED"
 
 
+class IntegrationSequenceGap(DomainError):
+    code = "INTEGRATION_SEQUENCE_GAP"
+
+
+class IntegrationSignatureInvalid(DomainError):
+    code = "INTEGRATION_SIGNATURE_INVALID"
+
+
+class ExternalOutcomeUnknown(DomainError):
+    code = "EXTERNAL_OUTCOME_UNKNOWN"
+
+
 class RateLimited(DomainError):
     code = "RATE_LIMITED"
 

@@ -9,7 +9,14 @@ fix the configuration in one pass. Nothing here reads or prints secret values.
 from django.core.exceptions import ImproperlyConfigured
 
 from .base import *  # noqa: F403
-from .base import DATABASES, DEMO_PROVIDER_VALUES, PUBLIC_LOOKUP_PROFILE, SERVICE_MODE, env
+from .base import (
+    DATABASES,
+    DEMO_PROVIDER_VALUES,
+    INTEGRATION_DEMO_SECRETS,
+    PUBLIC_LOOKUP_PROFILE,
+    SERVICE_MODE,
+    env,
+)
 
 DEBUG = False
 
@@ -96,6 +103,11 @@ def _startup_problems() -> list[str]:
             problems.append(
                 "PUBLIC_LOOKUP_PROFILE must be TOKEN in LIVE mode (certificate-number lookup "
                 "needs explicit public-data approval, integrations s.7)"
+            )
+        if INTEGRATION_DEMO_SECRETS:
+            problems.append(
+                "INTEGRATION_DEMO_SECRETS must be empty in LIVE mode (partner secrets come "
+                "from the approved secret store only)"
             )
 
     return problems

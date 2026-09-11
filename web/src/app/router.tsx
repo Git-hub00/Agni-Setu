@@ -12,6 +12,7 @@ import { OverviewPage } from "../features/applications/OverviewPage";
 import { AuditPage } from "../features/audit/AuditPage";
 import { CertificateDetailPage } from "../features/certificates/CertificateDetailPage";
 import { CertificatesPage } from "../features/certificates/CertificatesPage";
+import { IntegrationsPage } from "../features/integrations/IntegrationsPage";
 import { ReportsPage } from "../features/reports/ReportsPage";
 import { SettingsPage } from "../features/settings/SettingsPage";
 import { TeamPage } from "../features/team/TeamPage";
@@ -77,6 +78,7 @@ export const routes: RouteObject[] = [
           { path: "audit", element: <AuditPage /> },
           { path: "team", element: <TeamPage /> },
           { path: "settings", element: <SettingsPage /> },
+          { path: "integrations", element: <IntegrationsPage /> },
           { path: "policy", element: <PolicyListPage /> },
           { path: "policy/:policyId", element: <PolicyDetailPage /> },
         ],
