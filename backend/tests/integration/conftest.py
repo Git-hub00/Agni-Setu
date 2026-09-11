@@ -181,6 +181,22 @@ def artifacts(
             ]
         },
     )
+    # Materialised routing rows (seed_demo does the same for the demo artifact).
+    from agni.routing.models import RoutingEntry
+
+    RoutingEntry.objects.bulk_create(
+        [
+            RoutingEntry(
+                artifact=routing,
+                ward_key=ward,
+                category_key=None,
+                target_jurisdiction=jurisdiction,
+                target_queue=duty_queue,
+                priority=0,
+            )
+            for ward in ("W-01", "W-07")
+        ]
+    )
     return {"FORM": form, "CHECKLIST": checklist, "CALENDAR": calendar, "ROUTING": routing}
 
 
@@ -343,6 +359,33 @@ def active_policy(
     return approved_active_v1(governance_actors, service, clock)
 
 
+@pytest.fixture
+def supervisor(db: None, jurisdiction: Jurisdiction, clock: FrozenClock) -> Principal:
+    """Supervisor scoped to the test jurisdiction (docs/13 persona u-supervisor)."""
+    bootstrap = make_staff("Bootstrap Ceremony B06", "bootstrap-b06")
+    person = make_staff("Anita Kapoor", "anita")
+    bind_role(person, RoleKey.SUPERVISOR, bootstrap, clock, jurisdiction=jurisdiction)
+    return person
+
+
+@pytest.fixture
+def leadership(db: None, jurisdiction: Jurisdiction, clock: FrozenClock) -> Principal:
+    bootstrap = make_staff("Bootstrap Ceremony L", "bootstrap-l")
+    person = make_staff("Neha Bansal", "neha")
+    bind_role(person, RoleKey.LEADERSHIP, bootstrap, clock, jurisdiction=jurisdiction)
+    return person
+
+
+@pytest.fixture
+def foreign_supervisor(db: None, clock: FrozenClock) -> Principal:
+    """Supervisor of an unrelated jurisdiction: must see nothing of the test cases."""
+    other = Jurisdiction.objects.create(code="ELSEWHERE-1", display_name="Elsewhere")
+    bootstrap = make_staff("Bootstrap Ceremony F", "bootstrap-f")
+    person = make_staff("Foreign Supervisor", "foreign")
+    bind_role(person, RoleKey.SUPERVISOR, bootstrap, clock, jurisdiction=other)
+    return person
+
+
 @pytest.fixture(autouse=True)
 def _fresh_document_adapters() -> Any:
     """Hermetic object store and scanner per test."""
@@ -369,6 +412,7 @@ def signed_client(
     monkeypatch.setattr("agni.platform.api.views.get_clock", lambda: clock)
     monkeypatch.setattr("agni.policies.api.views.get_clock", lambda: clock)
     monkeypatch.setattr("agni.cases.api.views.get_clock", lambda: clock)
+    monkeypatch.setattr("agni.cases.api.case_views.get_clock", lambda: clock)
     monkeypatch.setattr("agni.documents.api.views.get_clock", lambda: clock)
     monkeypatch.setattr("agni.documents.scanning.get_clock", lambda: clock)
 

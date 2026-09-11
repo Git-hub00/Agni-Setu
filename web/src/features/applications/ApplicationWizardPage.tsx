@@ -16,6 +16,7 @@ import {
 } from "../../api/applications";
 import { ProblemNotice } from "../../app/ProblemNotice";
 import { t, type MessageKey } from "../../locales";
+import { SubmitPanel } from "./SubmitPanel";
 import { useDraftAutosave, type Conflict } from "./useDraftAutosave";
 
 const STEPS: MessageKey[] = ["wizard.step.service", "wizard.step.details", "wizard.step.documents", "wizard.step.review"];
@@ -224,7 +225,15 @@ function Wizard({ detail, etag: initialEtag }: { detail: CaseDetail; etag: strin
           ) : (
             <p className="mt-4 rounded-md bg-positive-soft p-3 text-sm text-positive">{t("wizard.readyForSubmission")}</p>
           )}
-          <p className="mt-4 text-sm text-muted">{t("wizard.submitLater")}</p>
+          <p className="mt-4 text-sm text-muted">{t("wizard.submitNotice")}</p>
+          <div className="mt-3">
+            <SubmitPanel
+              detail={detail}
+              etag={etag}
+              enabled={blockers.length === 0 && autosave.state !== "dirty" && autosave.state !== "saving" && autosave.state !== "conflict"}
+              docIds={links}
+            />
+          </div>
         </section>
       ) : null}
 

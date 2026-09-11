@@ -159,6 +159,64 @@ class DraftRevision(AppendOnlyModel):
         return f"{self.application_id}#{self.revision_number}"
 
 
+class SubmissionRevision(AppendOnlyModel):
+    """Immutable accepted submission (data model `submission_revision`): the frozen fields,
+    premises snapshot, declaration snapshot and the pinned policy. Files are fixed through
+    `SubmissionDocument` rows pointing at immutable document versions."""
+
+    application = models.ForeignKey(
+        Application, on_delete=models.PROTECT, related_name="submission_revisions"
+    )
+    number = models.PositiveIntegerField()
+    payload = models.JSONField(default=dict)
+    premise_snapshot = models.JSONField(default=dict)
+    policy_version = models.ForeignKey(
+        "policies.PolicyVersion", on_delete=models.PROTECT, related_name="+"
+    )
+    schema_ref = models.CharField(max_length=120, blank=True, default="")
+    declaration_snapshot = models.JSONField(default=list)
+    selection_explanation = models.JSONField(default=dict)
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"
+    )
+    beneficiary = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"
+    )
+    accepted_at = models.DateTimeField()
+    sha256 = models.CharField(max_length=64)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["application", "number"], name="uniq_submission_revision_number"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.application_id}#{self.number}"
+
+
+class SubmissionDocument(AppendOnlyModel):
+    submission_revision = models.ForeignKey(
+        SubmissionRevision, on_delete=models.PROTECT, related_name="documents"
+    )
+    document_version = models.ForeignKey(
+        "documents.DocumentVersion", on_delete=models.PROTECT, related_name="+"
+    )
+    requirement_code = models.CharField(max_length=60)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["submission_revision", "requirement_code", "document_version"],
+                name="uniq_submission_document",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.requirement_code}:{self.document_version_id}"
+
+
 class EventAudience(models.TextChoices):
     PUBLIC_CASE = "PUBLIC_CASE"
     INTERNAL = "INTERNAL"

@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "agni.routing",
     "agni.cases",
     "agni.documents",
+    "agni.obligations",
     "agni.notifications",
 ]
 

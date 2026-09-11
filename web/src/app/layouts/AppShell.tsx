@@ -30,9 +30,9 @@ const WORKSPACE_LABEL: Record<Workspace, MessageKey> = {
 /** Workspaces with a mounted route (B04: applicant premises, policy governance). Admins share
  *  the policy route because they prepare drafts there; approval stays with the approver. */
 const WORKSPACE_ROUTE: Partial<Record<Workspace, string>> = {
-  applicant: "/applications",
-  supervisor: "/applications",
-  leadership: "/applications",
+  applicant: "/overview",
+  supervisor: "/overview",
+  leadership: "/overview",
   policy: "/policy",
   admin: "/policy",
 };

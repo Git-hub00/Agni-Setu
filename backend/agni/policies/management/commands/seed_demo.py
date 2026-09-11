@@ -427,17 +427,20 @@ class Command(BaseCommand):
 
     def _artifacts(self, jurisdiction: Jurisdiction, queue: DutyQueue) -> None:
         def ensure(kind: str, key: str, payload: dict[str, Any]) -> PolicyArtifact:
-            artifact, _ = PolicyArtifact.objects.get_or_create(
+            """Artifacts are immutable: if the latest published number carries different
+            content, publish the next number instead of editing in place."""
+            digest = canonical_sha256(payload)
+            latest = PolicyArtifact.objects.filter(kind=kind, key=key).order_by("-number").first()
+            if latest is not None and latest.sha256 == digest:
+                return latest
+            return PolicyArtifact.objects.create(
                 kind=kind,
                 key=key,
-                number=1,
-                defaults={
-                    "schema_version": "1.0",
-                    "payload": payload,
-                    "sha256": canonical_sha256(payload),
-                },
+                number=(latest.number + 1) if latest else 1,
+                schema_version="1.0",
+                payload=payload,
+                sha256=digest,
             )
-            return artifact
 
         ensure(
             ArtifactKind.FORM,
@@ -462,12 +465,14 @@ class Command(BaseCommand):
         ensure(
             ArtifactKind.CALENDAR,
             "DEMO-WORKING-CALENDAR-V1",
+            # Workflow s.8: the demo working calendar is Monday-Friday 09:00-17:00
+            # Asia/Kolkata with no holidays; explicitly synthetic.
             {
                 "timezone": "Asia/Kolkata",
                 "working_hours": {
-                    d: ["09:30", "17:30"] for d in ("mon", "tue", "wed", "thu", "fri", "sat")
+                    d: ["09:00", "17:00"] for d in ("mon", "tue", "wed", "thu", "fri")
                 },
-                "holidays": ["2026-01-26", "2026-08-15", "2026-10-02"],
+                "holidays": [],
             },
         )
         entries = [

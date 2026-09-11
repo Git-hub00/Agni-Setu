@@ -93,7 +93,20 @@ export interface Draft {
   blockers: { code: string; pointer: string }[];
 }
 
+export interface ObligationSummary {
+  obligation_id: string;
+  kind: string;
+  state: string;
+  time_basis: string;
+  budget_minutes: number;
+  started_at: string;
+  due_at: string | null;
+  owner_queue: string;
+}
+
 export interface CaseDetail extends CaseSummary {
+  owner_queue_key: string;
+  next_due_at: string | null;
   premises_detail: Premises;
   policy: {
     applicable: boolean;
@@ -101,8 +114,26 @@ export interface CaseDetail extends CaseSummary {
     policy_number: number | null;
     explanation: string;
     inspection_required: boolean | null;
+    pinned_policy_version_id: string | null;
   };
   draft: Draft | null;
+  submission: {
+    number: number;
+    accepted_at: string;
+    policy_version_id: string;
+    policy_number: number;
+    sha256: string;
+    fields: DraftFields;
+    documents: { requirement_code: string; document_version_id: string }[];
+  } | null;
+  obligations: ObligationSummary[];
+  routing_exception: {
+    exception_id: string;
+    code: string;
+    input: Record<string, unknown>;
+    owner_queue: string;
+    routing_artifact_id: string | null;
+  } | null;
   allowed_actions: AllowedAction[];
 }
 

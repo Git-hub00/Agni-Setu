@@ -46,6 +46,56 @@ class DutyQueue(VersionedModel):
         return self.queue_key
 
 
+class RoutingExceptionCode(models.TextChoices):
+    NO_MATCH = "NO_MATCH"
+    MULTIPLE_MATCH = "MULTIPLE_MATCH"
+    INACTIVE_TARGET = "INACTIVE_TARGET"
+
+
+class RoutingExceptionState(models.TextChoices):
+    OPEN = "OPEN"
+    RESOLVED = "RESOLVED"
+
+
+class RoutingException(VersionedModel):
+    """A visible, owned routing failure (data model `routing_exception`, FR-07). The case keeps
+    its accountable central queue; the exception never resets elapsed case age."""
+
+    application = models.ForeignKey(
+        "cases.Application", on_delete=models.PROTECT, related_name="routing_exceptions"
+    )
+    code = models.CharField(max_length=16, choices=RoutingExceptionCode.choices)
+    input_snapshot = models.JSONField(default=dict)
+    routing_artifact = models.ForeignKey(
+        "policies.PolicyArtifact", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    owner_queue = models.ForeignKey(DutyQueue, on_delete=models.PROTECT, related_name="+")
+    state = models.CharField(
+        max_length=10, choices=RoutingExceptionState.choices, default=RoutingExceptionState.OPEN
+    )
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    resolution = models.TextField(null=True, blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["application", "code"],
+                condition=models.Q(state="OPEN"),
+                name="uniq_open_routing_exception_per_case_code",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(code__in=[c.value for c in RoutingExceptionCode]),
+                name="chk_routing_exception_code",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.code} [{self.state}] {self.application_id}"
+
+
 class RoutingEntry(models.Model):
     """One row of a ROUTING artifact, materialised for indexed lookup. Rows are replaced only by
     publishing a new artifact number; they are never edited in place."""
