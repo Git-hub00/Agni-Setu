@@ -412,6 +412,11 @@ class Command(BaseCommand):
             (staff["anita"], Capability.CASE_DECIDE, staff["meera"]),
             # Certificate lifecycle instruments (FR-24) need their own explicit authority.
             (staff["anita"], Capability.CERTIFICATE_STATUS, staff["meera"]),
+            # Governance of powers (FR-02, UI-21): Meera approves / revokes grants that Arjun
+            # prepares; Arjun provisions and reactivates staff from approved requests. Neither
+            # can approve a grant they prepared or one that names them.
+            (staff["meera"], Capability.GRANT_APPROVE, staff["arjun"]),
+            (staff["arjun"], Capability.STAFF_PROVISION, staff["meera"]),
         ]
         for subject, capability, approver in wanted:
             exists = AuthorityGrant.objects.filter(

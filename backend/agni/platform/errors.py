@@ -311,6 +311,10 @@ class CertificateStatusConflict(DomainError):
     code = "CERTIFICATE_STATUS_CONFLICT"
 
 
+class ExportExpired(DomainError):
+    code = "EXPORT_EXPIRED"
+
+
 class RateLimited(DomainError):
     code = "RATE_LIMITED"
 

@@ -27,7 +27,7 @@ Update this file at the end of each agent task. Read actual repository/branch/di
 | B11 | Offline field application | READY_FOR_REVIEW (2026-09-11T15:05Z; merged to `main` per D-009 - see s.3m) | NEW app `agni.offline` (migration 0001): `SyncOperation` (one identity per client operation: unique (principal, operation_id), canonical sha256, ACCEPTED / CONFLICT with the stored result) and `ReportConflict` (reviewed proposal OPEN -> RESOLVED with outcome, reason, cited evidence, resolver). API-048 offline package (current ACTIVE assignee with current OFFICER authority; 24 h expiry; versions; checklist; `Cache-Control: no-store`), API-049 `/sync/operations` (runs the ONLINE SubmitReport / FailVisit handlers through the kernel with `idempotency_key=sync:<id>` and `expected_version=base_inspection_version`; identical replay -> stored result; same id + other content -> 409 SYNC_PAYLOAD_CONFLICT; every refusal recorded as CONFLICT with a safe server snapshot and re-raised with `operation_id/server/sync_state`), API-050 owner-scoped receipt, API-051 proposal (former assignees included), API-052 supervisor resolution (PROPOSE_NEW_REPORT / REINSPECTION_REQUIRED / DECLINE; CLEAN same-case evidence only), `/conflicts` list. **Hardening:** `_assigned_officer_only` now requires the OFFICER role for the case jurisdiction at command time -> 403 AUTHORITY_REVOKED (online and via sync). Web: Dexie v1 stores per docs/09 s.3, frozen manifests (canonical JSON + SHA-256), explicit foreground sync with injected deps (upload -> wait CLEAN -> freeze once -> POST with the id as Idempotency-Key -> receipt; lost response -> lookup/replay; 401 -> sign-in needed; 403/409/412/422 -> stored CONFLICT, retries stop), connectivity from `/me` (never `navigator.onLine` alone), identity-switch purge, unsent-work warning on sign-out, UI-13 `/sync` (grouped operations, versions, receipts, conflict panel local vs server with propose / discard), UI-12 offline package card + offline fallback workspace + Save on device / Queue for sync; PWA via vite-plugin-pwa 1.3.0 (static shell precache only, `/api` never cached, user-confirmed reload; nginx serves `sw.js` / manifest with no-cache). Tests: backend **187 passed** alone (incl. `tests/integration/test_sync.py` 4 tests: AT-12-01/02/04/05 + API-051/052 + revoked authority), web **33 passed** (incl. 5 sync-algorithm specs on fake-indexeddb) + build with `sw.js`; gates clean; `pnpm audit` clean. **Container proof PASS:** api `eecf7c16b76e` / web `760efc9d3e6b` rebuilt and verified by image id, offline 0001 applied on start, `scripts/dev/smoke_offline.py` **18/18** through nginx + Keycloak. Incident BL-008 (PostgreSQL crash recovery under an overlapped run) recorded with the clean rerun. Evidence `handover.md` B7 EV-B11-01..08; record s.3m | B12 (decisions, issuance and verification) |
 | B12 | Decisions, issuance and verification | READY_FOR_REVIEW (2026-09-11T19:1xZ; merged to `main` per D-009 - see s.3n) | NEW app `agni.decisions` (migration 0001): server-calculated readiness guard list (API-064), `RecordDecision` TR-10 / TR-12 (API-065) binding the accepted submission revision, accepted report, findings, pinned policy and the `case.decide` grant in force, immutable rationale (INTERNAL) + public reason, one final decision per case, approval opens ISSUANCE_TASK and the issuance request in the same transaction, rejection cancels open obligations; API-066 list. NEW app `agni.certificates` (migrations 0001/0002): IssuanceRequest with a stable identity (number `AGNI-DEMO-<year>-<n>`, uuid5 logical action, frozen render snapshot, hashed + encrypted 256-bit verification token), `certificate.issue` durable job through renderer / signer / verifier ports (WeasyPrint in the containers, simulated PDF in tests; `demo_watermark` receipt that states it is NOT a digital signature; hash-match verifier), lookup-before-resubmit, RECONCILIATION_REQUIRED on unknown outcomes with `reconcile_issuance`, guarded TR-11 publication (SYSTEM event, obligations satisfied, audit, outbox), registry API-067/068, audited reader-bound artifact tickets API-069, anonymous rate-limited no-store public verification API-073 (approved subset only; unknown 404 != revoked; 503 on store failure; exact-number lookup DEMO-only). Web: UI-14 review queue + review page (readiness panel, no preselected outcome, acknowledgment, confirmation with evidence versions, "certificate processing"), UI-16 register, UI-17 detail (download, verification link), UI-18 public verify page, UI-01 public actions. Tests: backend **198 passed** alone (incl. `test_decisions.py` 3 + domain unit 6), web **37 passed** + build, e2e **35/35** with a real WeasyPrint PDF; pip-audit + pnpm audit clean. Two contract regressions caught by the suite and fixed before commit (catalogue size, LIVE default). Evidence `handover.md` B7 EV-B12-01..06; record s.3n | B13 (lifecycle, support and conditional routes) |
 | B13 | Lifecycle, support and conditional routes | READY_FOR_REVIEW (2026-09-11T20:2xZ; merged to `main` per D-009 - see s.3o) | `CaseHold` (cases 0005) with guarded withdrawal TR-13 (API-030: applicant only, profile stages, disposition of obligations / attempts / notices), holds (API-031/032: listed clocks paused through the B10 pause table, TRANSITIONS / DECISIONS block scope enforced in every transition and the issuance job), TR-14 return-for-clarification (API-063: new CLARIFICATION attempt, no-visit addendum refused as SERVICE_DISABLED); `CertificateStatusInstrument` (certificates 0003) with pure admissibility (expired never reinstated; revocation and supersession final), API-071 status actions needing the `certificate.status` grant + evidence, API-070 linked renewal drafts that never extend validity, registry history / renewals / allowed actions; NEW app `agni.support` (support 0001): tickets with audience-filtered messages, SUPPORT_ATTACHMENT uploads readable only through ticket scope, support status machine with requester reopen, routes + appeals answering 409 SERVICE_DISABLED with the referral; profile-gated API-072/119 stubs. Web: UI-07 lifecycle block (withdraw with confirmation, hold form + release, return form), UI-17 status dialog + renewal, UI-26 support pages. Tests: backend **210 passed** alone (incl. 4 lifecycle integration + 3 admissibility unit), web **39 passed** + build, e2e **29/29** steps (one holder step NOT_RUN, covered by tests). Evidence `handover.md` B7 EV-B13-01..05; record s.3o | B14 (reporting, audit and operational UI) |
-| B14 | Reporting, audit and operational UI | NOT_STARTED | None | Complete prerequisites and task card |
+| B14 | Reporting, audit and operational UI | READY_FOR_REVIEW (2026-09-11T21:4xZ; merged to `main` per D-009 - see s.3p) | NEW app `agni.reporting` (migration 0001 `export_job`): single-cutoff reconciled metrics (API-081: population = visible received cases at `as_of`, status from the stage instance in force at the cutoff, open/completed/rejected/withdrawn partition checked, published certificates, overdue obligations, median/P90 resolution with an insufficient-sample flag, `metrics-v1` definitions in the body; failures 503, never zero); controlled exports (API-082..084: purpose, approved minimised field sets, frozen population, durable `export.generate` job writing CSV with formula neutralisation to private storage, 24 h expiry, access reauthorised against the CURRENT scope, audited, requester-bound ticket; PDF -> SERVICE_DISABLED); scoped audit reader (API-085/086: supervisors unredacted within their jurisdictions, leadership/admin redacted, applicants refused, every read recorded as `audit.read` on the reader's chain and excluded from ordinary listings, detail with `verify_chain`); operator recovery (API-105 retry of the same logical action refusing after an UNKNOWN outcome, API-106 reconcile with a per-kind procedure, both reasoned + audited, ADMIN only); staff governance over HTTP (API-087 roster with roles/grants/workload, 088 provision, 089 deactivate now also revoking grants, 090 reactivate from a NEW approved request, 091 propose, 092 approve, 093 revoke; separation of duties + ETags); web UI-22 `/reports`, UI-23 `/audit`, UI-21 `/team`, UI-27 `/settings`, UI-20 recovery actions; seed grants meera `grant.approve`, arjun `staff.provision` | Human review of `main`; B15 |
 | B15 | Integration contracts and reconciliation | NOT_STARTED | None | Complete prerequisites and task card |
 | B16 | Security and accessibility hardening | NOT_STARTED | None | Complete prerequisites and task card |
 | B17 | Reliability, performance and recovery proof | NOT_STARTED | None | Complete prerequisites and task card |
@@ -1374,6 +1374,211 @@ Required human input: docs/07 capability model for holds and support scope (see 
   BL-007; agency-approved appeal / fee / external-registration profiles before any of those
   routes can be enabled.
 Next safe task: B14 - Reporting, audit and operational UI.
+End commit and worktree status: recorded in handover.md B12 after commit/push.
+```
+
+## 3p. Handoff record - B14 session claude-20260910T172516Z-b00b (2026-09-11/12)
+
+```text
+Task: B14 - Reporting, audit and operational UI (FR-25 reconciled reporting, FR-26 controlled
+  exports, FR-28 audit reading, FR-02 staff governance UI, FR-19/29 recovery UI; task card B14;
+  docs 05 export_job / audit_event; 06 API-081..093, API-105/106, s.7 operational records;
+  07 s.5 permission matrix (metrics S/L/G, export sensitive G with grant, view audit J/R/G
+  redacted), s.8 export rules (purpose, field minimisation, formula neutralisation, expiring
+  access, no permanent URLs); 24 ReportQuery / ExportRequest / GrantProposal / StaffQuery /
+  AuditQuery; 03 UI-20/21/22/23/27; 11 AT-25/26/28)
+Baseline: implementation spec 2.0.0
+Branch and start commit: feat/b14-reporting from main @ a485335
+Files inspected: platform/api/operations.py (job_body, ADMIN operator), cases OverviewView,
+  StageInstance (entered_at/exited_at), platform/audit.py (record_audit, verify_chain),
+  identity commands (ProvisionStaff/ApproveAuthorityGrant/RevokeAuthorityGrant/
+  DisablePrincipal), AccessRequest fields, documents object-store port, certificates
+  reconcile_issuance, test fixtures (visit, scheduled_visit, governance_actors).
+Changes made and architecture decisions:
+  reporting (NEW app, migration 0001): models.ExportJob (requester, kind CASES/CERTIFICATES/
+    AUDIT/REPORT, field_set_key, purpose, scope_snapshot with the frozen population ids,
+    filter_snapshot, as_of, READY/RUNNING/COMPLETE/FAILED/EXPIRED, row_count, artifact key/
+    sha256/size, expires_at, definition_version, logical_action_id, etag "export:<id>:v<n>");
+    domain/metrics.py pure rules (DEFINITIONS + "metrics-v1", nearest-rank percentile,
+    state_at(stages, as_of) with exited_at exclusive and same-instant ties resolved to the open
+    stage, csv_safe prefixing = + - @ TAB CR with an apostrophe); application/metrics.py
+    (ReportQuery parsing: UUID ids, category, UTC window, as_of <= now; population =
+    visible_applications(snapshot, as_of) with submitted_at <= as_of; states_at_cutoff from
+    StageInstance; metrics_snapshot returns metrics, by_status, reconciled flag, exclusions
+    (drafts), scope descriptor, definitions); application/exports.py (FIELD_SETS per kind -
+    cases: reference/status_at_cutoff/premises/category/locality/queue/timestamps, no applicant
+    identity; certificates register; audit summary without payloads; metrics report -,
+    CreateExport API-082: applicants own cases, supervisors jurisdictions, leadership needs
+    `export.sensitive`, admin metrics only (audit exports need ADMIN/LEADERSHIP + the grant),
+    validation 422, PDF 409 SERVICE_DISABLED, population frozen at request time, durable
+    `export.generate` job enqueued; generate_export renders CSV (3 comment lines + header +
+    rows, every cell csv_safe) into `exports/<id>/<sha>.csv` via put_staging/promote, RETRYABLE
+    on store outage, PERMANENT + FAILED on lost scope; scope_still_covers re-derives the
+    reader's current population and refuses if the frozen ids are no longer all visible);
+    api/views.py (MetricsView API-081 for applicants/supervisors/leadership/admin, DatabaseError
+    -> 503; ExportListView GET own (admin all) + POST; ExportDetailView API-083 flips COMPLETE ->
+    EXPIRED on read past expires_at; ExportAccessView API-084: requester only, EXPIRED/expired
+    -> 410 EXPORT_EXPIRED, scope shrink -> 403, audit `export.access_granted`, TimestampSigner
+    ticket bound to export+principal; ExportArtifactView: ticket + requester + sha256 check,
+    text/csv attachment, `private, no-store`, nosniff). Errors: ExportExpired class for the
+    existing EXPORT_EXPIRED code (catalogue stays at 51).
+  platform/audit_reader.py: audit_scope (ADMIN all + redact; SUPERVISOR/LEADERSHIP rows of
+    application / certificate / decision / inspection / notice / ticket entities in their
+    jurisdictions, leadership redacted; applicants Forbidden), parse/apply filters (actor,
+    entity, action prefix, request id, window, limit 1..100; `audit.read` rows excluded unless
+    asked for), redact_summary (reason / public_reason / detail / approval_basis /
+    justification / safe_message -> "[redacted]"), audit_body, record_audit_read (entity_type
+    `audit_query`, entity_id = reader, summary = filters + count + detail id). api/audit_views.py
+    AuditListView API-085 (audited) + AuditDetailView API-086 (verify_chain -> integrity label;
+    audited). urls /audit-events, /audit-events/<id>.
+  platform/recovery.py: RetryJob (API-105: ADMIN; DEAD_LETTER/RETRY_WAIT only; refused with 409
+    when the last attempt outcome is UNKNOWN; requeues PENDING now with max_attempts bumped by
+    one, same logical_action_id; audit `job.retried` with reason) and ReconcileJob (API-106:
+    RECONCILIATION_REQUIRED only; RECONCILABLE_KINDS with their procedure text - certificate.issue
+    -> reconcile_issuance (lookup by the stable request id), document.scan / notification.fanout
+    / obligation.threshold / export.generate -> requeue as idempotent - ; notification.deliver
+    has no approved procedure -> 409 with `job_kind`; audit `job.reconciled`). Views
+    JobRetryView / JobReconcileView on /jobs/<id>/retry|reconcile through run_command (receipt,
+    idempotency). LogicalJob is not versioned, so no If-Match on these two commands (reason is
+    mandatory instead; recorded deviation from UI-20 "current job version").
+  identity: ProposeAuthorityGrant (API-091: ADMIN; subject STAFF + active; capability/scope
+    shape validated; duplicate PROPOSED/APPROVED refused 409; effective_until in the future;
+    PROPOSED with preparer = actor; audit `grant.proposed`), ReactivatePrincipal (API-090: ADMIN
+    + staff.provision, never self; disabled target; a NEW approved unconsumed AccessRequest for
+    the same identity (beneficiary or issuer+subject) whose requester/approver is not the actor;
+    epoch bump; fresh RoleBinding; old bindings/grants stay revoked); DisablePrincipal now also
+    REVOKES the subject's PROPOSED/APPROVED grants (powers never survive deactivation).
+    api/staff_views.py: StaffListView API-087 (ADMIN global / SUPERVISOR jurisdictions; roles
+    with in_force, grants, workload = ACTIVE assignments, identity_bound flag; no IdP subject,
+    login key or contact), StaffDetailView (ETag principal), StaffInvitationView API-088
+    (ProvisionStaff), StaffDeactivateView API-089, StaffReactivateView API-090, GrantListView
+    (GET scoped list / POST propose), GrantApproveView API-092 (`reason` mapped to
+    approval_basis), GrantRevokeView API-093. urls under /staff and /authority-grants.
+  seed_demo: grants meera `grant.approve` (approver arjun) and arjun `staff.provision`
+    (approver meera) so UI-21 is exercisable in the demo without hand edits.
+  web: api/reporting.ts, api/audit.ts, api/staff.ts, api/operations.ts (retryJob /
+    reconcileJob); features/reports/ReportsPage (UI-22: filters, metric cards with the
+    definition text under each figure, reconciled badge, by-status chips, drafts-excluded note,
+    export request with purpose, export list with state/population/rows/expiry, download =
+    reason -> access -> ticketed URL), features/audit/AuditPage (UI-23: filters, results table,
+    detail pane with the integrity label and the safe summary, "this search is audited" note),
+    features/team/TeamPage (UI-21: roster with roles/grants/workload, propose-grant form for
+    administrators, pending proposals with approve (hidden for the preparer / subject) and
+    revoke, deactivate with reason and the principal ETag), features/settings/SettingsPage
+    (UI-27: identity read-only, language, display time zone (local storage), optional channels,
+    reduced motion through the existing preferences API), OperationsPage recovery rows (reason
+    form per job; retry vs reconcile per next_permitted_action); router + nav (Reports/Audit for
+    supervisor/leadership/admin, Team for supervisor/admin, Settings in the header); locales.
+  Decisions: (1) status at a cutoff is derived from StageInstance intervals (entered_at
+    inclusive, exited_at exclusive; ties -> open stage) - no snapshot tables; (2) the metrics
+    population is "received" cases (submitted_at set) only; drafts are reported as an exclusion
+    count; (3) resolution time uses the terminal stage entry of COMPLETED/REJECTED cases and
+    is flagged insufficient below 5 samples - no performance claim from the demo data; (4) the
+    export population is frozen as ids in scope_snapshot; later scope growth never enlarges the
+    file, scope reduction refuses access (403) and the export must be regenerated; (5) export
+    access tickets reuse the document ticket TTL (`DOCUMENT_ACCESS_TTL_SECONDS`) and are bound
+    to the requester - administrators can see export status but never download another
+    requester's file; (6) audit exports and the audit reader are the only places audit rows
+    leave the database; ADMIN sees everything redacted, SUPERVISOR unredacted within
+    jurisdiction, LEADERSHIP redacted within jurisdiction; (7) `audit.read` is recorded on the
+    reader's own chain (entity `audit_query`) so reading never modifies an entity chain; (8)
+    RetryJob/ReconcileJob carry a mandatory reason instead of a job version (LogicalJob has no
+    version column; the kernel receipt + idempotency key remain); (9) reconciliation for
+    `notification.deliver` is refused (no provider lookup exists on the demo sink) - manual
+    evidence is the documented path; (10) DisablePrincipal revokes grants (previously only role
+    bindings) so a reactivated account starts from nothing - recorded behaviour change; (11)
+    `neha` (leadership) receives no `export.sensitive` grant in the seed - leadership exports
+    stay demonstrably refused until an administrator proposes and meera approves one.
+Migrations/data impact: reporting 0001 (export_job). No data rewrite. Seed adds two grants
+  (idempotent). No new Compose service; the worker runs `export.generate`.
+Tests actually executed (Windows host, 2026-09-11/12):
+  uv run --directory backend ruff check/format agni config tests -> clean (303 files);
+    mypy agni config -> "Success: no issues found in 263 source files"; manage.py check -> no
+    issues; makemigrations --check --dry-run -> "No changes detected"
+  uv run --directory backend pytest tests/unit/test_reporting_rules.py
+    tests/unit/test_problem_json.py -q -> 27 passed (state_at incl. exclusive exit and ties,
+    nearest-rank percentiles, csv_safe prefixes, definitions; catalogue still 51 codes)
+  uv run --directory backend pytest tests/integration/test_reporting_audit.py -q -> 5 passed
+    after fixes on the way (access must report 410 before the state check; sessions end when a
+    grant approval / reactivation bumps the subject's epoch - fixtures re-read from the DB):
+    AT-25-01 metrics reconcile (received 1 / open 1 / INSPECTION_PENDING, insufficient sample,
+    scope descriptor, definitions; stages backdated over two hours -> cutoffs show 0 received,
+    SUBMITTED, SCRUTINY (exit exclusive), INSPECTION_PENDING; future cutoff 422; category
+    filter 1/0; bad id 422; applicant OWN_CASES with drafts=1; stranger 0; leadership 1;
+    foreign supervisor 0; officer 403); AT-26-01 exports (PDF 409 SERVICE_DISABLED; unknown
+    field set / short purpose 422; AUDIT as supervisor 403; leadership 403 then 202 with the
+    grant; supervisor 202 READY population 1; applicant REPORT 202; worker pass -> COMPLETE
+    row_count 1 scope_valid, allowed access; stranger 404 on status/access/ticket; access 200
+    + audit row; CSV header, `'=HYPERLINK` neutralised premises name, no applicant name,
+    private no-store; +25 h -> EXPIRED, access 410 EXPORT_EXPIRED, old ticket refused);
+    AT-28-01 audit reader (supervisor rows of the case incl. application.submitted, no
+    audit.read rows, one `audit.read` on her chain with the count; detail chain_valid + hash;
+    foreign supervisor empty + 404; applicant 403; leadership redacted; admin redacted with
+    every `reason` = "[redacted]"; bad `from` 422; explicit audit.read listing); recovery
+    (supervisor 403; missing reason 422; DEAD_LETTER retry 202 -> PENDING, max_attempts 4,
+    same logical action, audit; retry of PENDING 409; UNKNOWN last outcome -> 409 "reconcile";
+    reconcile of PENDING 409; notification.deliver -> 409 with job_kind; document.scan -> 202
+    PENDING with the procedure text + audit; job list shows them); staff governance (admin
+    GLOBAL roster with roles/jurisdiction code/workload and no IdP fields; supervisor
+    JURISDICTIONS read-only without the outsider/admin; officer 403; GLOBAL scope with ids 422;
+    propose 201 PROPOSED + ETag; duplicate 409; supervisor approve 403; preparer approve 403;
+    approver without If-Match 428; approve 200 -> subject session ends (epoch), fresh sign-in
+    lists the APPROVED grant; revoke 200; deactivate with principal ETag 200 -> officer's next
+    request 401, roles revoked; reactivate with a new approved request 200 -> role binding,
+    sign-in works, old binding not in force, request consumed, no approved grants survive)
+  corepack pnpm --dir web typecheck / lint / test / build -> clean after fixes (impure
+    Date.now in render, setState-in-effect on the settings form -> form mounted with initial
+    data, two redundant assertions, `Object.entries` typing); vitest **41 passed (21 files)**
+    incl. ReportsPage.test (metrics + definitions + reconciled badge, export request body with
+    Idempotency-Key) and TeamPage.test (own proposal not approvable, another's approved with
+    the grant ETag); `vite build` PASS
+  uv run --directory backend pytest -q -p no:cacheprovider (full suite, ALONE, 21:08-21:16Z) ->
+    **234 passed in 435.19 s**; 0 PostgreSQL termination / recovery lines since 21:05Z
+    (evidence/B14-backend-tests.log). One later one-line fix (supervisors may read their own
+    `audit_query` chain) was re-verified with the 5-test integration file, ruff and mypy.
+  Container proof: docker compose build api web -> api 0d989589dfcc (21:20:06Z), web
+    bca58f694606 (21:22:00Z); up -d --wait -> all healthy; showmigrations reporting -> 0001
+    applied on start; seed_demo re-run (idempotent; meera `grant.approve`, arjun
+    `staff.provision`); first smoke run stopped at "search on the reader's own chain" (the
+    supervisor scope did not include `audit_query` rows) -> fix -> api rebuilt 13ae7107124c
+    (21:26:59Z) and api/worker/scheduler recreated on it (verified by image id)
+  uv run --directory backend python ../scripts/dev/smoke_reporting.py http://127.0.0.1:5173 ->
+    ALL REPORTING SMOKE STEPS PASSED (**43 steps** through nginx + Keycloak + demo OTP, 21:29Z:
+    metrics reconcile over 5 received cases (COMPLETED 1 / INSPECTION_PENDING 1 / REVIEW_PENDING
+    1 / SUBMITTED 2), insufficient sample n=1, 2026-01-01 cutoff -> 0, future 422, applicant
+    OWN_CASES; PDF 409; CASES export 202 -> worker COMPLETE rows=5=population; stranger 404 on
+    status / access / ticket; CSV text/csv no-store, header, 5 rows, 0 formula-prefixed cells,
+    no applicant name; export listed; audit search 11 rows for a case, 3 `audit.read` rows on
+    anita's chain, detail "Integrity checked against chain", applicant 403; arjun roster GLOBAL
+    (10 staff) / anita JURISDICTIONS (7, read-only); propose export.sensitive 201; preparer
+    approve 403; meera approve 200; meera revoke 200; roster shows REVOKED; no dead letter ->
+    retry drill NOT_RUN; anita's old session 401 after the epoch bump; fresh anita retry 403)
+    (evidence/B14-smoke-reporting.log)
+  Dependency audits: no new dependencies in B14 (pip-audit / pnpm audit last run clean at B12).
+Tests not executed and concrete reason: AT-25-02..04 / AT-26-02.. / AT-28-02.. browser +
+  accessibility variants (Playwright, B16/B19); API-088 provisioning over HTTP is wired but
+  only the command is integration-tested (B03); export scope-shrink refusal is unit-level
+  (authorize_kind + population) - a role revocation mid-export drill belongs to B17;
+  concurrent export requests (B17 drills).
+Screens inspected: jsdom tests of UI-22 and UI-21; UI-23 / UI-27 / UI-20 recovery rows by
+  typecheck + build only (NOTE for B16/B19).
+Security/privacy or external-effect considerations: exports never contain applicant
+  identity/contacts; CSV cells are neutralised; artifacts live in private storage and are
+  served only through short-lived requester-bound tickets after a fresh scope check; audit
+  summaries are redacted for wide roles and every read is itself audited; recovery commands
+  cannot change a case, mark evidence clean or replace a decision; deactivation revokes
+  sessions (epoch), bindings and grants; approval always needs a different actor.
+Remaining defects and reproduction: NONE known in the product.
+Self-review (D-009): diff reviewed against task card B14 proofs - totals reconcile with the
+  visible list at one cutoff (tested with backdated stages), exports carry purpose + frozen
+  scope + expiry and refuse after scope loss/expiry (tested), formula cells neutralised
+  (tested), audit reads are audited and scoped (tested), blind retry after an unknown outcome
+  is refused (tested); forbidden shortcut respected: no unscoped totals, no permanent export
+  URLs, no client-side authorization.
+Required human input: BL-007; docs/07 capability model review (holds/support from B13; the
+  export/audit matrix implemented as described above); whether leadership should hold
+  `export.sensitive` in the demo seed.
+Next safe task: B15 - Integration contracts and reconciliation.
 End commit and worktree status: recorded in handover.md B12 after commit/push.
 ```
 

@@ -61,6 +61,14 @@ does not extend the old validity. Help lives at `/support`: tickets have their o
 can never change a case; legal appeals, fees and external registration stay disabled in the demo
 profile and show the approved referral instead of a form.
 
+Reporting is honest by construction: **Reports** (`/reports`) computes every figure from one
+cutoff over the cases you may see and shows the definition beside each number; exports need a
+purpose, freeze their scope, neutralise spreadsheet formulas, expire after 24 hours and are
+downloaded only through a short-lived link. **Audit** (`/audit`) searches the trail within your
+scope (redacted for wide roles) and records each search on your own chain. **Team** (`/team`)
+shows roles, powers and workload; a power is proposed by one administrator and approved by
+another. Personal preferences live at `/settings`.
+
 ### Developing on the host (optional)
 
 For code changes with hot reload, run the infrastructure in Docker and the app on your machine.

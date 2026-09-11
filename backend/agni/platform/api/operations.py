@@ -115,6 +115,40 @@ class JobListView(ApiView):
         return ok({"summary": summary, "items": [job_body(j) for j in rows]}, request)
 
 
+class JobRetryView(ApiView):
+    """API-105: safe retry of the same logical action (reason required)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request: Request, job_id: UUID) -> Response:
+        from ..recovery import RetryJob
+
+        return self.run_command(
+            request,
+            RetryJob(),
+            command_name="job-retry",
+            target_type="logical_job",
+            target_id=job_id,
+        )
+
+
+class JobReconcileView(ApiView):
+    """API-106: provider lookup / verification before completion or retry (reason required)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request: Request, job_id: UUID) -> Response:
+        from ..recovery import ReconcileJob
+
+        return self.run_command(
+            request,
+            ReconcileJob(),
+            command_name="job-reconcile",
+            target_type="logical_job",
+            target_id=job_id,
+        )
+
+
 class JobDetailView(ApiView):
     """API-104: attempts with safe errors only."""
 

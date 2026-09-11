@@ -9,8 +9,12 @@ import { ApplicationsListPage } from "../features/applications/ApplicationsListP
 import { ApplicationWizardPage } from "../features/applications/ApplicationWizardPage";
 import { NewApplicationPage } from "../features/applications/NewApplicationPage";
 import { OverviewPage } from "../features/applications/OverviewPage";
+import { AuditPage } from "../features/audit/AuditPage";
 import { CertificateDetailPage } from "../features/certificates/CertificateDetailPage";
 import { CertificatesPage } from "../features/certificates/CertificatesPage";
+import { ReportsPage } from "../features/reports/ReportsPage";
+import { SettingsPage } from "../features/settings/SettingsPage";
+import { TeamPage } from "../features/team/TeamPage";
 import { ReviewPage } from "../features/review/ReviewPage";
 import { ReviewQueuePage } from "../features/review/ReviewQueuePage";
 import { SupportPage } from "../features/support/SupportPage";
@@ -69,6 +73,10 @@ export const routes: RouteObject[] = [
           { path: "sync", element: <SyncPage /> },
           { path: "notifications", element: <NotificationsPage /> },
           { path: "operations", element: <OperationsPage /> },
+          { path: "reports", element: <ReportsPage /> },
+          { path: "audit", element: <AuditPage /> },
+          { path: "team", element: <TeamPage /> },
+          { path: "settings", element: <SettingsPage /> },
           { path: "policy", element: <PolicyListPage /> },
           { path: "policy/:policyId", element: <PolicyDetailPage /> },
         ],

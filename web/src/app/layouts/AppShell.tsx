@@ -71,6 +71,13 @@ function toolLinks(workspaces: Workspace[]): { to: string; label: MessageKey }[]
   if (workspaces.includes("applicant") || workspaces.includes("supervisor") || workspaces.includes("leadership")) {
     links.push({ to: "/certificates", label: "nav.certificates" });
   }
+  if (workspaces.includes("supervisor") || workspaces.includes("leadership") || workspaces.includes("admin")) {
+    links.push({ to: "/reports", label: "nav.reports" });
+    links.push({ to: "/audit", label: "nav.audit" });
+  }
+  if (workspaces.includes("supervisor") || workspaces.includes("admin")) {
+    links.push({ to: "/team", label: "nav.team" });
+  }
   if (workspaces.includes("admin")) {
     links.push({ to: "/operations", label: "nav.operations" });
   }
@@ -125,6 +132,9 @@ export function AppShell() {
               </Link>
               <Link to="/support" className="inline-flex min-h-11 items-center rounded-md px-3 text-ink hover:bg-canvas">
                 {t("nav.support")}
+              </Link>
+              <Link to="/settings" className="inline-flex min-h-11 items-center rounded-md px-3 text-ink hover:bg-canvas">
+                {t("nav.settings")}
               </Link>
               <Link to="/account" className="inline-flex min-h-11 items-center rounded-md px-3 text-ink hover:bg-canvas">
                 {principal.display_name}

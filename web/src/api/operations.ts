@@ -1,7 +1,9 @@
-/** Operations skeleton (API-103/104, UI-20): jobs with sanitised metadata and a health summary. */
+/** Operations (API-103..106, UI-20): jobs with sanitised metadata, a health summary and the two
+ *  recovery commands (safe retry of the same logical action; reconcile before any retry). */
 
 import { queryOptions } from "@tanstack/react-query";
 
+import { ensureCsrf } from "./auth";
 import { request } from "./client";
 
 export interface Job {
@@ -35,6 +37,22 @@ export interface OperationsSummary {
   worker_last_activity_seconds: number | null;
   worker_heartbeat_ok: boolean;
   by_kind: Record<string, number>;
+}
+
+async function recovery(path: string, reason: string): Promise<Job & { procedure?: string }> {
+  await ensureCsrf();
+  const response = await request<{ data: Job & { procedure?: string } }>(path, { method: "POST", body: { reason }, idempotencyKey: crypto.randomUUID() });
+  return response.data.data;
+}
+
+/** API-105. */
+export function retryJob(jobId: string, reason: string) {
+  return recovery(`/jobs/${jobId}/retry`, reason);
+}
+
+/** API-106. */
+export function reconcileJob(jobId: string, reason: string) {
+  return recovery(`/jobs/${jobId}/reconcile`, reason);
 }
 
 export function jobsQuery(states: string[] = []) {

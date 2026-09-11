@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     "agni.decisions",
     "agni.certificates",
     "agni.support",
+    "agni.reporting",
 ]
 
 # Custom principal is the user model from the first migration (data model s.8).

@@ -18,6 +18,7 @@ from typing import Any
 from uuid import UUID
 
 from django.db import IntegrityError, transaction
+from django.utils.dateparse import parse_datetime
 
 from agni.platform.commands import AuditEntry, CommandHandler, CommandOutcome, UnitOfWork
 from agni.platform.errors import (
@@ -30,7 +31,7 @@ from agni.platform.errors import (
 from agni.platform.locks import lock_principal_fences
 
 from ..authz import load_snapshot, require_capability, require_role
-from ..domain.roles import Capability, RoleKey
+from ..domain.roles import Capability, RoleKey, ScopeKind
 from ..models import (
     AccessRequest,
     AccessRequestStatus,
@@ -284,6 +285,10 @@ class DisablePrincipal(CommandHandler[Principal]):
         RoleBinding.objects.filter(principal=target, revoked_at__isnull=True).update(
             revoked_at=uow.now
         )
+        # Powers do not survive deactivation; a later reactivation starts from nothing.
+        AuthorityGrant.objects.filter(
+            subject=target, state__in=[GrantState.PROPOSED, GrantState.APPROVED]
+        ).update(state=GrantState.REVOKED, revoked_at=uow.now)
         return CommandOutcome(
             status=200,
             body={
@@ -302,3 +307,213 @@ def _bump_subject_epoch(principal_id: UUID) -> None:
     from django.db.models import F
 
     Principal.objects.filter(pk=principal_id).update(authz_epoch=F("authz_epoch") + 1)
+
+
+class ProposeAuthorityGrant(CommandHandler[AuthorityGrant]):
+    """API-091 (grant.prepare): an administrator records a PROPOSED grant for a staff subject.
+    Approval is a separate command by a different actor; a proposal alone confers nothing."""
+
+    def authorize(self, uow: UnitOfWork) -> None:
+        snapshot = load_snapshot(uow.actor, uow.now)
+        require_role(snapshot, RoleKey.ADMIN)
+
+    def lock_target(self, uow: UnitOfWork) -> AuthorityGrant | None:
+        return None
+
+    def apply(
+        self, uow: UnitOfWork, target: AuthorityGrant | None
+    ) -> CommandOutcome[AuthorityGrant]:
+        data = dict(uow.envelope.payload)
+        violations: list[Violation] = []
+        subject_id = _uuid(data.get("subject_id"), "/subject_id")
+        capability = str(data.get("capability") or "")
+        if capability not in {c.value for c in Capability}:
+            violations.append(Violation("/capability", "invalid", "unknown capability"))
+        scope_kind = str(data.get("scope_kind") or "")
+        if scope_kind not in {s.value for s in ScopeKind}:
+            violations.append(
+                Violation("/scope_kind", "invalid", "GLOBAL, JURISDICTION or SERVICE")
+            )
+        reason = str(data.get("reason") or "").strip()
+        if not (10 <= len(reason) <= 4000):
+            violations.append(Violation("/reason", "length", "10 to 4000 characters"))
+        jurisdiction_id = (
+            _uuid(data.get("jurisdiction_id"), "/jurisdiction_id")
+            if data.get("jurisdiction_id")
+            else None
+        )
+        service_id = (
+            _uuid(data.get("service_id"), "/service_id") if data.get("service_id") else None
+        )
+        if scope_kind == ScopeKind.JURISDICTION and jurisdiction_id is None:
+            violations.append(
+                Violation("/jurisdiction_id", "required", "jurisdiction scope needs an id")
+            )
+        if scope_kind == ScopeKind.SERVICE and service_id is None:
+            violations.append(Violation("/service_id", "required", "service scope needs an id"))
+        if scope_kind == ScopeKind.GLOBAL and (jurisdiction_id or service_id):
+            violations.append(Violation("/scope_kind", "shape", "global scope carries no ids"))
+        effective_until = None
+        if data.get("effective_until"):
+            effective_until = parse_datetime(str(data["effective_until"]))
+            if effective_until is None or effective_until.tzinfo is None:
+                violations.append(Violation("/effective_until", "format", "ISO 8601 UTC"))
+            elif effective_until <= uow.now:
+                violations.append(Violation("/effective_until", "past", "must be in the future"))
+        if violations:
+            raise ValidationFailed(violations=violations)
+        subject = Principal.objects.filter(pk=subject_id, kind=PrincipalKind.STAFF).first()
+        if subject is None:
+            raise ResourceNotFound("Staff principal not found")
+        if not subject.is_active:
+            raise InvalidTransition("A disabled account cannot receive authority")
+        duplicates = AuthorityGrant.objects.filter(
+            subject=subject,
+            capability=capability,
+            scope_kind=scope_kind,
+            state__in=[GrantState.PROPOSED, GrantState.APPROVED],
+        )
+        duplicates = (
+            duplicates.filter(jurisdiction_id=jurisdiction_id)
+            if jurisdiction_id
+            else duplicates.filter(jurisdiction__isnull=True)
+        )
+        duplicates = (
+            duplicates.filter(service_id=service_id)
+            if service_id
+            else duplicates.filter(service__isnull=True)
+        )
+        if duplicates.exists():
+            raise InvalidTransition("An equivalent grant is already proposed or approved")
+        grant = AuthorityGrant.objects.create(
+            subject=subject,
+            capability=capability,
+            scope_kind=scope_kind,
+            jurisdiction_id=jurisdiction_id,
+            service_id=service_id,
+            effective_from=uow.now,
+            effective_until=effective_until,
+            preparer=uow.actor,
+            state=GrantState.PROPOSED,
+            approval_basis="",
+        )
+        return CommandOutcome(
+            status=201,
+            body={
+                "grant_id": str(grant.pk),
+                "state": grant.state,
+                "capability": grant.capability,
+                "subject_id": str(subject.pk),
+                "version": grant.version,
+                "etag": f'"authority_grant:{grant.pk}:v{grant.version}"',
+            },
+            aggregate=grant,
+            created=True,
+            audits=[
+                AuditEntry(
+                    "authority_grant",
+                    grant.pk,
+                    "grant.proposed",
+                    {
+                        "subject_id": str(subject.pk),
+                        "capability": capability,
+                        "scope": scope_kind,
+                        "reason": reason[:200],
+                    },
+                )
+            ],
+        )
+
+
+class ReactivatePrincipal(CommandHandler[Principal]):
+    """API-090: a disabled staff account returns only through a NEW approved access request;
+    revoked bindings and grants never revive - the request's role becomes a fresh binding."""
+
+    def authorize(self, uow: UnitOfWork) -> None:
+        snapshot = load_snapshot(uow.actor, uow.now)
+        require_role(snapshot, RoleKey.ADMIN)
+        require_capability(snapshot, Capability.STAFF_PROVISION)
+        if uow.envelope.target_id == uow.actor.pk:
+            raise SeparationOfDuties("You cannot reactivate your own account")
+
+    def lock_target(self, uow: UnitOfWork) -> Principal | None:
+        lock_principal_fences([uow.envelope.target_id])
+        principal = Principal.objects.filter(pk=uow.envelope.target_id).first()
+        if principal is None:
+            raise ResourceNotFound("Principal not found")
+        return principal
+
+    def apply(self, uow: UnitOfWork, target: Principal | None) -> CommandOutcome[Principal]:
+        if target is None:
+            raise ResourceNotFound("Principal not found")
+        if target.is_active:
+            raise InvalidTransition("Account is already active")
+        request_id = _uuid(uow.envelope.payload.get("access_request_id"), "/access_request_id")
+        reason = str(uow.envelope.payload.get("reason", "")).strip()
+        if len(reason) < 5:
+            raise ValidationFailed(violations=[Violation("/reason", "min_length", "give a reason")])
+        access_request = AccessRequest.objects.select_for_update().filter(pk=request_id).first()
+        if access_request is None:
+            raise ResourceNotFound("Access request not found")
+        if (
+            access_request.status != AccessRequestStatus.APPROVED
+            or access_request.consumed_at is not None
+        ):
+            raise InvalidTransition("Only an approved, unconsumed access request reactivates")
+        if (
+            access_request.approver_id == uow.actor.pk
+            or access_request.requester_id == uow.actor.pk
+        ):
+            raise SeparationOfDuties("Requester or approver cannot also reactivate")
+        same_identity = bool(access_request.intended_subject) and (
+            access_request.intended_subject == target.external_subject
+            and access_request.intended_issuer == target.external_issuer
+        )
+        if access_request.beneficiary_id != target.pk and not same_identity:
+            raise InvalidTransition("The access request is not for this staff identity")
+        if access_request.requested_role not in RoleKey.__members__:
+            raise ValidationFailed(
+                violations=[Violation("/access_request_id", "invalid_role", "unknown role")]
+            )
+        approver = access_request.approver
+        if approver is None:
+            raise InvalidTransition("Approved request has no recorded approver")
+        target.is_active = True
+        target.disabled_at = None
+        target.bump_epoch()
+        target.save(update_fields=["is_active", "disabled_at", "authz_epoch", "updated_at"])
+        binding = RoleBinding.objects.create(
+            principal=target,
+            role_key=access_request.requested_role,
+            jurisdiction=access_request.jurisdiction,
+            service=access_request.service,
+            effective_from=uow.now,
+            approved_request=access_request,
+            approved_by=approver,
+        )
+        access_request.consumed_at = uow.now
+        access_request.beneficiary = target
+        access_request.version += 1
+        access_request.save(update_fields=["consumed_at", "beneficiary", "version", "updated_at"])
+        return CommandOutcome(
+            status=200,
+            body={
+                "principal_id": str(target.pk),
+                "active": True,
+                "role_key": binding.role_key,
+                "authz_epoch": target.authz_epoch,
+            },
+            aggregate=target,
+            audits=[
+                AuditEntry(
+                    "principal",
+                    target.pk,
+                    "principal.reactivated",
+                    {
+                        "access_request_id": str(access_request.pk),
+                        "role_key": binding.role_key,
+                        "reason": reason[:200],
+                    },
+                )
+            ],
+        )
