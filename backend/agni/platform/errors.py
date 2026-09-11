@@ -279,6 +279,18 @@ class EvidenceIncomplete(DomainError):
     code = "EVIDENCE_INCOMPLETE"
 
 
+class OfflinePackageExpired(DomainError):
+    code = "OFFLINE_PACKAGE_EXPIRED"
+
+
+class SyncSchemaUnsupported(DomainError):
+    code = "SYNC_SCHEMA_UNSUPPORTED"
+
+
+class SyncPayloadConflict(DomainError):
+    code = "SYNC_PAYLOAD_CONFLICT"
+
+
 class MandatoryFindingsOpen(DomainError):
     code = "MANDATORY_FINDINGS_OPEN"
 

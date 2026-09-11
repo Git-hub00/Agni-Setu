@@ -1,6 +1,8 @@
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 
 import { t } from "../../locales";
+import { unsentWork } from "../../offline/database";
 import { useSession, useSignOut } from "./useSession";
 
 /** UI-03: account facts from the server projection, sign out. Contact change and
@@ -9,6 +11,14 @@ export function AccountPage() {
   const { principal } = useSession();
   const signOut = useSignOut();
   const navigate = useNavigate();
+  // Unsent offline work is a warning, never a blocker (docs/09 s.9); storage errors read as "none".
+  const unsent = useQuery({
+    queryKey: ["offline", "unsent", principal?.id ?? ""] as const,
+    queryFn: () => unsentWork(principal?.id ?? "").catch(() => ({ drafts: 0, operations: 0, files: 0 })),
+    enabled: principal !== null && principal.kind === "STAFF",
+    retry: false,
+  });
+  const pending = unsent.data && unsent.data.operations + unsent.data.drafts + unsent.data.files > 0 ? unsent.data : null;
 
   if (!principal) {
     return null; // RequireSession guarantees a principal; defensive for direct renders
@@ -45,8 +55,13 @@ export function AccountPage() {
         <h2 id="account-delegations" className="text-base font-semibold text-ink">{t("account.delegations")}</h2>
         <p className="mt-2 text-sm text-muted">{t("account.delegationsLater")}</p>
       </section>
-      <div>
-        <button type="button" onClick={onSignOut} disabled={signOut.isPending} className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 font-medium text-ink hover:bg-canvas disabled:opacity-60">
+      <div className="flex flex-col gap-3">
+        {pending ? (
+          <p role="status" className="rounded-md bg-warning-soft p-3 text-sm text-warning">
+            {t("account.unsentWork")} {pending.operations} {t("account.unsentOperations")}, {pending.drafts} {t("account.unsentDrafts")}, {pending.files} {t("account.unsentFiles")}. {t("account.unsentKept")}
+          </p>
+        ) : null}
+        <button type="button" onClick={onSignOut} disabled={signOut.isPending} className="inline-flex min-h-11 items-center self-start rounded-md border border-border bg-surface px-4 font-medium text-ink hover:bg-canvas disabled:opacity-60">
           {signOut.isPending ? t("account.signingOut") : t("account.signOut")}
         </button>
       </div>

@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "agni.inspections",
     "agni.notices",
     "agni.notifications",
+    "agni.offline",
 ]
 
 # Custom principal is the user model from the first migration (data model s.8).

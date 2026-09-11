@@ -13,9 +13,15 @@ import {
   scheduleInspection,
   type InspectionDetail,
 } from "../../api/inspections";
+import { NetworkError } from "../../api/errors";
+import { fetchOfflinePackage } from "../../api/offline";
 import { ProblemNotice } from "../../app/ProblemNotice";
 import { t } from "../../locales";
-import { ReportView, ReportWorkspace } from "./ReportWorkspace";
+import { probeConnectivity } from "../../offline/connectivity";
+import type { StoredPackage } from "../../offline/database";
+import { getLocalDraft, getPackage, packageExpired, queueFailedVisitOperation, savePackage } from "../../offline/queue";
+import { useSession } from "../identity/useSession";
+import { ReportView, ReportWorkspace, type OfflineContext } from "./ReportWorkspace";
 
 const CARD = "rounded-[var(--radius-card)] border border-border bg-surface p-6 shadow-[var(--shadow-card)]";
 const FIELD = "mt-1 block w-full min-h-11 rounded-md border border-border bg-canvas px-3 text-sm text-ink";
@@ -24,14 +30,31 @@ const SECONDARY = "inline-flex min-h-11 items-center rounded-md border border-bo
 
 /** UI-12 + UI-11 dialog: attempt summary, assignment history, supervisor scheduling /
  *  reassignment / cancellation, the assigned officer's check-in and failed-visit actions, the
- *  report workspace (draft + submit) and the accepted report with its evaluation. */
+ *  report workspace (draft + submit) and the accepted report with its evaluation. When the API
+ *  is unreachable and a package was saved on this device, the workspace renders from the
+ *  package (B11) and queues work for the synchronisation centre instead of submitting. */
 export function InspectionDetailPage() {
   const { inspectionId = "" } = useParams();
+  const { principal } = useSession();
+  const principalId = principal?.id ?? "";
   const query = useQuery(inspectionQuery(inspectionId));
-  if (query.isPending) return <p className="text-sm text-muted">{t("queue.loading")}</p>;
-  if (query.isError) return <ProblemNotice error={query.error} />;
+  // Local stores may be unavailable (private mode, eviction): treat that as "no local copy",
+  // never as an error that blocks the online workspace.
+  const stored = useQuery({ queryKey: ["offline", "package", inspectionId] as const, queryFn: () => getPackage(inspectionId).then((p) => p ?? null).catch(() => null), retry: false });
+  const localDraft = useQuery({ queryKey: ["offline", "draft", inspectionId] as const, queryFn: () => getLocalDraft(inspectionId).then((d) => d ?? null).catch(() => null), retry: false });
+  const connectivity = useQuery({ queryKey: ["offline", "connectivity"] as const, queryFn: probeConnectivity, refetchInterval: 30000, retry: false });
+  const online = connectivity.data ? connectivity.data.state === "ONLINE" : !query.isError;
+  if (query.isPending || stored.isPending) return <p className="text-sm text-muted">{t("queue.loading")}</p>;
+  if (query.isError) {
+    const pkg = stored.data;
+    if (query.error instanceof NetworkError && pkg && principalId) {
+      return <OfflineWorkspace pkg={pkg} principalId={principalId} localDraft={localDraft.data ?? null} />;
+    }
+    return <ProblemNotice error={query.error} />;
+  }
   const { inspection, etag } = query.data;
   const actions = new Map(inspection.allowed_actions.map((a) => [a.key, a.enabled] as const));
+  const offline: OfflineContext | null = principalId && actions.get("save-draft") ? { principalId, online, storedPackage: stored.data ?? null, localDraft: localDraft.data ?? null } : null;
   return (
     <div className="mx-auto flex max-w-[920px] flex-col gap-6">
       <div>
@@ -77,8 +100,9 @@ export function InspectionDetailPage() {
         <OfficerActions inspection={inspection} etag={etag} canCheckIn={actions.get("check-in") === true} canFail={actions.get("fail-visit") === true} />
       ) : null}
       {inspection.report ? <ReportView report={inspection.report} items={inspection.checklist_items} title={t("report.acceptedTitle")} /> : null}
+      {offline ? <OfflinePackageCard inspectionId={inspection.inspection_id} principalId={principalId} stored={stored.data ?? null} online={online} /> : null}
       {actions.get("save-draft") ? (
-        <ReportWorkspace key={`${inspection.version}-${inspection.current_assignment?.version ?? 0}`} inspection={inspection} etag={etag} canSubmit={actions.get("submit-report") === true} />
+        <ReportWorkspace key={`${inspection.version}-${inspection.current_assignment?.version ?? 0}-${stored.data?.downloaded_at ?? ""}`} inspection={inspection} etag={etag} canSubmit={actions.get("submit-report") === true} offline={offline} />
       ) : null}
       {!inspection.report && !actions.get("save-draft") ? (
         <section className={CARD} aria-labelledby="inspection-checklist">
@@ -92,6 +116,76 @@ export function InspectionDetailPage() {
           </ol>
         </section>
       ) : null}
+    </div>
+  );
+}
+
+/** Offline copy of the attempt (API-048): downloaded while online, shown with its expiry. */
+function OfflinePackageCard({ inspectionId, principalId, stored, online }: { inspectionId: string; principalId: string; stored: StoredPackage | null; online: boolean }) {
+  const queryClient = useQueryClient();
+  const download = useMutation({
+    mutationFn: async () => {
+      const { pkg, etag } = await fetchOfflinePackage(inspectionId);
+      return savePackage(pkg, etag, principalId);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["offline"] });
+    },
+  });
+  const expired = stored ? packageExpired(stored) : false;
+  return (
+    <section className={CARD} aria-labelledby="offline-package">
+      <h2 id="offline-package" className="text-base font-semibold">{t("sync.downloadPackage")}</h2>
+      <p className="mt-1 text-sm text-muted">{stored ? `${t("sync.packageSaved")} ${new Date(stored.downloaded_at).toLocaleString()} · ${t("sync.packageExpires")} ${new Date(stored.expires_at).toLocaleString()}${expired ? ` · ${t("sync.state.CONFLICT")}` : ""}` : t("sync.offlineNoPackage")}</p>
+      {download.isError ? <div className="mt-2"><ProblemNotice error={download.error} /></div> : null}
+      <div className="mt-3 flex flex-wrap gap-3">
+        <button type="button" className={SECONDARY} disabled={!online || download.isPending} onClick={() => download.mutate()}>{stored ? t("overview.refresh") : t("sync.downloadPackage")}</button>
+        <Link to="/sync" className={SECONDARY}>{t("nav.sync")}</Link>
+      </div>
+    </section>
+  );
+}
+
+/** API unreachable: render the attempt from the saved package; every action saves locally. */
+function OfflineWorkspace({ pkg, principalId, localDraft }: { pkg: StoredPackage; principalId: string; localDraft: OfflineContext["localDraft"] }) {
+  const detail: InspectionDetail = { ...pkg.package.inspection, checklist_items: pkg.package.checklist_items, assignments: [], allowed_actions: [], draft: null, report: null };
+  const offline: OfflineContext = { principalId, online: false, storedPackage: pkg, localDraft };
+  const [reasonCode, setReasonCode] = useState<string>(FAILED_VISIT_REASONS[0]);
+  const [reason, setReason] = useState("");
+  const [queued, setQueued] = useState<string | null>(null);
+  const ids = { code: useId(), reason: useId() };
+  const failed = useMutation({
+    mutationFn: () => queueFailedVisitOperation({ principal_id: principalId, package: pkg, reason_code: reasonCode, reason, captured_at: new Date().toISOString() }),
+    onSuccess: (op) => setQueued(op.operation_id),
+  });
+  return (
+    <div className="mx-auto flex max-w-[920px] flex-col gap-6">
+      <div>
+        <Link to="/sync" className="text-sm text-primary">← {t("nav.sync")}</Link>
+        <h1 className="mt-1 text-2xl font-semibold text-ink">{detail.public_reference ?? detail.application_id.slice(0, 8)} · {t("queue.attempt")} {detail.attempt_number}</h1>
+        <p role="status" className="mt-1 inline-block rounded-md bg-warning-soft px-2 py-0.5 text-sm text-warning">{t("sync.connectivity.OFFLINE")} · {t("sync.packageSaved")} {new Date(pkg.downloaded_at).toLocaleString()} · {t("sync.packageExpires")} {new Date(pkg.expires_at).toLocaleString()}</p>
+      </div>
+      <ReportWorkspace inspection={detail} etag={pkg.inspection_etag} canSubmit={false} offline={offline} />
+      <section className={CARD} aria-labelledby="offline-failed-visit">
+        <h2 id="offline-failed-visit" className="text-base font-semibold">{t("inspection.visit")}</h2>
+        {queued ? (
+          <p role="status" className="mt-2 text-sm">{t("sync.failedVisitQueued")} <span className="text-muted">({queued.slice(0, 8)})</span></p>
+        ) : (
+          <div className="mt-3 flex flex-col gap-2">
+            <p className="text-sm text-muted">{t("inspection.failHelp")}</p>
+            <label htmlFor={ids.code} className="text-sm font-medium">{t("inspection.failCode")}</label>
+            <select id={ids.code} className={FIELD} value={reasonCode} onChange={(e) => setReasonCode(e.target.value)}>
+              {FAILED_VISIT_REASONS.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            <label htmlFor={ids.reason} className="text-sm font-medium">{t("policy.reason")}</label>
+            <textarea id={ids.reason} className={FIELD} rows={2} value={reason} onChange={(e) => setReason(e.target.value)} />
+            {failed.isError ? <ProblemNotice error={failed.error} /> : null}
+            <button type="button" className={SECONDARY} disabled={failed.isPending || reason.trim().length < 10} onClick={() => failed.mutate()}>{t("sync.failedVisitLocal")}</button>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

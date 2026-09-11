@@ -114,7 +114,9 @@ Resolution source: npm registry. Exact versions come from `web/package.json` (ex
 | react-hook-form | 7.x | **7.87.0** | MIT | none | EV-B00-05 |
 | zod | 4.x compatible | **4.5.4** | MIT | none | EV-B00-05 |
 | dexie | 4.x | **4.4.5** | Apache-2.0 | none | EV-B00-05 |
-| workbox (via vite-plugin-pwa or explicit build) | Vite-compatible SW build | NOT_RESOLVED - deferred to B11 (first phase that needs a service worker); will be added through the same lock discipline | MIT | NOT_RUN | B11 |
+| vite-plugin-pwa (workbox-build) | Vite 8-compatible SW build | **1.3.0** (workbox-build **7.4.1**) (B11) | MIT | none (`pnpm audit` 2026-09-11: "No known vulnerabilities found") | dev; static app shell only, `navigateFallbackDenylist` for `/api`, no runtime API caching, update prompts a safe reload |
+| workbox-window | matches workbox-build | **7.4.1** (B11) | MIT | none (same audit) | dev; direct dependency because the plugin's `virtual:pwa-register` module imports it and pnpm's strict layout does not hoist it (build failed "failed to resolve import workbox-window" until added) |
+| fake-indexeddb | current | **6.2.5** (B11) | Apache-2.0 | none (`pnpm audit`, B11) | dev; IndexedDB for Dexie unit tests (vitest.setup.ts) |
 | vitest / jsdom | current | **5.0.0** / **30.0.1** (B01) | MIT | none | dev; unit tests |
 | @testing-library/react / jest-dom / user-event | current | **16.3.3** / **7.0.1** / **14.6.7** (B01) | MIT | none | dev |
 | eslint / @eslint/js / typescript-eslint / globals | current | **10.10.0** / **10.0.1** / **8.70.0** / **17.12.0** (B01) | MIT | none | dev; flat config, type-checked rules |

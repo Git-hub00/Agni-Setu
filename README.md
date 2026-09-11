@@ -43,6 +43,11 @@ Keycloak realm (`arjun`, `meera`, `anita`, ... with the demo passwords in
 `infra/identity/realm-agni-dev.json`). Everything is synthetic; nothing is sent to a real inbox.
 End-to-end smoke checks against the running stack live in `scripts/dev/smoke_*.py`.
 
+Field officers can install the web app (PWA). The service worker caches only the static
+application shell and never API responses; case data for offline work is downloaded per attempt
+as a small package and synchronised explicitly from **Offline work and sync** (`/sync`).
+Updates are never applied silently: the shell offers a "Reload now" prompt and unsent work is kept.
+
 ### Developing on the host (optional)
 
 For code changes with hot reload, run the infrastructure in Docker and the app on your machine.

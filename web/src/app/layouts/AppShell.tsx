@@ -1,8 +1,25 @@
+import { useEffect, useState } from "react";
 import { Link, Outlet } from "react-router";
 
 import type { Workspace } from "../../api/auth";
 import { useSession } from "../../features/identity/useSession";
 import { t, type MessageKey } from "../../locales";
+import { SW_UPDATE_EVENT, type ServiceWorkerUpdateDetail } from "../../offline/serviceWorker";
+
+/** Service-worker updates are never applied silently (docs/09 s.3): the shell announces the
+ *  waiting version and the user decides when to reload. Returns the pending apply function. */
+function useServiceWorkerUpdate(): { apply: (() => void) | null; dismiss: () => void } {
+  const [apply, setApply] = useState<(() => void) | null>(null);
+  useEffect(() => {
+    const onUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<ServiceWorkerUpdateDetail>).detail;
+      setApply(() => detail.apply);
+    };
+    window.addEventListener(SW_UPDATE_EVENT, onUpdate);
+    return () => window.removeEventListener(SW_UPDATE_EVENT, onUpdate);
+  }, []);
+  return { apply, dismiss: () => setApply(null) };
+}
 
 /** The seven workspaces (scope 00, UI spec s.3). Routes are mounted per phase; until then the
  *  entries are visibly disabled placeholders, never dead links. Signed-in users see only the
@@ -42,6 +59,9 @@ const WORKSPACE_ROUTE: Partial<Record<Workspace, string>> = {
  *  operations for administrators (UI-20). Notifications (UI-19) sit in the header for everyone. */
 function toolLinks(workspaces: Workspace[]): { to: string; label: MessageKey }[] {
   const links: { to: string; label: MessageKey }[] = [];
+  if (workspaces.includes("officer")) {
+    links.push({ to: "/sync", label: "nav.sync" });
+  }
   if (workspaces.includes("supervisor") || workspaces.includes("leadership")) {
     links.push({ to: "/monitoring", label: "nav.monitoring" });
   }
@@ -53,6 +73,7 @@ function toolLinks(workspaces: Workspace[]): { to: string; label: MessageKey }[]
 
 export function AppShell() {
   const { principal } = useSession();
+  const update = useServiceWorkerUpdate();
   const navKeys: readonly MessageKey[] = principal
     ? [...principal.workspaces.map((w) => WORKSPACE_LABEL[w]), "workspace.public"]
     : WORKSPACE_KEYS;
@@ -67,6 +88,20 @@ export function AppShell() {
       <a href="#main-content" className="skip-link">
         {t("app.skipToContent")}
       </a>
+
+      {update.apply ? (
+        <div role="status" className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-primary-soft px-4 py-2 text-sm text-ink md:px-8">
+          <span>{t("app.updateReady")}</span>
+          <span className="flex gap-2">
+            <button type="button" onClick={update.apply} className="inline-flex min-h-11 items-center rounded-md bg-primary px-3 font-medium text-white">
+              {t("app.updateReload")}
+            </button>
+            <button type="button" onClick={update.dismiss} className="inline-flex min-h-11 items-center rounded-md border border-border px-3 font-medium text-ink">
+              {t("app.updateLater")}
+            </button>
+          </span>
+        </div>
+      ) : null}
 
       <header className="flex min-h-16 items-center justify-between gap-4 border-b border-border bg-surface px-4 md:px-8">
         <Link to="/" className="flex min-h-11 items-center gap-2 text-lg font-semibold text-ink no-underline">

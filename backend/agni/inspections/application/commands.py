@@ -32,6 +32,7 @@ from agni.platform.commands import (
 )
 from agni.platform.errors import (
     AppointmentConflict,
+    AuthorityRevoked,
     Forbidden,
     InvalidTransition,
     OfficerUnavailable,
@@ -819,6 +820,14 @@ def _assigned_officer_only(uow: UnitOfWork, inspection: Inspection) -> Assignmen
         or current.officer_id != uow.actor.pk
     ):
         raise ResourceNotFound("Inspection not found")  # unassigned actors learn nothing
+    # Current-authority fence (B11): an assignment is not authority. The officer role for the
+    # case jurisdiction must still be in force at command time - a binding revoked while the
+    # device was offline blocks the local submission (docs/09 s.7 AUTHORITY_REVOKED).
+    snapshot = load_snapshot(uow.actor, uow.now)
+    if not snapshot.active or not snapshot.has_role(
+        RoleKey.OFFICER, jurisdiction_id=inspection.application.owner_queue.jurisdiction_id
+    ):
+        raise AuthorityRevoked("Your officer authority for this case is no longer current")
     return current
 
 

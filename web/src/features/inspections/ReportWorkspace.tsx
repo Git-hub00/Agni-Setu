@@ -15,26 +15,45 @@ import {
 } from "../../api/inspections";
 import { ProblemNotice } from "../../app/ProblemNotice";
 import { t } from "../../locales";
+import type { ReportDraftRecord, StoredPackage } from "../../offline/database";
+import { addLocalEvidence, queueReportOperation, saveLocalDraft } from "../../offline/queue";
 
 const CARD = "rounded-[var(--radius-card)] border border-border bg-surface p-6 shadow-[var(--shadow-card)]";
 const FIELD = "mt-1 block w-full min-h-11 rounded-md border border-border bg-canvas px-3 text-sm text-ink";
 const BUTTON = "inline-flex min-h-11 items-center rounded-md bg-primary px-4 font-medium text-white hover:bg-primary-hover disabled:opacity-60";
 const SECONDARY = "inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 font-medium text-ink hover:bg-canvas disabled:opacity-60";
 
-type EvidenceRef = { id: string; name: string; scan_state: DocumentVersion["scan_state"] };
+/** "LOCAL" = bytes saved on this device only (docs/09 s.4); `id` is then the local blob id. */
+type EvidenceRef = { id: string; name: string; scan_state: DocumentVersion["scan_state"] | "LOCAL" };
 type Row = { result: ObservationResult | ""; note: string; evidence: EvidenceRef[] };
+
+/** Offline context supplied by the detail page (B11): who is working, whether the API is
+ *  reachable right now, the saved package (if any) and the last draft saved on this device. */
+export interface OfflineContext {
+  principalId: string;
+  online: boolean;
+  storedPackage: StoredPackage | null;
+  localDraft: ReportDraftRecord | null;
+}
 
 const NOTE_REQUIRED: readonly ObservationResult[] = ["FAIL", "NOT_VERIFIED", "NOT_APPLICABLE"];
 
-function initialRows(items: ChecklistItem[], draft: InspectionDetail["draft"]): Record<string, Row> {
+function initialRows(items: ChecklistItem[], draft: InspectionDetail["draft"], local: ReportDraftRecord | null): Record<string, Row> {
   const rows: Record<string, Row> = {};
   for (const item of items) rows[item.code] = { result: "", note: "", evidence: [] };
-  for (const o of draft?.observations ?? []) {
+  const source: { item_code: string; result: string; note: string; document_version_ids: string[] }[] = draft?.observations ?? local?.observations ?? [];
+  for (const o of source) {
     rows[o.item_code] = {
-      result: o.result,
+      result: o.result as ObservationResult,
       note: o.note,
       evidence: o.document_version_ids.map((id) => ({ id, name: id.slice(0, 8), scan_state: "CLEAN" })),
     };
+  }
+  if (!draft && local) {
+    for (const marker of local.dirty_fields) {
+      const [code, blobId] = marker.split(":");
+      if (code && blobId && code in rows) rows[code].evidence.push({ id: blobId, name: t("sync.state.LOCAL_DRAFT"), scan_state: "LOCAL" });
+    }
   }
   return rows;
 }
@@ -48,19 +67,23 @@ function toObservations(rows: Record<string, Row>, items: ChecklistItem[]): Obse
         item_code: item.code,
         result: row.result as ObservationResult,
         note: row.note,
-        document_version_ids: row.evidence.map((e) => e.id),
+        document_version_ids: row.evidence.filter((e) => e.scan_state !== "LOCAL").map((e) => e.id),
       };
     });
 }
 
 /** UI-12: eight checklist items with PASS / FAIL / NOT_VERIFIED / NOT_APPLICABLE, notes,
  *  evidence per item, Save draft (API-045) and Submit report (API-047). A stale assignment or
- *  inspection version surfaces as a conflict notice with the server's current version. */
-export function ReportWorkspace({ inspection, etag, canSubmit }: { inspection: InspectionDetail; etag: string; canSubmit: boolean }) {
+ *  inspection version surfaces as a conflict notice with the server's current version. With an
+ *  offline context the workspace can also save on this device and queue a frozen operation for
+ *  the synchronisation centre (UI-13); an offline submit is never shown as received. */
+export function ReportWorkspace({ inspection, etag, canSubmit, offline = null }: { inspection: InspectionDetail; etag: string; canSubmit: boolean; offline?: OfflineContext | null }) {
   const queryClient = useQueryClient();
   const items = inspection.checklist_items;
-  const [rows, setRows] = useState<Record<string, Row>>(() => initialRows(items, inspection.draft));
-  const [summary, setSummary] = useState(inspection.draft?.summary ?? "");
+  const [rows, setRows] = useState<Record<string, Row>>(() => initialRows(items, inspection.draft, offline?.localDraft ?? null));
+  const [summary, setSummary] = useState(inspection.draft?.summary ?? offline?.localDraft?.summary ?? "");
+  const [queued, setQueued] = useState<string | null>(null);
+  const [savedLocally, setSavedLocally] = useState<string | null>(null);
   const [declared, setDeclared] = useState(false);
   const [localRevision, setLocalRevision] = useState((inspection.draft?.local_revision ?? 0) + 1);
   // Stable per submit attempt: retries after an unknown outcome reuse the same operation id.
@@ -84,12 +107,53 @@ export function ReportWorkspace({ inspection, etag, canSubmit }: { inspection: I
     },
   });
   const upload = useMutation({
-    mutationFn: async ({ code, file }: { code: string; file: File }) => {
+    mutationFn: async ({ code, file }: { code: string; file: File }): Promise<{ code: string; ref: EvidenceRef }> => {
+      if (offline && !offline.online) {
+        // No API: keep the bytes on this device; they upload at sync time (docs/09 s.5 step 3).
+        const local = await addLocalEvidence({ inspection_id: inspection.inspection_id, item_code: code, principal_id: offline.principalId, file, name: file.name, media_type: file.type });
+        return { code, ref: { id: local.blob_id, name: file.name, scan_state: "LOCAL" } };
+      }
       const version = await uploadFile("INSPECTION_EVIDENCE", inspection.inspection_id, `inspection-${code.toLowerCase()}`, file);
-      return { code, version };
+      return { code, ref: { id: version.document_version_id, name: version.original_name, scan_state: version.scan_state } };
     },
-    onSuccess: ({ code, version }) =>
-      update(code, { evidence: [...rows[code].evidence, { id: version.document_version_id, name: version.original_name, scan_state: version.scan_state }] }),
+    onSuccess: ({ code, ref }) => update(code, { evidence: [...rows[code].evidence, ref] }),
+  });
+  const localRefs = (code: string) => rows[code].evidence.filter((e) => e.scan_state === "LOCAL").map((e) => `${code}:${e.id}`);
+  const saveLocal = useMutation({
+    mutationFn: async () => {
+      if (!offline) throw new Error("offline context missing");
+      const record = await saveLocalDraft({
+        inspection_id: inspection.inspection_id,
+        principal_id: offline.principalId,
+        observations: toObservations(rows, items),
+        summary,
+        dirty_fields: items.flatMap((item) => localRefs(item.code)),
+        captured_at: new Date().toISOString(),
+      });
+      return record;
+    },
+    onSuccess: (record) => setSavedLocally(record.saved_at),
+  });
+  const queue = useMutation({
+    mutationFn: async () => {
+      if (!offline?.storedPackage) throw new Error("no offline package saved for this attempt");
+      return queueReportOperation({
+        principal_id: offline.principalId,
+        package: offline.storedPackage,
+        observations: items
+          .filter((item) => rows[item.code].result)
+          .map((item) => ({
+            item_code: item.code,
+            result: rows[item.code].result as ObservationResult, // filtered above: never ""
+            note: rows[item.code].note,
+            blob_ids: rows[item.code].evidence.filter((e) => e.scan_state === "LOCAL").map((e) => e.id),
+            document_version_ids: rows[item.code].evidence.filter((e) => e.scan_state !== "LOCAL").map((e) => e.id),
+          })),
+        summary,
+        captured_at: new Date().toISOString(),
+      });
+    },
+    onSuccess: (op) => setQueued(op.operation_id),
   });
   const refreshScans = useMutation({
     mutationFn: async () => {
@@ -112,9 +176,20 @@ export function ReportWorkspace({ inspection, etag, canSubmit }: { inspection: I
     return !row.result || !NOTE_REQUIRED.includes(row.result) || row.note.trim().length >= 10;
   });
   const pendingScans = Object.values(rows).some((row) => row.evidence.some((e) => e.scan_state === "QUARANTINED"));
-  const ready = canSubmit && complete && notesOk && summary.trim().length >= 10 && declared && !pendingScans;
+  const hasLocalEvidence = Object.values(rows).some((row) => row.evidence.some((e) => e.scan_state === "LOCAL"));
+  const online = offline?.online ?? true;
+  const ready = canSubmit && online && complete && notesOk && summary.trim().length >= 10 && declared && !pendingScans && !hasLocalEvidence;
+  const canQueue = offline?.storedPackage !== null && offline !== null && complete && notesOk && summary.trim().length >= 10 && declared;
 
   if (receipt) return <ReportView report={receipt.report} items={items} title={t("report.acceptedTitle")} receipt={receipt.receipt} />;
+  if (queued) {
+    return (
+      <section className={CARD} aria-labelledby="report-queued" role="status">
+        <h2 id="report-queued" className="text-base font-semibold">{t("sync.state.READY_TO_SUBMIT")}</h2>
+        <p className="mt-2 text-sm">{t("sync.queuedReport")} <span className="text-muted">({queued.slice(0, 8)})</span></p>
+      </section>
+    );
+  }
 
   return (
     <section className={CARD} aria-labelledby="report-workspace">
@@ -143,14 +218,26 @@ export function ReportWorkspace({ inspection, etag, canSubmit }: { inspection: I
       {submit.isError ? <div className="mt-3"><ProblemNotice error={submit.error} /></div> : null}
       {upload.isError ? <div className="mt-3"><ProblemNotice error={upload.error} /></div> : null}
       {pendingScans ? <p className="mt-3 text-sm text-muted">{t("report.pendingScans")}</p> : null}
+      {saveLocal.isError ? <div className="mt-3"><ProblemNotice error={saveLocal.error} /></div> : null}
+      {queue.isError ? <div className="mt-3"><ProblemNotice error={queue.error} /></div> : null}
+      {offline && !offline.online ? <p role="status" className="mt-3 rounded-md bg-warning-soft p-2 text-sm text-warning">{t("sync.connectivity.OFFLINE")} · {offline.storedPackage ? t("sync.queuedHint") : t("sync.offlineNoPackage")}</p> : null}
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <button type="button" className={SECONDARY} disabled={save.isPending} onClick={() => save.mutate()}>{t("report.saveDraft")}</button>
-        {pendingScans ? (
+        <button type="button" className={SECONDARY} disabled={save.isPending || !online} onClick={() => save.mutate()}>{t("report.saveDraft")}</button>
+        {offline ? (
+          <button type="button" className={SECONDARY} disabled={saveLocal.isPending} onClick={() => saveLocal.mutate()}>{t("sync.saveLocal")}</button>
+        ) : null}
+        {pendingScans && online ? (
           <button type="button" className={SECONDARY} disabled={refreshScans.isPending} onClick={() => refreshScans.mutate()}>{t("report.checkScans")}</button>
         ) : null}
-        <button type="button" className={BUTTON} disabled={!ready || submit.isPending} onClick={() => submit.mutate()}>{t("report.submit")}</button>
+        {online && !hasLocalEvidence ? (
+          <button type="button" className={BUTTON} disabled={!ready || submit.isPending} onClick={() => submit.mutate()}>{t("report.submit")}</button>
+        ) : null}
+        {offline?.storedPackage ? (
+          <button type="button" className={online && !hasLocalEvidence ? SECONDARY : BUTTON} disabled={!canQueue || queue.isPending} onClick={() => queue.mutate()}>{t("sync.queueReport")}</button>
+        ) : null}
         {save.isSuccess ? <span className="text-sm text-muted">{t("report.draftSaved")} {new Date(save.data.saved_at).toLocaleTimeString()}</span> : null}
-        {!canSubmit ? <span className="text-sm text-muted">{t("report.checkInFirst")}</span> : null}
+        {savedLocally ? <span className="text-sm text-muted">{t("sync.state.LOCAL_DRAFT")} {new Date(savedLocally).toLocaleTimeString()}</span> : null}
+        {!canSubmit && online ? <span className="text-sm text-muted">{t("report.checkInFirst")}</span> : null}
       </div>
     </section>
   );

@@ -24,7 +24,7 @@ Update this file at the end of each agent task. Read actual repository/branch/di
 | B08 | Inspection reports and checklist evaluation | READY_FOR_REVIEW (2026-09-11T03:15Z; PR pending) | Domain `agni.inspections.domain.checklist`: pure validator (exact item codes, no duplicates/extras, PASS/FAIL/NOT_VERIFIED/NOT_APPLICABLE, 10-2000 char explanation for every non-PASS result, unique UUID evidence lists, optional capture time/location) and **deterministic evaluator** (mandatory FAIL -> MANDATORY_FAIL, mandatory NOT_VERIFIED -> MANDATORY_NOT_VERIFIED, NA where the checklist forbids it -> NA_NOT_PERMITTED, PASS without evidence on an evidence-required item -> EVIDENCE_MISSING; permitted NA always listed for reviewer confirmation; advisory FAIL/NOT_VERIFIED recorded as findings; **no numeric score exists**). Persistence (inspections 0002): `InspectionDraft` (one per inspection/officer; versioned child), append-only `InspectionReport` (revision per attempt; assignment, checklist artifact, submitter, capture vs acceptance time, observations, evaluation, canonical sha256, source_operation_id) and `ReportEvidence` (item/document unique; evidence sha256 + object key pinned), `Inspection.current_report`. Commands: `SaveReportDraft` (API-045 PUT; assigned officer of an open attempt; inspection ETag + application/assignment/checklist version fences; partial observations; evidence must already be CLEAN files of the same case; inspection version unchanged, draft ETag returned) and `SubmitReport` (API-047; assigned officer only - others 404; must be checked in; complete observations; summary 10-4000; captured_at or explicit capture_unavailable_reason; declaration; **evidence must be CLEAN and belong to this case (wrong-case / quarantined -> 422)**; immutable revision + evidence rows; attempt COMPLETED, assignment FULFILLED, draft removed; **TR-06 INSPECTION_PENDING -> REVIEW_PENDING**, INSPECTION_TASK satisfied, REVIEW_TASK obligation (working minutes from the pinned policy), public `inspection.report_accepted.v1` + internal `inspection.report_evaluated.v1`, audit, outbox, ReportReceipt; same key -> replay, new key on the closed attempt -> 409). Staff evidence uploads: `INSPECTION_EVIDENCE` target for the currently assigned officer (`inspection-c0N` codes of the pinned checklist; file owned by the case; package quota shared). Reads: inspection detail carries the officer's own draft, the accepted report and `save-draft` / `submit-report` actions (CHECK_IN_REQUIRED); case detail carries per-attempt report facts (staff: eligibility + blockers; applicant: revision/acceptance only). Seed checklist aligned to docs/24 s.4 (C01-C08 flags; published as artifact number 2, old attempts keep #1). Web UI-12 `ReportWorkspace` (results per item with NA only where permitted, explanation prompts, per-item evidence upload + scan check, Save draft, declaration, Submit report with a stable operation id, receipt + `ReportView` with blockers). Tests: backend **172 passed** (6 evaluator unit tests; AT-13-01..06 / AT-14-01..04 integration on real PostgreSQL), web **25 passed** (one contention timeout re-run alone). **Container proof PASS:** api (`f2a37b6959e4`) and web (`ffcdf409e140`) rebuilt and verified by image id, inspections 0002 applied on start, seed republished the spec checklist as artifact number 2, `scripts/dev/smoke_reports.py` **32/32** through nginx + Keycloak (anita schedules Priya on the B07 follow-up attempt; Priya: draft allowed / submit CHECK_IN_REQUIRED before check-in, check-in, two evidence uploads through INSPECTION_EVIDENCE -> QUARANTINED -> CLEAN via a one-off demo-scanner pass, draft saved without moving the inspection version and restored on re-read, NA-not-permitted 422, incomplete set 422, foreign evidence 422, submit 201 -> COMPLETED + REVIEW_PENDING with MANDATORY_FAIL:C06 blocker and no score, same-key replay, closed-attempt resubmit 409; anita: REVIEW_TASK ACTIVE due Fri 17:00 IST, INSPECTION_TASK SATISFIED, blockers visible, accepted report with 6 evidence hashes, both report events in the timeline). Evidence `handover.md` B7 EV-B08-01..06; record s.3j | Push `feat/b08-reports`, PR; then B09 |
 | B09 | Notices, responses and correction cycles | READY_FOR_REVIEW (2026-09-11T11:05Z; merged to `main` per D-009 - see s.3k) | NEW app `agni.notices` (migration 0001): `Finding` (materialised from every accepted report's FAIL / mandatory NOT_VERIFIED observation; unresolved findings are retained across reinspections, never duplicated), immutable `Notice` rounds (unique application/type/round; PUBLISHED -> SATISFIED / SUPERSEDED; internal note staff-only), `NoticeItem` (OPEN -> RESPONSE_RECEIVED -> ACCEPTED / RETURNED; deficiency items linked to findings), append-only `ResponseRevision` (+ documents), `NoticeItemReview`, `FindingReview`. Commands: `PublishNotice` (API-054: supervisor in jurisdiction **plus `notice.publish` grant**; INFORMATION -> TR-03 SCRUTINY->INFO_REQUIRED, DEFICIENCY -> TR-07 REVIEW_PENDING->COMPLIANCE_PENDING with every item bound to an open finding; superseding round while waiting keeps the original notice and cancels its clock; APPLICANT_RESPONSE obligation from the policy budget; stage task satisfied), `SubmitResponse` (API-056: applicant/delegate with `notice.respond`; CLEAN same-case evidence only; new revision per item; item and finding -> RESPONSE_RECEIVED; **never a transition**; closed notice -> 409 NOTICE_NOT_OPEN), `ReviewItem` (API-058: accept/return against the current revision; deficiency item accepted only after its finding is VERIFIED_CLOSED -> else 409 RESPONSE_NOT_VERIFIED; return keeps replies and reopens the finding with a public reason), `VerifyFinding` (API-060: supervisor + grant, not the inspecting officer; VERIFIED_CLOSED needs reviewer-cited CLEAN evidence or a PASS observation of an accepted report - **an applicant upload or checkbox alone never closes a MANDATORY finding** (422 verification_basis_required); RETURNED / REINSPECTION_REQUIRED recorded), `AcceptInformation` (API-057 TR-04: all required items ACCEPTED else 409 with pending codes; notice SATISFIED; new SCRUTINY_TASK), `CompleteCorrections` (API-061 TR-08: 409 MANDATORY_FINDINGS_OPEN while any mandatory finding or reinspection is outstanding; deficiency notices SATISFIED; new REVIEW_TASK), `RequireReinspection` (API-062 TR-09: linked findings, new REINSPECTION attempt pinned to the previous checklist, case clock untouched). Reads: API-053/055/059 audience-filtered; case detail gains `notices`, `findings_summary` and guarded actions request-information / issue-deficiencies / accept-information / complete-corrections / require-reinspection. Uploads: `NOTICE_RESPONSE` target (`response-<item code>`) for the applicant side. Seed: anita gets `notice.publish`. Web: UI-08 `/applications/:id/notices/:noticeId` (applicant task list with evidence upload + replies; reviewer accept/return, finding verification with cited evidence, accept information; "Response received" never styled as verified), case detail notices section + supervisor notice actions (item builder, deficiencies from open findings, complete corrections, reinspection). Tests: backend **178 passed** (incl. `tests/integration/test_notices.py` AT-15-01..05, AT-16-01..04, AT-17-01..03), web **26 passed**; gates clean; migration notices 0001. **Container proof PASS:** api `7bb3434e8d2c` / web `996a0b59568e` rebuilt and verified, notices 0001 applied, seed re-run (anita `notice.publish`), `scripts/dev/smoke_notices.py --scan-via-demo` **40/40** through nginx + Keycloak (fresh case -> TR-02 -> TR-03 notice -> guard rails -> applicant NOTICE_RESPONSE upload scanned CLEAN -> reply (no transition) -> early TR-04 409 -> review ACCEPTED -> TR-04 back to SCRUTINY with fresh SCRUTINY_TASK). Evidence `handover.md` B7 EV-B09-01..06; record s.3k | B10 (clocks, outbox dispatch, notifications) |
 | B10 | Clocks, outbox dispatch and notifications | READY_FOR_REVIEW (2026-09-11T12:45Z; merged to `main` per D-009 - see s.3l) | **Clocks (FR-18):** `ObligationPause` (authorised, policy-permitted reason codes only; open interval = PAUSED with "due date will be recalculated"), `recompute_obligation` derives `due_at` from immutable facts + the union of pauses (worked example: Mon 09:00 + 240 working min -> 13:00; pause 10-11 -> 14:00; overlapping 10:30-11:30 -> 14:30, not 15:00) and supersedes stale future threshold actions. **Thresholds and escalation (FR-19):** `domain/thresholds.py` plans `REMINDER_75` (75 % of the *active* budget), `DUE` and `ESCALATION_<minutes>` from the pinned policy; `scan_due_obligations` (scheduler, 30 s) inserts the unique `ThresholdAction` per (obligation, stage instance, key) and one durable job with a deterministic logical id - two racing schedulers produce exactly one action/job; the `obligation.threshold` job re-checks state and generation at execution (satisfied -> `CANCELLED_AS_OBSOLETE`, never a fabricated send), creates the unique `Escalation` per threshold action, notifies the duty roster and writes an INTERNAL `obligation.threshold_reached.v1` event. API-074 (one `as_of` cutoff drives counts and urgency), API-075 (clock breakdown, pauses, thresholds, escalations), API-076 manual escalation (idempotent per command, duty roster recipients), API-077 acknowledge (ownership only; obligation untouched). **Outbox dispatch (docs/08 s.2):** `platform/dispatch.py` claims PENDING / stale DISPATCHED rows `FOR UPDATE SKIP LOCKED`, always creates the durable fan-out job (deterministic id) and sends a best-effort broker wake-up through a port (`null` | `amqp` via kombu | `failing` test double); a broker outage leaves rows PENDING with a visible attempt count and the next scan republishes; the fan-out job marks the row COMPLETE. **Notifications (FR-23):** `Notification` (unique per recipient + logical key, versioned template key, safe context, audience-specific body, no attachment URLs), `DeliveryAttempt` (READY -> SENDING -> ACCEPTED_BY_PROVIDER / FAILED; provider acceptance is not delivery), `NotificationPreference` (API-008; mandatory service messages ignore optional channels); templates for 16 event types with audience rules (applicant / supervisors of the owner queue / assigned officer); `notification.fanout` and `notification.deliver` jobs on the demo sink with `force_failure` for outage drills - a gateway outage leaves the in-app notice in place and retries with the job backoff; API-078..080 recipient-only with idempotent read markers and a read-through boundary. **Operations skeleton (UI-20):** API-103/104 (`/jobs`) for administrators: outbox lag, oldest due job, worker activity, dead letters, unknown outcomes, sanitised attempts. `run_schedulers` command + Compose `scheduler` service; `jobs.current_clock()` injects the worker pass clock into handlers. Web: UI-15 `/monitoring` (tabs, KPIs from one cutoff, clock drawer, manual escalation, acknowledge), UI-19 `/notifications` (unread filter, mark read, read-through, delivery status, preferences), UI-20 `/operations`, nav tools + header link. Tests: backend **183 passed** (incl. `tests/integration/test_clocks.py` AT-18-01/02, AT-19-01..05, AT-23-01..05), web **28 passed**; gates clean; migrations obligations 0002 + notifications 0002. **Container proof PASS:** api `b89708eaf2d7` / web `2875d0c683fa` rebuilt and verified, new `scheduler` container healthy, real RabbitMQ wake-ups (`published=34 failed=0`), 9 threshold + 34 fan-out + 12 delivery jobs completed by the worker, `scripts/dev/smoke_clocks.py` **19/19** (obligations from one cutoff, manual escalation + replay, acknowledge != satisfy, notifications read/read-through, preferences, operations summary, supervisor 403 on `/jobs`). Evidence `handover.md` B7 EV-B10-01..06; record s.3l | B11 (offline field application) |
-| B11 | Offline field application | NOT_STARTED | None | Complete prerequisites and task card |
+| B11 | Offline field application | READY_FOR_REVIEW (2026-09-11T15:05Z; merged to `main` per D-009 - see s.3m) | NEW app `agni.offline` (migration 0001): `SyncOperation` (one identity per client operation: unique (principal, operation_id), canonical sha256, ACCEPTED / CONFLICT with the stored result) and `ReportConflict` (reviewed proposal OPEN -> RESOLVED with outcome, reason, cited evidence, resolver). API-048 offline package (current ACTIVE assignee with current OFFICER authority; 24 h expiry; versions; checklist; `Cache-Control: no-store`), API-049 `/sync/operations` (runs the ONLINE SubmitReport / FailVisit handlers through the kernel with `idempotency_key=sync:<id>` and `expected_version=base_inspection_version`; identical replay -> stored result; same id + other content -> 409 SYNC_PAYLOAD_CONFLICT; every refusal recorded as CONFLICT with a safe server snapshot and re-raised with `operation_id/server/sync_state`), API-050 owner-scoped receipt, API-051 proposal (former assignees included), API-052 supervisor resolution (PROPOSE_NEW_REPORT / REINSPECTION_REQUIRED / DECLINE; CLEAN same-case evidence only), `/conflicts` list. **Hardening:** `_assigned_officer_only` now requires the OFFICER role for the case jurisdiction at command time -> 403 AUTHORITY_REVOKED (online and via sync). Web: Dexie v1 stores per docs/09 s.3, frozen manifests (canonical JSON + SHA-256), explicit foreground sync with injected deps (upload -> wait CLEAN -> freeze once -> POST with the id as Idempotency-Key -> receipt; lost response -> lookup/replay; 401 -> sign-in needed; 403/409/412/422 -> stored CONFLICT, retries stop), connectivity from `/me` (never `navigator.onLine` alone), identity-switch purge, unsent-work warning on sign-out, UI-13 `/sync` (grouped operations, versions, receipts, conflict panel local vs server with propose / discard), UI-12 offline package card + offline fallback workspace + Save on device / Queue for sync; PWA via vite-plugin-pwa 1.3.0 (static shell precache only, `/api` never cached, user-confirmed reload; nginx serves `sw.js` / manifest with no-cache). Tests: backend **187 passed** alone (incl. `tests/integration/test_sync.py` 4 tests: AT-12-01/02/04/05 + API-051/052 + revoked authority), web **33 passed** (incl. 5 sync-algorithm specs on fake-indexeddb) + build with `sw.js`; gates clean; `pnpm audit` clean. **Container proof PASS:** api `eecf7c16b76e` / web `760efc9d3e6b` rebuilt and verified by image id, offline 0001 applied on start, `scripts/dev/smoke_offline.py` **18/18** through nginx + Keycloak. Incident BL-008 (PostgreSQL crash recovery under an overlapped run) recorded with the clean rerun. Evidence `handover.md` B7 EV-B11-01..08; record s.3m | B12 (decisions, issuance and verification) |
 | B12 | Decisions, issuance and verification | NOT_STARTED | None | Complete prerequisites and task card |
 | B13 | Lifecycle, support and conditional routes | NOT_STARTED | None | Complete prerequisites and task card |
 | B14 | Reporting, audit and operational UI | NOT_STARTED | None | Complete prerequisites and task card |
@@ -830,7 +830,168 @@ Security/privacy or external-effect considerations: notifications are recipient-
 Remaining defects and reproduction: NONE known.
 Required human input: larger host for ClamAV (BL-007); agency inputs for B20.
 Next safe task: B11 - Offline field application.
-End commit and worktree status: recorded in handover.md B12 after commit/push.
+End commit and worktree status: commit b89bacb on feat/b10-clocks, pushed (~13:2xZ); fast-forwarded
+  into main (D-009) and pushed: origin/main = b89bacb.
+```
+
+## 3m. Handoff record - B11 session claude-20260910T172516Z-b00b (2026-09-11)
+
+```text
+Task: B11 - Offline field application (FR-12; task card B11; docs 09 (offline model: packages,
+  local stores, connectivity, sync algorithm, conflicts, device hygiene), 06 API-048..052 +
+  24 SyncOperation / ConflictProposal DTOs, 05 sync_operation, 03 UI-13 + UI-12 offline states,
+  11 AT-12-01..06, 07 device data minimisation)
+Baseline: implementation spec 2.0.0
+Branch and start commit: feat/b11-offline from main/feat/b10-clocks @ b89bacb (coding began on
+  feat/b10-clocks while the harness blocked git; the branch was created after the B10 fast-forward)
+Files inspected: inspections commands/reports (SubmitReport, FailVisit, ReassignInspection rules),
+  documents upload targets (INSPECTION_EVIDENCE), platform kernel (receipt replay,
+  expected_version), identity authz snapshot, web api client / ReportWorkspace /
+  InspectionDetailPage (B08), router/AppShell/locales, vitest setup, nginx config.
+Changes made and architecture decisions:
+  backend NEW app agni.offline (migration 0001): models.py - SyncOperation (append-only; unique
+    (principal, operation_id); request_sha256; base/assignment versions; schema_version;
+    state ACCEPTED | CONFLICT; stored canonical result), ReportConflict (versioned; unique
+    (proposer, operation_id); local manifest + sha256; safe summary; server snapshot;
+    OPEN -> RESOLVED with outcome / reason / selected evidence / resolver)
+  application/sync.py - normalise_manifest (envelope + per-type keys, unknown-field and
+    forbidden-field violations, schema gate, canonical sha256); process_operation runs the
+    ONLINE handlers SubmitReport / FailVisit through the kernel with idempotency_key
+    "sync:<operation_id>" and expected_version = base_inspection_version; identical replay
+    -> the stored result (200 ACCEPTED or 409 CONFLICT, replayed=true); same id + other hash
+    -> 409 SYNC_PAYLOAD_CONFLICT; refusals (412 / 409 / 422 / not-assignee -> ASSIGNMENT_CHANGED
+    / AUTHORITY_REVOKED) are recorded as CONFLICT rows with the sanitised problem and a safe
+    server snapshot, then re-raised with operation_id / server / sync_state extensions
+  application/conflicts.py - ProposeConflict (API-051: current or former assignee only, no
+    If-Match, one proposal per operation, INTERNAL event) and ResolveConflict (API-052:
+    supervisor of the case jurisdiction; PROPOSE_NEW_REPORT | REINSPECTION_REQUIRED | DECLINE;
+    reason 10-2000; cited evidence must be CLEAN files of the case; both versions preserved;
+    second resolution -> 409)
+  api/views.py + urls.py - API-048 GET /inspections/{id}/offline-package (current ACTIVE
+    assignee of an open attempt with current OFFICER authority; 24 h expiry; versions;
+    checklist items; limits; Cache-Control: no-store; inspection ETag), API-049 POST
+    /sync/operations (ETag of the resulting inspection version), API-050 GET
+    /sync/operations/{id} (owner-scoped, 404 for everyone else), POST
+    /inspections/{id}/conflicts, GET /conflicts (supervisor jurisdictions + own proposals),
+    POST /conflicts/{id}/resolve (If-Match "conflict:<id>:v<n>")
+  platform/errors.py (+OFFLINE_PACKAGE_EXPIRED 410, SYNC_SCHEMA_UNSUPPORTED 422,
+    SYNC_PAYLOAD_CONFLICT 409); config settings (INSTALLED_APPS) + urls
+  web: api/offline.ts (DTOs, package fetch with ETag, sync post, receipt lookup, conflicts);
+    offline/database.ts (Dexie v1 stores device_meta / packages / report_drafts /
+    local_evidence / upload_state / operations / receipts / conflicts per docs/09 s.3;
+    ensureDeviceMeta purges the previous principal on identity switch; unsentWork);
+    offline/queue.ts (canonical JSON + SHA-256, package save/expiry, local drafts, local
+    evidence blobs, queueReportOperation / queueFailedVisitOperation with manifests frozen
+    once, state groups); offline/sync.ts (injected deps: upload local blobs through the normal
+    INSPECTION_EVIDENCE pipeline -> wait for CLEAN -> freeze the manifest once -> POST with
+    Idempotency-Key = operation_id and If-Match = package ETag -> store the receipt; network
+    failure keeps the operation queued; 409/412/422 -> CONFLICT with the server problem;
+    unknown outcome -> GET receipt lookup before any retry; never last-write-wins);
+    offline/connectivity.ts (ONLINE / OFFLINE / SERVER_UNAVAILABLE / SIGN_IN_NEEDED from /me,
+    never navigator.onLine alone); offline/deps.ts; offline/serviceWorker.ts + pwa.ts
+    (production-only registration; update = user-confirmed reload); vite.config.ts VitePWA
+    (static shell precache, navigateFallbackDenylist /api /static /media, no runtime caching,
+    no skipWaiting / clientsClaim, dev disabled); index.html theme-color; AppShell update
+    banner; features/sync/SyncPage.tsx (UI-13: connectivity badge, operations grouped by
+    state with package/assignment versions, evidence size, attempts, receipts, "Sync now" /
+    "this one", conflict panel local vs server with propose / discard); InspectionDetailPage
+    (offline package card: download, expiry, versions; offline fallback workspace rendered
+    from the stored package when the API is unreachable, incl. an offline failed visit);
+    ReportWorkspace (Save on device, local evidence, Queue for sync; online submit unchanged);
+    AccountPage sign-out warning for unsent local work; router /sync; officer nav link;
+    locales sync.* / app.update* / account.*; nginx: sw.js / workbox runtime / manifest served
+    with Cache-Control no-cache and the manifest media type
+  Decisions: (1) SyncOperation / ReportConflict live in the new `agni.offline` app (FR-12
+    module name) instead of `inspections`, where docs/05 lists sync_operation - recorded
+    deviation, identical semantics; (2) offline operations reuse the online handlers through
+    the kernel, so there is exactly one authorisation / version / evidence code path and no
+    offline-specific acceptance rule; (3) one operation id = one manifest hash: identical
+    replay returns the stored result, other content behind the same id is refused (no silent
+    overwrite); (4) refusals are stored as CONFLICT rows with the sanitised problem and a safe
+    server snapshot so the device learns the outcome after a lost response and automatic
+    retries stop; (5) a former assignee receives ASSIGNMENT_CHANGED (not 404) because they
+    held a package - staff who never held one get 404; (6) the package is a read model with an
+    explicit expiry (24 h demo default) and versions; it proves nothing and the server never
+    trusts it; (7) the service worker precaches only the static shell and never API responses;
+    case data lives in IndexedDB under app control; updates require a user-confirmed reload;
+    (8) API-048 expiry uses the settings clock (SystemClock in production and tests) - the test
+    asserts the 24 h delta; (9) local evidence blobs upload at sync time through the normal
+    upload pipeline, so scan / quota rules are unchanged and a manifest is frozen only with
+    CLEAN server references; (10) workbox-window is a direct dev dependency because the
+    plugin's virtual register module imports it and pnpm's strict layout does not hoist it;
+    (11) HARDENING of B07/B08 commands: `_assigned_officer_only` (CheckIn, FailVisit,
+    SaveReportDraft, SubmitReport - online and via sync) now also requires the actor's OFFICER
+    role for the case jurisdiction to be in force at command time (`load_snapshot` +
+    `has_role`), answering AUTHORITY_REVOKED (403) otherwise - an ACTIVE assignment alone is
+    not authority (task card B11 proof "revoked authority blocked"; docs/09 s.7). A disabled
+    account is stopped earlier at the session boundary (401, epoch recheck) and nothing is
+    recorded; (12) the test clock is now injected into the offline views too
+    (`agni.offline.api.views.get_clock` in the signed_client fixture) so API-048 expiry is
+    asserted exactly.
+Migrations/data impact: offline 0001 (2 tables). No data rewrite. No new Compose service.
+Tests actually executed (Windows host, 2026-09-11):
+  uv run --directory backend ruff format agni tests && ruff check agni tests && mypy agni tests
+    -> PASS (224 files); manage.py check -> no issues; makemigrations --check --dry-run ->
+    "No changes detected"
+  uv run --directory backend pytest tests/integration/test_sync.py -q -> 3 passed in 39 s
+    (AT-12-01/02/04/05 + API-051/052) after two fixes found by running: expires_at was
+    compared with the FrozenClock although API-048 used the un-patched settings clock (now
+    injected via the fixture); ReassignInspection only accepts unstarted attempts -> new
+    scheduled_visit fixture for the superseded-assignment scenario; then **4 passed in 64 s**
+    with the added revoked-authority test (role binding revoked -> sync 403 AUTHORITY_REVOKED
+    recorded as CONFLICT, package 403, online submit 403, assignment untouched; disabled
+    account -> 401 at the session boundary, nothing recorded)
+  corepack pnpm --dir web install / typecheck / lint -> clean (fixes: ObservationResult typing
+    in queue.ts, unused import); test --run -> 33 passed (15 files) incl. offline/sync.test.ts
+    (5 specs on fake-indexeddb: upload -> freeze -> receipt; network failure keeps the queue;
+    409 -> CONFLICT stored; unknown outcome -> lookup; failed-visit op)
+    (evidence/B11-web-tests.log); build -> PASS with dist/sw.js + manifest.webmanifest
+    (precache 5 entries, 666 KiB; chunk-size warning 658 kB - route code-splitting is a B17
+    performance item); pnpm audit -> "No known vulnerabilities found"
+  uv run --directory backend pytest -q (full suite): first run 13:55-14:08Z overlapped the web
+    pipeline -> "1 failed, 159 passed, 34 errors": PostgreSQL killed a backend (signal 13,
+    Broken pipe) twice and ran crash recovery; every error is a connection refused during
+    recovery (BL-008, environmental - handover B7 EV-B11-04). Rerun ALONE 14:13-14:31Z ->
+    **186 passed in 1088 s** (tree before the authority fence). Final run ALONE on the final
+    tree 14:39-14:45Z -> **187 passed in 320.92 s**, 0 PostgreSQL recovery events
+    (evidence/B11-backend-tests.log)
+  docker compose -p agni-dev ... build api web -> api eecf7c16b76e (14:48:53Z), web 760efc9d3e6b
+    (14:55:13Z); up -d --wait api worker scheduler web -> all healthy; running containers verified
+    against those image ids (api/worker/scheduler = eecf7c16b76e, web = 760efc9d3e6b);
+    showmigrations offline -> [X] 0001_initial applied on start
+  uv run --directory backend python ../scripts/dev/smoke_offline.py http://127.0.0.1:5173 ->
+    ALL OFFLINE SMOKE STEPS PASSED (18 steps through nginx + Keycloak, 15:01Z: anita
+    require-inspection on AS-2026-1005 + schedule Priya; Priya API-048 package with 24 h expiry
+    and versions, anita 404 on the officer package; schema 0.9 -> 422 SYNC_SCHEMA_UNSUPPORTED;
+    RECORD_FAILED_VISIT sync -> VISIT_OUTCOME receipt; same manifest -> replayed receipt with the
+    same command_id; same id + other content -> 409 SYNC_PAYLOAD_CONFLICT; API-050 lookup 200 for
+    Priya / 404 for anita; case INSPECTION_PENDING with FAILED + REQUESTED attempts; report
+    against the closed attempt -> 409 ASSIGNMENT_CHANGED recorded as CONFLICT; API-051 proposal
+    201 OPEN; API-052 resolve DECLINE 200) (evidence/B11-smoke-offline.log)
+  curl -sI http://127.0.0.1:5173/sw.js -> 200, Content-Type application/javascript,
+    Cache-Control: no-cache; /manifest.webmanifest -> 200, application/manifest+json, no-cache
+    (nginx serves the worker and manifest revalidated on every visit)
+Tests not executed and concrete reason: AT-12-03 storage-error and eviction drills and
+  AT-12-06 browser offline / airplane-mode / narrow-viewport checks need a real browser
+  (Playwright, B16/B19); local schema migration ("migration preserves drafts") has no test yet
+  because the Dexie schema is at its first version - the first `version(2).upgrade` must ship
+  with that test; ClamAV real verdict BL-007.
+Screens inspected: jsdom tests of the sync algorithm; UI-13 SyncPage and the UI-12 offline
+  states by typecheck/build only (NOTE: no jsdom spec for /sync yet - add with AT-12-06).
+Security/privacy or external-effect considerations: packages hold the minimum (case
+  reference, premises display name / locality / category, checklist, versions) - no applicant
+  contact data, no internal notes; Cache-Control: no-store on the package; local stores are
+  purged when a different principal signs in on the device; sync and receipt endpoints are
+  owner-scoped; conflict listings are jurisdiction-scoped; no real messages, no signing.
+Remaining defects and reproduction: NONE known.
+Self-review (D-009, no human reviewer named): diff reviewed against task card B11 forbidden
+  shortcuts - no navigator.onLine-only status, no client-side acceptance, manifests never edited
+  behind an id, no automatic retry after 409/412, conflicts never auto-resolved, the worker
+  caches no API data.
+Required human input: larger host for ClamAV (BL-007); agency inputs for B20.
+Next safe task: B12 - Decisions, issuance and verification.
+End commit and worktree status: recorded in handover.md B12 (CP-050/051) after commit/push;
+  fast-forwarded into main per D-009.
 ```
 
 ## 4. Initial owner decisions and blockers

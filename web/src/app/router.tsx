@@ -16,6 +16,7 @@ import { MonitoringPage } from "../features/monitoring/MonitoringPage";
 import { NoticePage } from "../features/notices/NoticePage";
 import { NotificationsPage } from "../features/notifications/NotificationsPage";
 import { OperationsPage } from "../features/operations/OperationsPage";
+import { SyncPage } from "../features/sync/SyncPage";
 import { HomePage } from "../features/home/HomePage";
 import { AccountPage } from "../features/identity/AccountPage";
 import { RequireSession } from "../features/identity/RequireSession";
@@ -50,6 +51,7 @@ export const routes: RouteObject[] = [
           { path: "applications/:applicationId/edit", element: <ApplicationWizardPage /> },
           { path: "applications/:applicationId/notices/:noticeId", element: <NoticePage /> },
           { path: "monitoring", element: <MonitoringPage /> },
+          { path: "sync", element: <SyncPage /> },
           { path: "notifications", element: <NotificationsPage /> },
           { path: "operations", element: <OperationsPage /> },
           { path: "policy", element: <PolicyListPage /> },
