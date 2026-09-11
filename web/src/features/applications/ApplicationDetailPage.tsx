@@ -7,6 +7,7 @@ import { resolveRouting, startScrutiny, timelineQuery } from "../../api/cases";
 import { requireInspection } from "../../api/inspections";
 import { ProblemNotice } from "../../app/ProblemNotice";
 import { t } from "../../locales";
+import { NoticeActions, NoticesSection } from "../notices/CaseNotices";
 
 const CARD = "rounded-[var(--radius-card)] border border-border bg-surface p-6 shadow-[var(--shadow-card)]";
 const FIELD = "mt-1 block w-full min-h-11 rounded-md border border-border bg-canvas px-3 text-sm text-ink";
@@ -83,6 +84,8 @@ export function ApplicationDetailPage() {
         </div>
       ) : null}
       <StaffActions detail={detail} etag={etag} />
+      <NoticesSection detail={detail} />
+      <NoticeActions detail={detail} etag={etag} />
       {detail.inspections.length > 0 ? (
         <section className={CARD} aria-labelledby="case-inspections">
           <h2 id="case-inspections" className="text-base font-semibold">{t("detail.inspections")}</h2>

@@ -12,6 +12,7 @@ import { OverviewPage } from "../features/applications/OverviewPage";
 import { InspectionDetailPage } from "../features/inspections/InspectionDetailPage";
 import { InspectionsQueuePage } from "../features/inspections/InspectionsQueuePage";
 import { SchedulePage } from "../features/inspections/SchedulePage";
+import { NoticePage } from "../features/notices/NoticePage";
 import { HomePage } from "../features/home/HomePage";
 import { AccountPage } from "../features/identity/AccountPage";
 import { RequireSession } from "../features/identity/RequireSession";
@@ -44,6 +45,7 @@ export const routes: RouteObject[] = [
           { path: "applications/new", element: <NewApplicationPage /> },
           { path: "applications/:applicationId", element: <ApplicationDetailPage /> },
           { path: "applications/:applicationId/edit", element: <ApplicationWizardPage /> },
+          { path: "applications/:applicationId/notices/:noticeId", element: <NoticePage /> },
           { path: "policy", element: <PolicyListPage /> },
           { path: "policy/:policyId", element: <PolicyDetailPage /> },
         ],

@@ -279,6 +279,18 @@ class EvidenceIncomplete(DomainError):
     code = "EVIDENCE_INCOMPLETE"
 
 
+class MandatoryFindingsOpen(DomainError):
+    code = "MANDATORY_FINDINGS_OPEN"
+
+
+class NoticeNotOpen(DomainError):
+    code = "NOTICE_NOT_OPEN"
+
+
+class ResponseNotVerified(DomainError):
+    code = "RESPONSE_NOT_VERIFIED"
+
+
 class RateLimited(DomainError):
     code = "RATE_LIMITED"
 

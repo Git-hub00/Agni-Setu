@@ -405,6 +405,8 @@ class Command(BaseCommand):
             # (subject, capability, approver): approver is never the subject or the preparer.
             (staff["meera"], Capability.POLICY_APPROVE, staff["arjun"]),
             (staff["anita"], Capability.POLICY_ACTIVATE, staff["meera"]),
+            # Notice publication / finding verification (security s.5 "J plus capability").
+            (staff["anita"], Capability.NOTICE_PUBLISH, staff["meera"]),
         ]
         for subject, capability, approver in wanted:
             exists = AuthorityGrant.objects.filter(

@@ -145,6 +145,18 @@ export interface CaseDetail extends CaseSummary {
     owner_queue: string;
     routing_artifact_id: string | null;
   } | null;
+  notices: {
+    notice_id: string;
+    type: "INFORMATION" | "DEFICIENCY";
+    round_number: number;
+    state: string;
+    published_at: string;
+    due_at: string | null;
+    items_total: number;
+    open_items: number;
+    internal_note: string | null;
+  }[];
+  findings_summary: { open_mandatory: number; open_advisory: number; verified_closed: number; reinspection_outstanding: string[] } | null;
   allowed_actions: AllowedAction[];
 }
 
@@ -232,7 +244,7 @@ export function uploadDocument(applicationId: string, requirementCode: string, f
   return uploadFile("APPLICATION_DRAFT", applicationId, requirementCode, file);
 }
 
-export type UploadTargetType = "APPLICATION_DRAFT" | "INSPECTION_EVIDENCE";
+export type UploadTargetType = "APPLICATION_DRAFT" | "INSPECTION_EVIDENCE" | "NOTICE_RESPONSE";
 
 /** Shared upload flow for every permitted target type (the server decides who may upload where). */
 export async function uploadFile(targetType: UploadTargetType, targetId: string, requirementCode: string, file: File): Promise<DocumentVersion> {

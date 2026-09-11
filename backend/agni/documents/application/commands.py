@@ -136,7 +136,7 @@ class ReserveUpload(CommandHandler[UploadReservation]):
         ]
         target_type = str(data.get("target_type", ""))
         permitted_types = (
-            {UploadTargetType.APPLICATION_DRAFT.value}
+            {UploadTargetType.APPLICATION_DRAFT.value, UploadTargetType.NOTICE_RESPONSE.value}
             if uow.actor.kind == PrincipalKind.APPLICANT
             else {UploadTargetType.INSPECTION_EVIDENCE.value}
         )
@@ -183,6 +183,8 @@ class ReserveUpload(CommandHandler[UploadReservation]):
         application: Application
         if target_type == UploadTargetType.INSPECTION_EVIDENCE:
             application = _evidence_target(uow, target_id, code)
+        elif target_type == UploadTargetType.NOTICE_RESPONSE:
+            application = _response_target(uow, target_id, code)
         else:
             draft = editable_draft_for_actor(uow.actor, target_id, uow.now)
             if draft is None:
@@ -277,11 +279,44 @@ def _evidence_target(uow: UnitOfWork, inspection_id: UUID, code: str) -> Applica
     return inspection.application
 
 
+RESPONSE_CODE = re.compile(r"^response-([a-z0-9][a-z0-9_-]{1,39})$")
+
+
+def _response_target(uow: UnitOfWork, notice_id: UUID, code: str) -> Application:
+    """NOTICE_RESPONSE: the applicant side of a PUBLISHED notice uploads evidence for one of its
+    items (`response-<item code>`). The file belongs to the case."""
+    from agni.cases.application.access import can_respond_to_notices
+    from agni.notices.models import Notice, NoticeState
+
+    notice = Notice.objects.select_related("application").filter(pk=notice_id).first()
+    if notice is None or not can_respond_to_notices(uow.actor, notice.application, uow.now):
+        raise ResourceNotFound("Notice not found")
+    if notice.state != NoticeState.PUBLISHED:
+        raise InvalidTransition("Evidence can only be added to an open notice")
+    match = RESPONSE_CODE.match(code)
+    codes = {c.lower() for c in notice.items.values_list("code", flat=True)}
+    if match is None or match.group(1) not in codes:
+        raise ValidationFailed(
+            violations=[
+                Violation(
+                    "/requirement_code",
+                    "unknown_requirement",
+                    "use response-<item code> for an item of this notice",
+                )
+            ]
+        )
+    return notice.application
+
+
 def _application_for(target: UploadReservation) -> Application:
     if target.target_type == UploadTargetType.INSPECTION_EVIDENCE:
         from agni.inspections.models import Inspection
 
         return Inspection.objects.select_related("application").get(pk=target.target_id).application
+    if target.target_type == UploadTargetType.NOTICE_RESPONSE:
+        from agni.notices.models import Notice
+
+        return Notice.objects.select_related("application").get(pk=target.target_id).application
     return Application.objects.get(pk=target.target_id)
 
 
@@ -291,10 +326,12 @@ def _check_quota(application: Application, size: int, uow: UnitOfWork) -> None:
         scan_state=ScanState.REJECTED
     )
     from agni.inspections.models import Inspection
+    from agni.notices.models import Notice
 
     targets = [
         application.pk,
         *Inspection.objects.filter(application=application).values_list("pk", flat=True),
+        *Notice.objects.filter(application=application).values_list("pk", flat=True),
     ]
     pending = UploadReservation.objects.filter(
         target_id__in=targets,

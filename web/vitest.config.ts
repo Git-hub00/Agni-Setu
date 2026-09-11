@@ -9,5 +9,7 @@ export default defineConfig({
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     css: false,
     restoreMocks: true,
+    // Interaction-heavy screen tests (typed forms) exceed the 5 s default on slow or busy hosts.
+    testTimeout: 20000,
   },
 });

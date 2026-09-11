@@ -363,7 +363,19 @@ def active_policy(
 def supervisor(db: None, jurisdiction: Jurisdiction, clock: FrozenClock) -> Principal:
     """Supervisor scoped to the test jurisdiction (docs/13 persona u-supervisor)."""
     bootstrap = make_staff("Bootstrap Ceremony B06", "bootstrap-b06")
+    approver = make_staff("Grant Approver B09", "grant-approver-b09")
     person = make_staff("Anita Kapoor", "anita")
+    bind_role(person, RoleKey.SUPERVISOR, bootstrap, clock, jurisdiction=jurisdiction)
+    # Publish notice / verify finding needs the separately granted capability (B09).
+    grant(person, Capability.NOTICE_PUBLISH, bootstrap, approver, clock)
+    return person
+
+
+@pytest.fixture
+def plain_supervisor(db: None, jurisdiction: Jurisdiction, clock: FrozenClock) -> Principal:
+    """Supervisor of the test jurisdiction WITHOUT the notice.publish capability."""
+    bootstrap = make_staff("Bootstrap Ceremony B09", "bootstrap-b09")
+    person = make_staff("Chitra Clerk", "chitra-supervisor")
     bind_role(person, RoleKey.SUPERVISOR, bootstrap, clock, jurisdiction=jurisdiction)
     return person
 

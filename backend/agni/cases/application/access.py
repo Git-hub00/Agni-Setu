@@ -30,6 +30,25 @@ def can_edit_draft(actor: Principal, application: Application, at: datetime) -> 
     return False
 
 
+def can_respond_to_notices(actor: Principal, application: Application, at: datetime) -> bool:
+    """FR-16: the applicant who owns the case, the acting operator, or a delegate with the
+    `notice.respond` capability for the premises or service."""
+    if actor.kind != PrincipalKind.APPLICANT:
+        return False
+    if application.applicant_id == actor.pk or application.acting_operator_id == actor.pk:
+        return True
+    for delegation in active_delegations_for(actor, at):
+        if delegation.beneficiary_id != application.applicant_id:
+            continue
+        if "notice.respond" not in delegation.capabilities:
+            continue
+        if delegation.premises_id and delegation.premises_id == application.premises_id:
+            return True
+        if delegation.service_id and delegation.service_id == application.service_id:
+            return True
+    return False
+
+
 def editable_draft_for_actor(
     actor: Principal, application_id: UUID, at: datetime, *, lock: bool = False
 ) -> Application | None:

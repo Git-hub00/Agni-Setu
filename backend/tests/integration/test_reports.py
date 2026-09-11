@@ -242,6 +242,7 @@ def test_at_13_01_14_01_draft_then_accepted_report_moves_case_to_review(
     )
     assert not InspectionDraft.objects.filter(inspection=inspection).exists()
     report = InspectionReport.objects.get(pk=receipt["report_id"])
+    assert inspection.current_assignment is not None
     assert report.submitted_by_id == inspection.current_assignment.officer_id
     assert report.evidence.count() == 2 and report.sha256 == receipt["sha256"]
     # Audience: applicant sees acceptance, not the internal evaluation event or blockers.
@@ -450,7 +451,9 @@ def test_at_13_03_14_04_invalid_observations_and_foreign_or_unscanned_evidence_a
         other_applicant, supervisor, other_premises, service, signed_client, clock
     )
     foreign_doc = str(
-        DocumentVersion.objects.filter(application_id=other_app, scan_state="CLEAN").first().pk
+        DocumentVersion.objects.filter(application_id=other_app, scan_state="CLEAN")
+        .values_list("pk", flat=True)
+        .first()
     )
     expect_422(
         submit_body(

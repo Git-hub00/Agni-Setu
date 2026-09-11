@@ -15,7 +15,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from agni.identity.authz import AuthzSnapshot, load_snapshot
-from agni.identity.domain.roles import RoleKey
+from agni.identity.domain.roles import Capability, RoleKey
 from agni.identity.models import Principal, PrincipalKind
 from agni.inspections.models import Inspection
 from agni.obligations.models import Obligation, ObligationState
@@ -173,6 +173,67 @@ class ApplicationListView(ApiView):
         )
 
 
+def _notice_facts(application: Application, *, staff: bool) -> dict[str, Any]:
+    """Notice/finding facts for the detail projection and its action guards (B09)."""
+    from agni.notices.domain.rules import (
+        open_mandatory_findings,
+        pending_required_items,
+        reinspection_outstanding,
+    )
+    from agni.notices.models import Finding, Notice
+
+    notices = list(
+        Notice.objects.filter(application=application)
+        .select_related("due_obligation")
+        .prefetch_related("items")
+        .order_by("type", "round_number")
+    )
+    findings = list(Finding.objects.filter(application=application))
+    current_information = next(
+        (n for n in notices if n.type == "INFORMATION" and n.state == "PUBLISHED"), None
+    )
+    open_findings = [f for f in findings if f.state != "VERIFIED_CLOSED"]
+    summary = {
+        "open_mandatory": len([f for f in open_findings if f.severity == "MANDATORY"]),
+        "open_advisory": len([f for f in open_findings if f.severity == "ADVISORY"]),
+        "verified_closed": len(findings) - len(open_findings),
+        "reinspection_outstanding": reinspection_outstanding(findings),
+    }
+    return {
+        "notices": [
+            {
+                "notice_id": str(n.pk),
+                "type": n.type,
+                "round_number": n.round_number,
+                "state": n.state,
+                "published_at": n.published_at.isoformat(),
+                "due_at": n.due_obligation.due_at.isoformat()
+                if n.due_obligation and n.due_obligation.due_at
+                else None,
+                "items_total": len(n.items.all()),
+                "open_items": len([i for i in n.items.all() if i.state != "ACCEPTED"]),
+                "internal_note": (n.internal_note or None) if staff else None,
+            }
+            for n in notices
+        ],
+        "summary": summary,
+        "open_findings": [str(f.pk) for f in open_findings],
+        "open_mandatory": open_mandatory_findings(findings),
+        "reinspection_outstanding": summary["reinspection_outstanding"],
+        "open_attempt": Inspection.objects.filter(
+            application=application, status__in=["REQUESTED", "SCHEDULED", "IN_PROGRESS"]
+        ).exists(),
+        "current_information_notice": (
+            {
+                "notice_id": str(current_information.pk),
+                "pending_items": pending_required_items(list(current_information.items.all())),
+            }
+            if current_information
+            else None
+        ),
+    }
+
+
 class ApplicationDetailView(ApiView):
     """API-022: canonical detail with allowed actions and safe blockers."""
 
@@ -213,6 +274,14 @@ class ApplicationDetailView(ApiView):
             .order_by("-number")
             .first()
         )
+        publisher_here = supervisor_here and (
+            snapshot.grant_for(
+                Capability.NOTICE_PUBLISH,
+                jurisdiction_id=application.owner_queue.jurisdiction_id,
+            )
+            is not None
+        )
+        notice_facts = _notice_facts(application, staff=staff)
         actions: list[dict[str, Any]] = [
             {
                 "key": "edit-draft",
@@ -255,6 +324,51 @@ class ApplicationDetailView(ApiView):
                     reason = "NOT_REQUIRED_BY_POLICY"
                 else:
                     reason = "NOT_AUTHORIZED"
+            elif command == "request-information":
+                enabled = publisher_here and open_exception is None
+                reason = (
+                    None
+                    if enabled
+                    else ("ROUTING_UNRESOLVED" if open_exception else "NOT_AUTHORIZED")
+                )
+            elif command == "issue-deficiencies":
+                enabled = publisher_here and bool(notice_facts["open_findings"])
+                reason = (
+                    None
+                    if enabled
+                    else ("NO_OPEN_FINDINGS" if publisher_here else "NOT_AUTHORIZED")
+                )
+            elif command == "accept-information":
+                current = notice_facts["current_information_notice"]
+                enabled = supervisor_here and current is not None and not current["pending_items"]
+                reason = (
+                    None
+                    if enabled
+                    else (
+                        "NOT_AUTHORIZED"
+                        if not supervisor_here
+                        else ("RESPONSE_NOT_VERIFIED" if current else "NO_OPEN_NOTICE")
+                    )
+                )
+            elif command == "complete-corrections":
+                blocked = notice_facts["open_mandatory"] or notice_facts["reinspection_outstanding"]
+                enabled = supervisor_here and not blocked and not notice_facts["open_attempt"]
+                reason = (
+                    None
+                    if enabled
+                    else (
+                        "NOT_AUTHORIZED"
+                        if not supervisor_here
+                        else ("MANDATORY_FINDINGS_OPEN" if blocked else "INSPECTION_OPEN")
+                    )
+                )
+            elif command == "require-reinspection":
+                enabled = supervisor_here and bool(notice_facts["open_findings"])
+                reason = (
+                    None
+                    if enabled
+                    else ("NO_OPEN_FINDINGS" if supervisor_here else "NOT_AUTHORIZED")
+                )
             actions.append({"key": command, "enabled": enabled, "reason_code": reason})
         if staff:
             actions.append(
@@ -351,6 +465,8 @@ class ApplicationDetailView(ApiView):
                 .select_related("current_assignment__officer", "current_report")
                 .order_by("attempt_number")
             ],
+            "notices": notice_facts["notices"],
+            "findings_summary": notice_facts["summary"] if staff else None,
             "routing_exception": (
                 {
                     "exception_id": str(open_exception.pk),

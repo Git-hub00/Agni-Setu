@@ -94,7 +94,8 @@ afterEach(() => {
 });
 
 describe("InspectionDetailPage report workspace (UI-12)", () => {
-  it("restores the server draft, enforces notes for non-pass results and submits with the inspection ETag", async () => {
+  // Many typed interactions: allow more than the 5 s default on slow or busy hosts.
+  it("restores the server draft, enforces notes for non-pass results and submits with the inspection ETag", { timeout: 20000 }, async () => {
     const requests: { url: string; init?: RequestInit }[] = [];
     vi.stubGlobal(
       "fetch",

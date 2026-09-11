@@ -17,6 +17,7 @@ api_v1: list[URLPattern | URLResolver] = [
     path("", include("agni.cases.api.urls")),
     path("", include("agni.documents.api.urls")),
     path("", include("agni.inspections.api.urls")),
+    path("", include("agni.notices.api.urls")),
 ]
 
 if settings.ENABLE_DEMO_CONTROLS and settings.APP_ENV != "production":

@@ -385,6 +385,13 @@ class SubmitReport(CommandHandler[Inspection]):
                 for doc in o["document_version_ids"]
             ]
         )
+        # Itemised findings (FR-14 -> FR-17) become OPEN finding rows in the same transaction;
+        # an unresolved finding for the same item on this case is retained, not duplicated.
+        from agni.notices.application.findings import materialise_findings
+
+        materialise_findings(
+            application, report, [dict(f) for f in evaluation.as_dict()["findings"]]
+        )
         # Attempt completes; assignment fulfilled; draft is superseded by the accepted report.
         assignment.state = AssignmentState.FULFILLED
         assignment.ends_at = uow.now

@@ -49,6 +49,7 @@ uv run --directory backend python ../scripts/dev/smoke_drafts.py   http://127.0.
 uv run --directory backend python ../scripts/dev/smoke_submission.py http://127.0.0.1:5173 --scan-via-demo --oidc   # leaves a SCRUTINY case
 uv run --directory backend python ../scripts/dev/smoke_inspections.py http://127.0.0.1:5173      # requires the SCRUTINY case (anita/suresh/priya via Keycloak)
 uv run --directory backend python ../scripts/dev/smoke_reports.py     http://127.0.0.1:5173      # schedules the follow-up attempt, evidence, draft, report -> REVIEW_PENDING
+uv run --directory backend python ../scripts/dev/smoke_notices.py     http://127.0.0.1:5173 --scan-via-demo   # fresh case -> information notice -> reply -> review -> back to SCRUTINY
 ```
 
 Seed the synthetic baseline (idempotent) with
