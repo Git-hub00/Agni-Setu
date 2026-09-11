@@ -46,6 +46,9 @@ Smoke-check the identity flows against the running stack (OTP through the demo i
 uv run --directory backend python ../scripts/dev/smoke_identity.py http://127.0.0.1:5173 --oidc
 uv run --directory backend python ../scripts/dev/smoke_policy.py   http://127.0.0.1:5173 --oidc   # after seed_demo
 uv run --directory backend python ../scripts/dev/smoke_drafts.py   http://127.0.0.1:5173          # add --expect-scan QUARANTINED without ClamAV
+uv run --directory backend python ../scripts/dev/smoke_submission.py http://127.0.0.1:5173 --scan-via-demo --oidc   # leaves a SCRUTINY case
+uv run --directory backend python ../scripts/dev/smoke_inspections.py http://127.0.0.1:5173      # requires the SCRUTINY case (anita/suresh/priya via Keycloak)
+uv run --directory backend python ../scripts/dev/smoke_reports.py     http://127.0.0.1:5173      # schedules the follow-up attempt, evidence, draft, report -> REVIEW_PENDING
 ```
 
 Seed the synthetic baseline (idempotent) with

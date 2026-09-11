@@ -11,7 +11,7 @@ from django.contrib.postgres.fields import DateTimeRangeField, RangeBoundary, Ra
 from django.db import models
 from django.db.models import Func
 
-from agni.platform.models import VersionedModel
+from agni.platform.models import AppendOnlyModel, VersionedModel
 
 
 class TsTzRange(Func):
@@ -81,6 +81,13 @@ class Inspection(VersionedModel):
     request_reason = models.TextField(blank=True, default="")
     preferred_window_start = models.DateTimeField(null=True, blank=True)
     preferred_window_end = models.DateTimeField(null=True, blank=True)
+    current_report = models.ForeignKey(
+        "inspections.InspectionReport",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
 
     class Meta:
         constraints = [
@@ -201,3 +208,85 @@ class Availability(VersionedModel):
 
     def __str__(self) -> str:
         return f"{self.officer_id} {self.kind} {self.starts_at}-{self.ends_at}"
+
+
+class InspectionDraft(VersionedModel):
+    """Editable server draft of the report (data model `inspection_draft`): one per inspection
+    and officer; never an accepted report and never proof of a visit."""
+
+    inspection = models.ForeignKey(Inspection, on_delete=models.PROTECT, related_name="drafts")
+    officer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"
+    )
+    base_inspection_version = models.BigIntegerField()
+    assignment_version = models.BigIntegerField()
+    payload = models.JSONField(default=dict)
+    client_operation_id = models.UUIDField(null=True, blank=True)
+    local_revision = models.PositiveIntegerField(null=True, blank=True)
+    saved_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["inspection", "officer"], name="uniq_inspection_draft_per_officer"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"draft {self.inspection_id} by {self.officer_id}"
+
+
+class InspectionReport(AppendOnlyModel):
+    """Immutable accepted report revision (data model `inspection_report`). Binds the actor, the
+    assignment, the checklist artifact, server acceptance time, client capture time, the
+    observations, the deterministic evaluation and the evidence hashes."""
+
+    inspection = models.ForeignKey(Inspection, on_delete=models.PROTECT, related_name="reports")
+    revision_number = models.PositiveIntegerField()
+    assignment = models.ForeignKey(Assignment, on_delete=models.PROTECT, related_name="+")
+    checklist_artifact = models.ForeignKey(
+        "policies.PolicyArtifact", on_delete=models.PROTECT, related_name="+"
+    )
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"
+    )
+    captured_at = models.DateTimeField(null=True, blank=True)
+    capture_unavailable_reason = models.CharField(max_length=200, blank=True, default="")
+    accepted_at = models.DateTimeField()
+    observations = models.JSONField(default=list)
+    summary = models.TextField()
+    evaluation = models.JSONField(default=dict)
+    sha256 = models.CharField(max_length=64)
+    supersedes = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    source_operation_id = models.UUIDField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["inspection", "revision_number"], name="uniq_inspection_report_revision"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"report {self.inspection_id} r{self.revision_number}"
+
+
+class ReportEvidence(AppendOnlyModel):
+    report = models.ForeignKey(InspectionReport, on_delete=models.PROTECT, related_name="evidence")
+    item_code = models.CharField(max_length=40)
+    document_version = models.ForeignKey(
+        "documents.DocumentVersion", on_delete=models.PROTECT, related_name="+"
+    )
+    capture_metadata = models.JSONField(default=dict)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["report", "item_code", "document_version"], name="uniq_report_evidence"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.report_id}:{self.item_code}:{self.document_version_id}"

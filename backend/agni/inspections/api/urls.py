@@ -35,6 +35,16 @@ urlpatterns = [
         name="inspection-fail-visit",
     ),
     path(
+        "inspections/<uuid:inspection_id>/draft",
+        views.ReportDraftView.as_view(),
+        name="inspection-draft",
+    ),
+    path(
+        "inspections/<uuid:inspection_id>/reports",
+        views.SubmitReportView.as_view(),
+        name="inspection-reports",
+    ),
+    path(
         "applications/<uuid:application_id>/require-inspection",
         views.RequireInspectionView.as_view(),
         name="application-require-inspection",

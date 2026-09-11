@@ -34,8 +34,16 @@ from ..application.commands import (
     ScheduleInspection,
     inspection_body,
 )
+from ..application.reports import SaveReportDraft, SubmitReport, draft_body, report_body
 from ..eligibility import eligible_officers
-from ..models import Assignment, AssignmentState, Availability, InspectionPurpose, InspectionStatus
+from ..models import (
+    Assignment,
+    AssignmentState,
+    Availability,
+    InspectionDraft,
+    InspectionPurpose,
+    InspectionStatus,
+)
 from ..selectors import visible_inspections
 
 PAGE_SIZE = 20
@@ -134,6 +142,7 @@ class InspectionDetailView(ApiView):
                 "application__owner_queue__jurisdiction",
                 "checklist_artifact",
                 "current_assignment__officer",
+                "current_report__checklist_artifact",
             )
             .filter(pk=inspection_id)
             .first()
@@ -176,11 +185,33 @@ class InspectionDetailView(ApiView):
                 and inspection.status in (InspectionStatus.SCHEDULED, InspectionStatus.IN_PROGRESS),
                 "reason_code": None if assigned else "NOT_ASSIGNED",
             },
-            {"key": "submit-report", "enabled": False, "reason_code": "NOT_AVAILABLE_YET"},
+            {
+                "key": "save-draft",
+                "enabled": assigned
+                and inspection.status in (InspectionStatus.SCHEDULED, InspectionStatus.IN_PROGRESS),
+                "reason_code": None if assigned else "NOT_ASSIGNED",
+            },
+            {
+                "key": "submit-report",
+                "enabled": assigned and inspection.status == InspectionStatus.IN_PROGRESS,
+                "reason_code": None
+                if (assigned and inspection.status == InspectionStatus.IN_PROGRESS)
+                else ("NOT_ASSIGNED" if not assigned else "CHECK_IN_REQUIRED"),
+            },
         ]
+        # The officer's own server draft (never another officer's); the accepted report is read
+        # by everyone who can see the attempt.
+        own_draft = (
+            InspectionDraft.objects.filter(inspection=inspection, officer=principal).first()
+            if assigned
+            else None
+        )
+        report = inspection.current_report
         body = {
             **inspection_body(inspection),
             "checklist_items": inspection.checklist_artifact.payload.get("items", []),
+            "draft": draft_body(own_draft) if own_draft else None,
+            "report": report_body(report) if report else None,
             "assignments": [
                 {
                     "assignment_id": str(a.pk),
@@ -240,6 +271,30 @@ class CheckInView(_InspectionCommandView):
 class FailVisitView(_InspectionCommandView):
     handler_factory = FailVisit
     command_name = "fail-visit"
+
+
+class ReportDraftView(ApiView):
+    """API-045: PUT the officer's server draft (guarded by the inspection ETag; the response ETag
+    is the draft's own version)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request: Request, inspection_id: UUID) -> Response:
+        return self.run_command(
+            request,
+            SaveReportDraft(),
+            command_name="save-report-draft",
+            target_type="inspection",
+            target_id=inspection_id,
+            etag_type="draft",
+        )
+
+
+class SubmitReportView(_InspectionCommandView):
+    """API-047."""
+
+    handler_factory = SubmitReport
+    command_name = "submit-report"
 
 
 class RequireInspectionView(ApiView):

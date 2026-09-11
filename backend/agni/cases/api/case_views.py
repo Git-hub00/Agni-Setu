@@ -322,9 +322,33 @@ class ApplicationDetailView(ApiView):
                         else None
                     ),
                     "failed_reason_code": i.failed_reason_code,
+                    # Report facts for staff: the deterministic evaluation, never a score.
+                    "report": (
+                        {
+                            "report_id": str(i.current_report.pk),
+                            "revision_number": i.current_report.revision_number,
+                            "accepted_at": i.current_report.accepted_at.isoformat(),
+                            "eligible_for_review": i.current_report.evaluation.get(
+                                "eligible_for_review"
+                            ),
+                            "blockers": i.current_report.evaluation.get("blockers", []),
+                            "na_requiring_review": i.current_report.evaluation.get(
+                                "na_requiring_review", []
+                            ),
+                        }
+                        if staff and i.current_report is not None
+                        else (
+                            {
+                                "revision_number": i.current_report.revision_number,
+                                "accepted_at": i.current_report.accepted_at.isoformat(),
+                            }
+                            if i.current_report is not None
+                            else None
+                        )
+                    ),
                 }
                 for i in Inspection.objects.filter(application=application)
-                .select_related("current_assignment__officer")
+                .select_related("current_assignment__officer", "current_report")
                 .order_by("attempt_number")
             ],
             "routing_exception": (

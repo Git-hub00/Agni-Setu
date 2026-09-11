@@ -57,10 +57,61 @@ export interface ChecklistItem {
   na_permitted: boolean;
 }
 
+export type ObservationResult = "PASS" | "FAIL" | "NOT_VERIFIED" | "NOT_APPLICABLE";
+export const OBSERVATION_RESULTS: readonly ObservationResult[] = ["PASS", "FAIL", "NOT_VERIFIED", "NOT_APPLICABLE"];
+
+export interface Observation {
+  item_code: string;
+  result: ObservationResult;
+  note: string;
+  document_version_ids: string[];
+  captured_at?: string | null;
+}
+
+export interface ReportDraft {
+  draft_id: string;
+  inspection_id: string;
+  base_inspection_version: number;
+  assignment_version: number;
+  observations: Observation[];
+  summary: string;
+  captured_at: string | null;
+  local_revision: number | null;
+  saved_at: string;
+  version: number;
+}
+
+export interface ReportEvaluation {
+  eligible_for_review: boolean;
+  blockers: { code: string; item_code: string; message: string }[];
+  findings: { item_code: string; severity: "MANDATORY" | "ADVISORY"; result: ObservationResult; note: string }[];
+  na_requiring_review: string[];
+  counts: Record<ObservationResult, number>;
+  scoring: string;
+}
+
+export interface InspectionReport {
+  report_id: string;
+  inspection_id: string;
+  revision_number: number;
+  checklist_ref: string;
+  submitted_by: string;
+  captured_at: string | null;
+  capture_unavailable_reason: string | null;
+  accepted_at: string;
+  observations: Observation[];
+  summary: string;
+  evaluation: ReportEvaluation;
+  sha256: string;
+  evidence: { item_code: string; document_version_id: string; sha256: string | null }[];
+}
+
 export interface InspectionDetail extends Inspection {
   checklist_items: ChecklistItem[];
   assignments: Omit<AssignmentSummary, "version">[];
   allowed_actions: { key: string; enabled: boolean; reason_code: string | null }[];
+  draft: ReportDraft | null;
+  report: InspectionReport | null;
 }
 
 export function inspectionsQuery(params: { state?: string[]; unassigned?: boolean } = {}) {
@@ -148,4 +199,55 @@ export function failVisit(inspection: Inspection, input: { reason_code: string; 
   );
 }
 
-export const FAILED_VISIT_REASONS = ["SITE_INACCESSIBLE", "APPLICANT_UNAVAILABLE", "SAFETY_CONCERN", "WEATHER", "OFFICER_UNAVAILABLE", "OTHER"] as const;
+// ---- report workspace (FR-13/FR-14; API-045, API-047) -------------------------------------
+
+function reportBase(inspection: Inspection) {
+  return {
+    application_version: inspection.application_version,
+    assignment_version: inspection.current_assignment?.version ?? 0,
+    checklist_version: inspection.checklist_ref,
+  };
+}
+
+export interface ReportDraftInput {
+  observations: Observation[];
+  summary: string;
+  local_revision: number;
+}
+
+/** API-045: PUT the server draft. If-Match carries the inspection ETag; the reply carries the draft's. */
+export async function saveReportDraft(inspection: Inspection, input: ReportDraftInput, etag: string) {
+  await ensureCsrf();
+  const response = await request<{ data: ReportDraft & { inspection_version: number } }>(`/inspections/${inspection.inspection_id}/draft`, {
+    method: "PUT",
+    body: { ...reportBase(inspection), ...input },
+    ifMatch: etag,
+    idempotencyKey: crypto.randomUUID(),
+  });
+  return response.data.data;
+}
+
+export interface ReportSubmitInput {
+  observations: Observation[];
+  summary: string;
+  declaration_accepted: boolean;
+  source_operation_id: string;
+}
+
+export interface ReportReceipt extends Inspection {
+  report: InspectionReport;
+  receipt: { report_id: string; revision_number: number; sha256: string; accepted_at: string; inspection_version: number; application_version: number; application_status: string };
+}
+
+/** API-047: one accepted command, one immutable report. The idempotency key is the client
+ *  operation id so a retry after an unknown outcome replays the same receipt. */
+export function submitReport(inspection: Inspection, input: ReportSubmitInput, etag: string) {
+  return request<{ data: ReportReceipt }>(`/inspections/${inspection.inspection_id}/reports`, {
+    method: "POST",
+    body: { ...reportBase(inspection), ...input, captured_at: new Date().toISOString() },
+    ifMatch: etag,
+    idempotencyKey: input.source_operation_id,
+  }).then((r) => ({ data: r.data.data, etag: r.etag ?? "" }));
+}
+
+export const FAILED_VISIT_REASONS =["SITE_INACCESSIBLE", "APPLICANT_UNAVAILABLE", "SAFETY_CONCERN", "WEATHER", "OFFICER_UNAVAILABLE", "OTHER"] as const;

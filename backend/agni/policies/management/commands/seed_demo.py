@@ -100,61 +100,62 @@ WARDS: dict[str, str] = {
 
 CATEGORIES = ["Restaurant", "Office", "Hospital", "School", "Residential", "Hotel", "Warehouse"]
 
+# Synthetic educational checklist exactly as docs/24 s.4 (not a legal inspection standard).
 CHECKLIST_ITEMS: list[dict[str, Any]] = [
     {
         "code": "C01",
-        "title": "Means of escape kept clear and marked",
+        "title": "Means of escape",
         "mandatory": True,
         "evidence_required": True,
         "na_permitted": False,
     },
     {
         "code": "C02",
-        "title": "Portable fire extinguishers present and in date",
+        "title": "Portable fire extinguishers",
         "mandatory": True,
         "evidence_required": True,
         "na_permitted": False,
     },
     {
         "code": "C03",
-        "title": "Fire alarm / detection tested",
+        "title": "Alarm and detection test",
         "mandatory": True,
         "evidence_required": True,
         "na_permitted": False,
     },
     {
         "code": "C04",
-        "title": "Emergency lighting functional",
+        "title": "Fire-water and suppression provision",
         "mandatory": True,
-        "evidence_required": True,
-        "na_permitted": False,
-    },
-    {
-        "code": "C05",
-        "title": "Kitchen / process hazard controls",
-        "mandatory": False,
         "evidence_required": True,
         "na_permitted": True,
     },
     {
-        "code": "C06",
-        "title": "Electrical installation certificate sighted",
+        "code": "C05",
+        "title": "Electrical safety documentation",
         "mandatory": True,
-        "evidence_required": False,
+        "evidence_required": True,
+        "na_permitted": False,
+    },
+    {
+        "code": "C06",
+        "title": "Emergency signage and lighting",
+        "mandatory": True,
+        "evidence_required": True,
         "na_permitted": False,
     },
     {
         "code": "C07",
-        "title": "Emergency vehicle access observations",
+        "title": "Emergency access observations",
         "mandatory": False,
         "evidence_required": False,
         "na_permitted": True,
     },
     {
         "code": "C08",
-        "title": "Occupant briefing / evacuation drill record",
+        "title": "Staff training records",
         "mandatory": False,
-        "evidence_required": True,
+        "evidence_required": False,
         "na_permitted": True,
     },
 ]

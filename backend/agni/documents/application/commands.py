@@ -104,11 +104,13 @@ def document_body(d: DocumentVersion) -> dict[str, Any]:
 
 
 class ReserveUpload(CommandHandler[UploadReservation]):
-    """API-033. Target type is allowlisted; only APPLICATION_DRAFT exists at B05."""
+    """API-033. Target type is allowlisted: APPLICATION_DRAFT for the applicant (or a delegate
+    with draft.edit) and INSPECTION_EVIDENCE for the currently assigned officer of an open
+    attempt. Every other target type is refused until its phase lands."""
 
     def authorize(self, uow: UnitOfWork) -> None:
-        if uow.actor.kind != PrincipalKind.APPLICANT:
-            raise Forbidden("Only applicant accounts upload draft evidence")
+        if uow.actor.kind not in (PrincipalKind.APPLICANT, PrincipalKind.STAFF):
+            raise Forbidden("Only applicant and staff accounts upload files")
 
     def lock_target(self, uow: UnitOfWork) -> UploadReservation | None:
         return None
@@ -133,9 +135,18 @@ class ReserveUpload(CommandHandler[UploadReservation]):
             for k in sorted(set(data) - allowed_keys)
         ]
         target_type = str(data.get("target_type", ""))
-        if target_type != UploadTargetType.APPLICATION_DRAFT:
+        permitted_types = (
+            {UploadTargetType.APPLICATION_DRAFT.value}
+            if uow.actor.kind == PrincipalKind.APPLICANT
+            else {UploadTargetType.INSPECTION_EVIDENCE.value}
+        )
+        if target_type not in permitted_types:
             violations.append(
-                Violation("/target_type", "unsupported", "only APPLICATION_DRAFT uploads exist yet")
+                Violation(
+                    "/target_type",
+                    "unsupported",
+                    f"permitted for this account: {', '.join(sorted(permitted_types))}",
+                )
             )
         target_id = _uuid(data.get("target_id"), "/target_id", violations)
         name = data.get("original_name")
@@ -169,28 +180,33 @@ class ReserveUpload(CommandHandler[UploadReservation]):
                 extensions={"max_bytes": int(limits["MAX_FILE_BYTES"])},
             )
 
-        application = editable_draft_for_actor(uow.actor, target_id, uow.now)
-        if application is None:
-            raise ResourceNotFound("Application not found")
-        if application.status != "DRAFT":
-            raise InvalidTransition("Files can only be added to a draft application")
-        codes = requirement_codes_for(application, uow.now)
-        if code not in codes:
-            raise ValidationFailed(
-                violations=[
-                    Violation(
-                        "/requirement_code",
-                        "unknown_requirement",
-                        "not a requirement of this application's current policy",
-                    )
-                ]
-            )
+        application: Application
+        if target_type == UploadTargetType.INSPECTION_EVIDENCE:
+            application = _evidence_target(uow, target_id, code)
+        else:
+            draft = editable_draft_for_actor(uow.actor, target_id, uow.now)
+            if draft is None:
+                raise ResourceNotFound("Application not found")
+            application = draft
+            if application.status != "DRAFT":
+                raise InvalidTransition("Files can only be added to a draft application")
+            codes = requirement_codes_for(application, uow.now)
+            if code not in codes:
+                raise ValidationFailed(
+                    violations=[
+                        Violation(
+                            "/requirement_code",
+                            "unknown_requirement",
+                            "not a requirement of this application's current policy",
+                        )
+                    ]
+                )
         _check_quota(application, size, uow)
 
         reservation = UploadReservation.objects.create(
             uploader=uow.actor,
             target_type=target_type,
-            target_id=application.pk,
+            target_id=target_id,
             requirement_code=code,
             original_name=name.strip(),
             media_type=media_type,
@@ -220,13 +236,68 @@ class ReserveUpload(CommandHandler[UploadReservation]):
         )
 
 
+EVIDENCE_CODE = re.compile(r"^inspection-(c\d{2})$")
+
+
+def _evidence_target(uow: UnitOfWork, inspection_id: UUID, code: str) -> Application:
+    """INSPECTION_EVIDENCE: the currently assigned officer of an open attempt uploads evidence
+    for one item of the pinned checklist (`inspection-c01`). The file belongs to the case."""
+    from agni.inspections.models import AssignmentState, Inspection, InspectionStatus
+
+    inspection = (
+        Inspection.objects.select_related("application", "current_assignment", "checklist_artifact")
+        .filter(pk=inspection_id)
+        .first()
+    )
+    current = inspection.current_assignment if inspection else None
+    if (
+        inspection is None
+        or current is None
+        or current.state != AssignmentState.ACTIVE
+        or current.officer_id != uow.actor.pk
+    ):
+        raise ResourceNotFound("Inspection not found")
+    if inspection.status not in (InspectionStatus.SCHEDULED, InspectionStatus.IN_PROGRESS):
+        raise InvalidTransition("Evidence can only be added to an open attempt")
+    match = EVIDENCE_CODE.match(code)
+    items = {
+        str(i.get("code", "")).lower()
+        for i in inspection.checklist_artifact.payload.get("items", [])
+    }
+    if match is None or match.group(1) not in items:
+        raise ValidationFailed(
+            violations=[
+                Violation(
+                    "/requirement_code",
+                    "unknown_requirement",
+                    "use inspection-<item code> for an item of the pinned checklist",
+                )
+            ]
+        )
+    return inspection.application
+
+
+def _application_for(target: UploadReservation) -> Application:
+    if target.target_type == UploadTargetType.INSPECTION_EVIDENCE:
+        from agni.inspections.models import Inspection
+
+        return Inspection.objects.select_related("application").get(pk=target.target_id).application
+    return Application.objects.get(pk=target.target_id)
+
+
 def _check_quota(application: Application, size: int, uow: UnitOfWork) -> None:
     limits = settings.AGNI_UPLOADS
     versions = DocumentVersion.objects.filter(application=application).exclude(
         scan_state=ScanState.REJECTED
     )
+    from agni.inspections.models import Inspection
+
+    targets = [
+        application.pk,
+        *Inspection.objects.filter(application=application).values_list("pk", flat=True),
+    ]
     pending = UploadReservation.objects.filter(
-        target_id=application.pk,
+        target_id__in=targets,
         state__in=[ReservationState.RESERVED, ReservationState.UPLOADED],
         expires_at__gt=uow.now,
     )
@@ -251,8 +322,8 @@ class CompleteUpload(CommandHandler[UploadReservation]):
     the truth. Target: the reservation (If-Match on its version)."""
 
     def authorize(self, uow: UnitOfWork) -> None:
-        if uow.actor.kind != PrincipalKind.APPLICANT:
-            raise Forbidden("Only applicant accounts upload draft evidence")
+        if uow.actor.kind not in (PrincipalKind.APPLICANT, PrincipalKind.STAFF):
+            raise Forbidden("Only applicant and staff accounts upload files")
 
     def lock_target(self, uow: UnitOfWork) -> UploadReservation | None:
         reservation = (
@@ -332,7 +403,7 @@ class CompleteUpload(CommandHandler[UploadReservation]):
                 "Object storage is unavailable; retry the completion"
             ) from exc
 
-        application = Application.objects.get(pk=target.target_id)
+        application = _application_for(target)
         supersedes = None
         replaces = (
             uow.envelope.payload.get("replaces_document_version_id") if False else None

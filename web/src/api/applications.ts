@@ -228,14 +228,21 @@ export async function sha256Hex(file: Blob): Promise<string> {
 }
 
 /** Reserve -> PUT bytes -> complete. Returns the QUARANTINED document version. */
-export async function uploadDocument(applicationId: string, requirementCode: string, file: File): Promise<DocumentVersion> {
+export function uploadDocument(applicationId: string, requirementCode: string, file: File): Promise<DocumentVersion> {
+  return uploadFile("APPLICATION_DRAFT", applicationId, requirementCode, file);
+}
+
+export type UploadTargetType = "APPLICATION_DRAFT" | "INSPECTION_EVIDENCE";
+
+/** Shared upload flow for every permitted target type (the server decides who may upload where). */
+export async function uploadFile(targetType: UploadTargetType, targetId: string, requirementCode: string, file: File): Promise<DocumentVersion> {
   await ensureCsrf();
   const digest = await sha256Hex(file);
   const reserved = await request<{ data: UploadTicket }>("/uploads", {
     method: "POST",
     body: {
-      target_type: "APPLICATION_DRAFT",
-      target_id: applicationId,
+      target_type: targetType,
+      target_id: targetId,
       original_name: file.name,
       media_type: file.type,
       size_bytes: file.size,

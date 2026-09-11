@@ -15,15 +15,16 @@ import {
 } from "../../api/inspections";
 import { ProblemNotice } from "../../app/ProblemNotice";
 import { t } from "../../locales";
+import { ReportView, ReportWorkspace } from "./ReportWorkspace";
 
 const CARD = "rounded-[var(--radius-card)] border border-border bg-surface p-6 shadow-[var(--shadow-card)]";
 const FIELD = "mt-1 block w-full min-h-11 rounded-md border border-border bg-canvas px-3 text-sm text-ink";
 const BUTTON = "inline-flex min-h-11 items-center rounded-md bg-primary px-4 font-medium text-white hover:bg-primary-hover disabled:opacity-60";
 const SECONDARY = "inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 font-medium text-ink hover:bg-canvas disabled:opacity-60";
 
-/** UI-12 (B07 slice) + UI-11 dialog: attempt summary, assignment history, checklist preview,
- *  supervisor scheduling/reassignment/cancellation and the assigned officer's check-in and
- *  failed-visit actions. The report itself arrives with B08. */
+/** UI-12 + UI-11 dialog: attempt summary, assignment history, supervisor scheduling /
+ *  reassignment / cancellation, the assigned officer's check-in and failed-visit actions, the
+ *  report workspace (draft + submit) and the accepted report with its evaluation. */
 export function InspectionDetailPage() {
   const { inspectionId = "" } = useParams();
   const query = useQuery(inspectionQuery(inspectionId));
@@ -75,17 +76,22 @@ export function InspectionDetailPage() {
       {actions.get("check-in") || actions.get("fail-visit") ? (
         <OfficerActions inspection={inspection} etag={etag} canCheckIn={actions.get("check-in") === true} canFail={actions.get("fail-visit") === true} />
       ) : null}
-      <section className={CARD} aria-labelledby="inspection-checklist">
-        <h2 id="inspection-checklist" className="text-base font-semibold">{t("inspection.checklistPreview")}</h2>
-        <p className="mt-1 text-sm text-muted">{t("inspection.reportLater")}</p>
-        <ol className="mt-3 flex flex-col gap-1 text-sm">
-          {inspection.checklist_items.map((item) => (
-            <li key={item.code}>
-              <span className="font-medium">{item.code}</span> {item.title} {item.mandatory ? <span className="text-danger">*</span> : null}
-            </li>
-          ))}
-        </ol>
-      </section>
+      {inspection.report ? <ReportView report={inspection.report} items={inspection.checklist_items} title={t("report.acceptedTitle")} /> : null}
+      {actions.get("save-draft") ? (
+        <ReportWorkspace key={`${inspection.version}-${inspection.current_assignment?.version ?? 0}`} inspection={inspection} etag={etag} canSubmit={actions.get("submit-report") === true} />
+      ) : null}
+      {!inspection.report && !actions.get("save-draft") ? (
+        <section className={CARD} aria-labelledby="inspection-checklist">
+          <h2 id="inspection-checklist" className="text-base font-semibold">{t("inspection.checklistPreview")}</h2>
+          <ol className="mt-3 flex flex-col gap-1 text-sm">
+            {inspection.checklist_items.map((item) => (
+              <li key={item.code}>
+                <span className="font-medium">{item.code}</span> {item.title} {item.mandatory ? <span className="text-danger">*</span> : null}
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
     </div>
   );
 }
