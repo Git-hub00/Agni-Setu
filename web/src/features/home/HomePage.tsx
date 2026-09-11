@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router";
 
 import { readinessQuery, type CheckResult } from "../../api/health";
 import { t, type MessageKey } from "../../locales";
+import { useSession } from "../identity/useSession";
 
 const CHECK_LABELS: Partial<Record<string, MessageKey>> = {
   database: "home.apiCheck.database",
@@ -74,12 +76,23 @@ export function ApiReadiness() {
 }
 
 export function HomePage() {
+  const { principal } = useSession();
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold text-ink md:text-[28px]">{t("home.title")}</h1>
         <p className="mt-2 max-w-prose text-muted">{t("home.body")}</p>
       </div>
+      {/* UI-01: two dominant public actions - apply/track (sign-in with a safe return) and verify. */}
+      <div className="flex flex-wrap gap-3">
+        <Link to={principal ? "/applications" : "/sign-in"} className="inline-flex min-h-11 items-center rounded-md bg-primary px-5 font-medium text-white hover:bg-primary-hover">
+          {t("home.apply")}
+        </Link>
+        <Link to="/verify" className="inline-flex min-h-11 items-center rounded-md border border-primary px-5 font-medium text-primary hover:bg-primary-soft">
+          {t("home.verify")}
+        </Link>
+      </div>
+      <p className="text-sm text-muted">{t("home.actionsHint")}</p>
       <ApiReadiness />
     </div>
   );

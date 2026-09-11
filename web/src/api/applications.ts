@@ -32,6 +32,7 @@ export interface CaseSummary {
   premises: { premises_id: string; display_name: string; category_key: string; locality: string };
   owner_queue: string;
   submitted_at: string | null;
+  next_due_at: string | null;
   created_at: string;
   updated_at: string;
   version: number;
@@ -106,7 +107,6 @@ export interface ObligationSummary {
 
 export interface CaseDetail extends CaseSummary {
   owner_queue_key: string;
-  next_due_at: string | null;
   premises_detail: Premises;
   policy: {
     applicable: boolean;
@@ -137,6 +137,14 @@ export interface CaseDetail extends CaseSummary {
     appointment_timezone: string;
     officer_name: string | null;
     failed_reason_code: string | null;
+    report?: {
+      report_id?: string;
+      revision_number: number;
+      accepted_at: string;
+      eligible_for_review?: boolean | null;
+      blockers?: { code: string; item_code?: string; message?: string }[];
+      na_requiring_review?: string[];
+    } | null;
   }[];
   routing_exception: {
     exception_id: string;
@@ -157,6 +165,37 @@ export interface CaseDetail extends CaseSummary {
     internal_note: string | null;
   }[];
   findings_summary: { open_mandatory: number; open_advisory: number; verified_closed: number; reinspection_outstanding: string[] } | null;
+  /** Outcome / issuance summary (B12). Applicants receive the public decision only. */
+  decision: {
+    decision_id: string;
+    decision_number: number;
+    kind: "APPROVE" | "REJECT";
+    public_reason: string;
+    accepted_at: string;
+    submission_revision_id: string;
+    report_id: string | null;
+    policy_version_id: string;
+    reason?: string;
+    actor_id?: string;
+    authority_grant_id?: string;
+  } | null;
+  issuance: {
+    issuance_request_id: string;
+    certificate_number: string;
+    state: "READY" | "PROCESSING" | "RECONCILIATION_REQUIRED" | "PUBLISHED" | "FAILED";
+    published_at: string | null;
+    attempts?: number;
+    last_error_code?: string | null;
+  } | null;
+  certificate: {
+    certificate_id: string;
+    certificate_number: string;
+    effective_status: string;
+    issued_at: string;
+    valid_until: string | null;
+    is_demo: boolean;
+  } | null;
+  decision_readiness: Record<string, unknown> | null;
   allowed_actions: AllowedAction[];
 }
 

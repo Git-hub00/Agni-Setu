@@ -82,7 +82,7 @@ plugins = ["mypy_django_plugin.main"]
 # django-environ, Authlib and boto3/botocore ship no type information (no py.typed / stubs).
 module = [
     "environ", "environ.*", "authlib", "authlib.*", "boto3", "boto3.*", "botocore", "botocore.*",
-    "kombu", "kombu.*",
+    "kombu", "kombu.*", "qrcode", "qrcode.*", "weasyprint", "weasyprint.*",
 ]
 ignore_missing_imports = true
 

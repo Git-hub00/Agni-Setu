@@ -1,5 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AppProviders } from "../../app/providers";
@@ -7,9 +8,11 @@ import { HomePage } from "./HomePage";
 
 function renderHome() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // The public entry links (Apply / track, Verify) need a router; the API card is the subject.
+  const router = createMemoryRouter([{ path: "/", element: <HomePage /> }], { initialEntries: ["/"] });
   return render(
     <AppProviders client={client}>
-      <HomePage />
+      <RouterProvider router={router} />
     </AppProviders>,
   );
 }

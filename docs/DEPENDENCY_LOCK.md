@@ -79,8 +79,8 @@ Resolution source: PyPI JSON API and each project's release notes. Columns are f
 | celery | `5.6` compatible stable patch | **5.6.3** (kombu 5.6.2, amqp 5.3.1, billiard 4.2.4) | PyPI via `uv lock` | BSD-3-Clause | no advisory | L-04 CLOSED: 5.6.x exists on PyPI |
 | boto3 | current | **1.43.91** (botocore 1.43.91, s3transfer 0.19.2) | PyPI via `uv lock` | Apache-2.0 | no advisory | EV-B00-03 |
 | redis (Valkey client, Redis protocol) | current | **6.4.0** | PyPI via `uv lock` | MIT | no advisory | EV-B00-03 |
-| weasyprint | current; **locked constraint `>=70,<71`** | **70.0** | PyPI via `uv lock` | BSD-3-Clause | 69.0 flagged PYSEC-2026-3940 (fix 70.0) -> upgraded; s.9 DEV-02 | EV-B00-08. Windows host needs GTK/Pango only to *render*; import/check works. Rendering runs in Linux containers (D-004) |
-| qrcode[pil] | current | **8.2** (pillow 12.3.0) | PyPI via `uv lock` | BSD | no advisory | EV-B00-03 |
+| weasyprint | current; **locked constraint `>=70,<71`** | **70.0** | PyPI via `uv lock` | BSD-3-Clause | 69.0 flagged PYSEC-2026-3940 (fix 70.0) -> upgraded; s.9 DEV-02 | EV-B00-08. Windows host needs GTK/Pango only to *render*; import/check works. Rendering runs in Linux containers (D-004) - **proven at B12**: the worker rendered the sample certificate PDF (renderer=weasyprint, 15,136 bytes) in EV-B12-06; tests use the `simulated` renderer |
+| qrcode[pil] | current | **8.2** (pillow 12.3.0) | PyPI via `uv lock` | BSD | no advisory | EV-B00-03; used at B12 for the verification-link QR in the rendered instrument (EV-B12-06) |
 | gunicorn | current (production API serving) | **23.0.0** | PyPI via `uv lock` | MIT | no advisory | POSIX-only; runs in containers, not on the Windows host |
 | pytest | current; **locked constraint `>=9.0.3,<10`** | **9.1.1** | PyPI via `uv lock` | MIT | 8.4.2 flagged PYSEC-2026-1845 (fix 9.0.3) -> upgraded; s.9 DEV-03 | dev; EV-B00-08 |
 | pytest-django | current | **4.14.0** | PyPI via `uv lock` | BSD-3-Clause | no advisory | dev |

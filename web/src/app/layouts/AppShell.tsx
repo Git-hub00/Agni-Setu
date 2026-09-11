@@ -62,8 +62,14 @@ function toolLinks(workspaces: Workspace[]): { to: string; label: MessageKey }[]
   if (workspaces.includes("officer")) {
     links.push({ to: "/sync", label: "nav.sync" });
   }
+  if (workspaces.includes("supervisor")) {
+    links.push({ to: "/reviews", label: "nav.reviews" });
+  }
   if (workspaces.includes("supervisor") || workspaces.includes("leadership")) {
     links.push({ to: "/monitoring", label: "nav.monitoring" });
+  }
+  if (workspaces.includes("applicant") || workspaces.includes("supervisor") || workspaces.includes("leadership")) {
+    links.push({ to: "/certificates", label: "nav.certificates" });
   }
   if (workspaces.includes("admin")) {
     links.push({ to: "/operations", label: "nav.operations" });
@@ -109,6 +115,9 @@ export function AppShell() {
           {t("app.name")}
         </Link>
         <nav aria-label={t("nav.account")} className="flex items-center gap-3 text-sm">
+          <Link to="/verify" className="inline-flex min-h-11 items-center rounded-md px-3 text-ink hover:bg-canvas">
+            {t("nav.verify")}
+          </Link>
           {principal ? (
             <>
               <Link to="/notifications" className="inline-flex min-h-11 items-center rounded-md px-3 text-ink hover:bg-canvas">

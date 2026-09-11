@@ -8,6 +8,7 @@ import { requireInspection } from "../../api/inspections";
 import { ProblemNotice } from "../../app/ProblemNotice";
 import { t } from "../../locales";
 import { NoticeActions, NoticesSection } from "../notices/CaseNotices";
+import { DecisionSummary } from "../review/DecisionSummary";
 
 const CARD = "rounded-[var(--radius-card)] border border-border bg-surface p-6 shadow-[var(--shadow-card)]";
 const FIELD = "mt-1 block w-full min-h-11 rounded-md border border-border bg-canvas px-3 text-sm text-ink";
@@ -84,6 +85,7 @@ export function ApplicationDetailPage() {
         </div>
       ) : null}
       <StaffActions detail={detail} etag={etag} />
+      <DecisionSummary detail={detail} />
       <NoticesSection detail={detail} />
       <NoticeActions detail={detail} etag={etag} />
       {detail.inspections.length > 0 ? (

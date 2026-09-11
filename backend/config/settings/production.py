@@ -9,7 +9,7 @@ fix the configuration in one pass. Nothing here reads or prints secret values.
 from django.core.exceptions import ImproperlyConfigured
 
 from .base import *  # noqa: F403
-from .base import DATABASES, DEMO_PROVIDER_VALUES, SERVICE_MODE, env
+from .base import DATABASES, DEMO_PROVIDER_VALUES, PUBLIC_LOOKUP_PROFILE, SERVICE_MODE, env
 
 DEBUG = False
 
@@ -83,11 +83,20 @@ def _startup_problems() -> list[str]:
             ("OTP_PROVIDER", OTP_PROVIDER),
             ("NOTIFICATION_PROVIDER", NOTIFICATION_PROVIDER),
             ("SIGNING_PROVIDER", SIGNING_PROVIDER),
+            (
+                "CERTIFICATE_RENDERER_PROVIDER",
+                env.str("CERTIFICATE_RENDERER_PROVIDER", default="weasyprint"),
+            ),
         ):
             if not value or value in DEMO_PROVIDER_VALUES:
                 problems.append(
                     f"{name} must name an approved live adapter, not a demo/console sink"
                 )
+        if PUBLIC_LOOKUP_PROFILE != "TOKEN":
+            problems.append(
+                "PUBLIC_LOOKUP_PROFILE must be TOKEN in LIVE mode (certificate-number lookup "
+                "needs explicit public-data approval, integrations s.7)"
+            )
 
     return problems
 

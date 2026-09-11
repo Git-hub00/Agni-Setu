@@ -443,6 +443,8 @@ def signed_client(
     monkeypatch.setattr("agni.documents.api.views.get_clock", lambda: clock)
     monkeypatch.setattr("agni.documents.scanning.get_clock", lambda: clock)
     monkeypatch.setattr("agni.offline.api.views.get_clock", lambda: clock)
+    monkeypatch.setattr("agni.decisions.api.views.get_clock", lambda: clock)
+    monkeypatch.setattr("agni.certificates.api.views.get_clock", lambda: clock)
 
     def factory(principal: Principal) -> Client:
         request = RequestFactory().get("/")

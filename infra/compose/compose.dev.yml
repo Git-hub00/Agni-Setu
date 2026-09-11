@@ -190,6 +190,8 @@ services:
       CACHE_URL: redis://:${VALKEY_PASSWORD}@valkey:6379/0
       OBJECT_ENDPOINT: http://objectstore:8333
       OIDC_METADATA_URL: http://keycloak:8080/realms/agni-dev/.well-known/openid-configuration
+      # Public verification origin embedded in sample certificates and detail views (B12).
+      PUBLIC_VERIFY_BASE_URL: http://localhost:${WEB_HOST_PORT:-5173}/verify
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
@@ -213,7 +215,8 @@ services:
     <<: *restart
     profiles: ["app"]
     # Durable job worker (docs/08): claims `logical_job` rows (document scans at B05; outbox
-    # dispatch and notifications from B10). Same image as the api; no HTTP port.
+    # dispatch and notifications from B10; certificate issuance - WeasyPrint rendering + demo
+    # watermark signing - from B12). Same image as the api; no HTTP port.
     image: agni-setu-api:dev
     command: ["python", "manage.py", "process_jobs", "--loop", "--interval", "5"]
     env_file:
@@ -228,6 +231,7 @@ services:
       OBJECT_ENDPOINT: http://objectstore:8333
       SCANNER_HOST: clamav
       SCANNER_PORT: "3310"
+      PUBLIC_VERIFY_BASE_URL: http://localhost:${WEB_HOST_PORT:-5173}/verify
     depends_on:
       api:
         condition: service_healthy

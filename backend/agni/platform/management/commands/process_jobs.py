@@ -13,6 +13,7 @@ from typing import Any
 
 from django.core.management.base import BaseCommand
 
+import agni.certificates.application.issuance  # noqa: F401  (certificate.issue kind)
 import agni.documents.scanning  # noqa: F401  (importing registers the job kind)
 import agni.notifications.application.fanout  # noqa: F401  (fan-out + delivery kinds)
 import agni.obligations.application.scheduler  # noqa: F401  (threshold kind)

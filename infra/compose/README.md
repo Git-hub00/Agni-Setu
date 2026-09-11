@@ -53,6 +53,7 @@ uv run --directory backend python ../scripts/dev/smoke_reports.py     http://127
 uv run --directory backend python ../scripts/dev/smoke_notices.py     http://127.0.0.1:5173 --scan-via-demo   # fresh case -> information notice -> reply -> review -> back to SCRUTINY
 uv run --directory backend python ../scripts/dev/smoke_clocks.py      http://127.0.0.1:5173      # obligations, manual escalation, scheduler/dispatcher pass, notifications, operations
 uv run --directory backend python ../scripts/dev/smoke_offline.py     http://127.0.0.1:5173      # offline package, failed-visit sync + replay + tamper refusal, conflict proposal/resolution (needs a SCRUTINY case)
+uv run --directory backend python ../scripts/dev/smoke_decisions.py   http://127.0.0.1:5173      # all-PASS report -> readiness -> approve -> worker renders the sample PDF -> register, download, public verification
 ```
 
 Seed the synthetic baseline (idempotent) with

@@ -48,6 +48,12 @@ application shell and never API responses; case data for offline work is downloa
 as a small package and synchronised explicitly from **Offline work and sync** (`/sync`).
 Updates are never applied silently: the shell offers a "Reload now" prompt and unsent work is kept.
 
+Decisions and certificates are demonstration outcomes: a favourable decision produces a **sample
+certificate** with a `DEMONSTRATION - NOT AN OFFICIAL CERTIFICATE` watermark, "signed" only by a
+watermark statement bound to the document hash (no digital signature, no government authority).
+Anyone can check a sample at `/verify` with the token from the certificate link or, in the demo,
+its exact number; the answer is minimal, never cached, and an unknown record is not a revoked one.
+
 ### Developing on the host (optional)
 
 For code changes with hot reload, run the infrastructure in Docker and the app on your machine.

@@ -90,6 +90,9 @@ def test_unsafe_production_configuration_refuses_to_start(
         {"SERVICE_MODE": "LIVE", "SIGNING_PROVIDER": "demo_watermark"},
         {"SERVICE_MODE": "LIVE", "ENABLE_DEMO_CONTROLS": "true"},
         {"SERVICE_MODE": "LIVE", "SIGNING_PROVIDER": ""},
+        # B12: the hermetic renderer and the demo number lookup are not live options.
+        {"SERVICE_MODE": "LIVE", "CERTIFICATE_RENDERER_PROVIDER": "simulated"},
+        {"SERVICE_MODE": "LIVE", "PUBLIC_LOOKUP_PROFILE": "TOKEN_OR_NUMBER"},
     ],
 )
 def test_live_mode_rejects_demo_sinks_and_demo_controls(

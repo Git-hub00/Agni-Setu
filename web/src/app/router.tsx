@@ -9,6 +9,11 @@ import { ApplicationsListPage } from "../features/applications/ApplicationsListP
 import { ApplicationWizardPage } from "../features/applications/ApplicationWizardPage";
 import { NewApplicationPage } from "../features/applications/NewApplicationPage";
 import { OverviewPage } from "../features/applications/OverviewPage";
+import { CertificateDetailPage } from "../features/certificates/CertificateDetailPage";
+import { CertificatesPage } from "../features/certificates/CertificatesPage";
+import { ReviewPage } from "../features/review/ReviewPage";
+import { ReviewQueuePage } from "../features/review/ReviewQueuePage";
+import { VerifyPage } from "../features/verify/VerifyPage";
 import { InspectionDetailPage } from "../features/inspections/InspectionDetailPage";
 import { InspectionsQueuePage } from "../features/inspections/InspectionsQueuePage";
 import { SchedulePage } from "../features/inspections/SchedulePage";
@@ -36,6 +41,8 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <HomePage /> },
       { path: "sign-in", element: <SignInPage /> },
+      { path: "verify", element: <VerifyPage /> },
+      { path: "verify/:token", element: <VerifyPage /> },
       {
         element: <RequireSession />,
         children: [
@@ -50,6 +57,10 @@ export const routes: RouteObject[] = [
           { path: "applications/:applicationId", element: <ApplicationDetailPage /> },
           { path: "applications/:applicationId/edit", element: <ApplicationWizardPage /> },
           { path: "applications/:applicationId/notices/:noticeId", element: <NoticePage /> },
+          { path: "applications/:applicationId/review", element: <ReviewPage /> },
+          { path: "reviews", element: <ReviewQueuePage /> },
+          { path: "certificates", element: <CertificatesPage /> },
+          { path: "certificates/:certificateId", element: <CertificateDetailPage /> },
           { path: "monitoring", element: <MonitoringPage /> },
           { path: "sync", element: <SyncPage /> },
           { path: "notifications", element: <NotificationsPage /> },

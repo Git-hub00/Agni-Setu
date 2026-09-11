@@ -26,6 +26,38 @@ class Template:
 
 
 TEMPLATES: dict[str, Template] = {
+    "decision.approved.v1": Template(
+        "decision-approved",
+        1,
+        (APPLICANT, SUPERVISORS),
+        "CASE",
+        True,
+        "Application {reference} approved - certificate processing",
+        "A favourable decision was recorded for {reference}. {public_reason} The sample "
+        "certificate is being processed; you will be notified when it is published.",
+        "/applications/{application_id}",
+    ),
+    "decision.rejected.v1": Template(
+        "decision-rejected",
+        1,
+        (APPLICANT, SUPERVISORS),
+        "CASE",
+        True,
+        "Application {reference} was not approved",
+        "The department recorded a decision on {reference}. {public_reason}",
+        "/applications/{application_id}",
+    ),
+    "certificate.published.v1": Template(
+        "certificate-published",
+        1,
+        (APPLICANT, SUPERVISORS),
+        "CASE",
+        True,
+        "Sample certificate {certificate_number} published for {reference}",
+        "The demonstration certificate {certificate_number} for {reference} is now in the "
+        "register (valid until {valid_until}). It is a sample, not an official certificate.",
+        "/applications/{application_id}",
+    ),
     "application.submitted.v1": Template(
         "case-submitted",
         1,

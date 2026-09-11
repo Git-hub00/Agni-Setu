@@ -130,6 +130,9 @@ def _context(application: Application, payload: dict[str, Any]) -> dict[str, Any
         "timezone": payload.get("appointment_timezone") or payload.get("timezone"),
         "notice_id": payload.get("notice_id"),
         "inspection_id": payload.get("inspection_id"),
+        "certificate_number": payload.get("certificate_number"),
+        "valid_until": payload.get("valid_until"),
+        "kind": payload.get("kind"),
     }
     return context
 

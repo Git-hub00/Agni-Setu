@@ -28,7 +28,9 @@ SIGNING_PROVIDER = env.str("SIGNING_PROVIDER", default="demo_watermark")
 SCANNER_PROVIDER = env.str("SCANNER_PROVIDER", default="clamav")
 ENABLE_DEMO_CONTROLS = env.bool("ENABLE_DEMO_CONTROLS", default=False)
 
-DEMO_PROVIDER_VALUES = frozenset({"demo_sink", "demo_watermark", "console", "demo_eicar", "memory"})
+DEMO_PROVIDER_VALUES = frozenset(
+    {"demo_sink", "demo_watermark", "console", "demo_eicar", "memory", "simulated"}
+)
 
 DEBUG = False
 ALLOWED_HOSTS: list[str] = env.list("ALLOWED_HOSTS", default=[])
@@ -54,6 +56,8 @@ INSTALLED_APPS = [
     "agni.notices",
     "agni.notifications",
     "agni.offline",
+    "agni.decisions",
+    "agni.certificates",
 ]
 
 # Custom principal is the user model from the first migration (data model s.8).
@@ -130,6 +134,19 @@ AGNI_JOBS = {
     "LEASE_SECONDS": env.int("JOB_LEASE_SECONDS", default=120),
     "MAX_ATTEMPTS": env.int("JOB_MAX_ATTEMPTS", default=6),
 }
+# ---- Certificates (FR-21/22; integrations s.5-7) --------------------------------------------
+# Renderer: `weasyprint` (Linux containers with Pango) or `simulated` (hermetic tests). The
+# signer is SIGNING_PROVIDER above: `demo_watermark` binds a watermark statement to the artifact
+# hash and is NOT a digital signature; LIVE refuses it (production settings).
+CERTIFICATE_RENDERER_PROVIDER = env.str("CERTIFICATE_RENDERER_PROVIDER", default="weasyprint")
+# Public origin of the verification page embedded in rendered instruments (link + QR).
+PUBLIC_VERIFY_BASE_URL = env.str("PUBLIC_VERIFY_BASE_URL", default="http://localhost:5173/verify")
+# TOKEN (the LIVE default) or TOKEN_OR_NUMBER (DEMO default: an exact certificate number also
+# resolves). Production settings refuse anything but TOKEN in LIVE mode (integrations s.7).
+PUBLIC_LOOKUP_PROFILE = env.str(
+    "PUBLIC_LOOKUP_PROFILE", default="TOKEN" if SERVICE_MODE == "LIVE" else "TOKEN_OR_NUMBER"
+)
+PUBLIC_VERIFY_RATE_LIMIT = env.int("PUBLIC_VERIFY_RATE_LIMIT", default=60)  # per IP per minute
 # Outbox wake-up broker (docs/08 s.2): "null" = database polling only; "amqp" = RabbitMQ
 # wake-ups over kombu. The database row is authoritative in both modes.
 BROKER_PROVIDER = env.str("BROKER_PROVIDER", default="null")

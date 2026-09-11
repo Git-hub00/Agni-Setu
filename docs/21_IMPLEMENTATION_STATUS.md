@@ -25,7 +25,7 @@ Update this file at the end of each agent task. Read actual repository/branch/di
 | B09 | Notices, responses and correction cycles | READY_FOR_REVIEW (2026-09-11T11:05Z; merged to `main` per D-009 - see s.3k) | NEW app `agni.notices` (migration 0001): `Finding` (materialised from every accepted report's FAIL / mandatory NOT_VERIFIED observation; unresolved findings are retained across reinspections, never duplicated), immutable `Notice` rounds (unique application/type/round; PUBLISHED -> SATISFIED / SUPERSEDED; internal note staff-only), `NoticeItem` (OPEN -> RESPONSE_RECEIVED -> ACCEPTED / RETURNED; deficiency items linked to findings), append-only `ResponseRevision` (+ documents), `NoticeItemReview`, `FindingReview`. Commands: `PublishNotice` (API-054: supervisor in jurisdiction **plus `notice.publish` grant**; INFORMATION -> TR-03 SCRUTINY->INFO_REQUIRED, DEFICIENCY -> TR-07 REVIEW_PENDING->COMPLIANCE_PENDING with every item bound to an open finding; superseding round while waiting keeps the original notice and cancels its clock; APPLICANT_RESPONSE obligation from the policy budget; stage task satisfied), `SubmitResponse` (API-056: applicant/delegate with `notice.respond`; CLEAN same-case evidence only; new revision per item; item and finding -> RESPONSE_RECEIVED; **never a transition**; closed notice -> 409 NOTICE_NOT_OPEN), `ReviewItem` (API-058: accept/return against the current revision; deficiency item accepted only after its finding is VERIFIED_CLOSED -> else 409 RESPONSE_NOT_VERIFIED; return keeps replies and reopens the finding with a public reason), `VerifyFinding` (API-060: supervisor + grant, not the inspecting officer; VERIFIED_CLOSED needs reviewer-cited CLEAN evidence or a PASS observation of an accepted report - **an applicant upload or checkbox alone never closes a MANDATORY finding** (422 verification_basis_required); RETURNED / REINSPECTION_REQUIRED recorded), `AcceptInformation` (API-057 TR-04: all required items ACCEPTED else 409 with pending codes; notice SATISFIED; new SCRUTINY_TASK), `CompleteCorrections` (API-061 TR-08: 409 MANDATORY_FINDINGS_OPEN while any mandatory finding or reinspection is outstanding; deficiency notices SATISFIED; new REVIEW_TASK), `RequireReinspection` (API-062 TR-09: linked findings, new REINSPECTION attempt pinned to the previous checklist, case clock untouched). Reads: API-053/055/059 audience-filtered; case detail gains `notices`, `findings_summary` and guarded actions request-information / issue-deficiencies / accept-information / complete-corrections / require-reinspection. Uploads: `NOTICE_RESPONSE` target (`response-<item code>`) for the applicant side. Seed: anita gets `notice.publish`. Web: UI-08 `/applications/:id/notices/:noticeId` (applicant task list with evidence upload + replies; reviewer accept/return, finding verification with cited evidence, accept information; "Response received" never styled as verified), case detail notices section + supervisor notice actions (item builder, deficiencies from open findings, complete corrections, reinspection). Tests: backend **178 passed** (incl. `tests/integration/test_notices.py` AT-15-01..05, AT-16-01..04, AT-17-01..03), web **26 passed**; gates clean; migration notices 0001. **Container proof PASS:** api `7bb3434e8d2c` / web `996a0b59568e` rebuilt and verified, notices 0001 applied, seed re-run (anita `notice.publish`), `scripts/dev/smoke_notices.py --scan-via-demo` **40/40** through nginx + Keycloak (fresh case -> TR-02 -> TR-03 notice -> guard rails -> applicant NOTICE_RESPONSE upload scanned CLEAN -> reply (no transition) -> early TR-04 409 -> review ACCEPTED -> TR-04 back to SCRUTINY with fresh SCRUTINY_TASK). Evidence `handover.md` B7 EV-B09-01..06; record s.3k | B10 (clocks, outbox dispatch, notifications) |
 | B10 | Clocks, outbox dispatch and notifications | READY_FOR_REVIEW (2026-09-11T12:45Z; merged to `main` per D-009 - see s.3l) | **Clocks (FR-18):** `ObligationPause` (authorised, policy-permitted reason codes only; open interval = PAUSED with "due date will be recalculated"), `recompute_obligation` derives `due_at` from immutable facts + the union of pauses (worked example: Mon 09:00 + 240 working min -> 13:00; pause 10-11 -> 14:00; overlapping 10:30-11:30 -> 14:30, not 15:00) and supersedes stale future threshold actions. **Thresholds and escalation (FR-19):** `domain/thresholds.py` plans `REMINDER_75` (75 % of the *active* budget), `DUE` and `ESCALATION_<minutes>` from the pinned policy; `scan_due_obligations` (scheduler, 30 s) inserts the unique `ThresholdAction` per (obligation, stage instance, key) and one durable job with a deterministic logical id - two racing schedulers produce exactly one action/job; the `obligation.threshold` job re-checks state and generation at execution (satisfied -> `CANCELLED_AS_OBSOLETE`, never a fabricated send), creates the unique `Escalation` per threshold action, notifies the duty roster and writes an INTERNAL `obligation.threshold_reached.v1` event. API-074 (one `as_of` cutoff drives counts and urgency), API-075 (clock breakdown, pauses, thresholds, escalations), API-076 manual escalation (idempotent per command, duty roster recipients), API-077 acknowledge (ownership only; obligation untouched). **Outbox dispatch (docs/08 s.2):** `platform/dispatch.py` claims PENDING / stale DISPATCHED rows `FOR UPDATE SKIP LOCKED`, always creates the durable fan-out job (deterministic id) and sends a best-effort broker wake-up through a port (`null` | `amqp` via kombu | `failing` test double); a broker outage leaves rows PENDING with a visible attempt count and the next scan republishes; the fan-out job marks the row COMPLETE. **Notifications (FR-23):** `Notification` (unique per recipient + logical key, versioned template key, safe context, audience-specific body, no attachment URLs), `DeliveryAttempt` (READY -> SENDING -> ACCEPTED_BY_PROVIDER / FAILED; provider acceptance is not delivery), `NotificationPreference` (API-008; mandatory service messages ignore optional channels); templates for 16 event types with audience rules (applicant / supervisors of the owner queue / assigned officer); `notification.fanout` and `notification.deliver` jobs on the demo sink with `force_failure` for outage drills - a gateway outage leaves the in-app notice in place and retries with the job backoff; API-078..080 recipient-only with idempotent read markers and a read-through boundary. **Operations skeleton (UI-20):** API-103/104 (`/jobs`) for administrators: outbox lag, oldest due job, worker activity, dead letters, unknown outcomes, sanitised attempts. `run_schedulers` command + Compose `scheduler` service; `jobs.current_clock()` injects the worker pass clock into handlers. Web: UI-15 `/monitoring` (tabs, KPIs from one cutoff, clock drawer, manual escalation, acknowledge), UI-19 `/notifications` (unread filter, mark read, read-through, delivery status, preferences), UI-20 `/operations`, nav tools + header link. Tests: backend **183 passed** (incl. `tests/integration/test_clocks.py` AT-18-01/02, AT-19-01..05, AT-23-01..05), web **28 passed**; gates clean; migrations obligations 0002 + notifications 0002. **Container proof PASS:** api `b89708eaf2d7` / web `2875d0c683fa` rebuilt and verified, new `scheduler` container healthy, real RabbitMQ wake-ups (`published=34 failed=0`), 9 threshold + 34 fan-out + 12 delivery jobs completed by the worker, `scripts/dev/smoke_clocks.py` **19/19** (obligations from one cutoff, manual escalation + replay, acknowledge != satisfy, notifications read/read-through, preferences, operations summary, supervisor 403 on `/jobs`). Evidence `handover.md` B7 EV-B10-01..06; record s.3l | B11 (offline field application) |
 | B11 | Offline field application | READY_FOR_REVIEW (2026-09-11T15:05Z; merged to `main` per D-009 - see s.3m) | NEW app `agni.offline` (migration 0001): `SyncOperation` (one identity per client operation: unique (principal, operation_id), canonical sha256, ACCEPTED / CONFLICT with the stored result) and `ReportConflict` (reviewed proposal OPEN -> RESOLVED with outcome, reason, cited evidence, resolver). API-048 offline package (current ACTIVE assignee with current OFFICER authority; 24 h expiry; versions; checklist; `Cache-Control: no-store`), API-049 `/sync/operations` (runs the ONLINE SubmitReport / FailVisit handlers through the kernel with `idempotency_key=sync:<id>` and `expected_version=base_inspection_version`; identical replay -> stored result; same id + other content -> 409 SYNC_PAYLOAD_CONFLICT; every refusal recorded as CONFLICT with a safe server snapshot and re-raised with `operation_id/server/sync_state`), API-050 owner-scoped receipt, API-051 proposal (former assignees included), API-052 supervisor resolution (PROPOSE_NEW_REPORT / REINSPECTION_REQUIRED / DECLINE; CLEAN same-case evidence only), `/conflicts` list. **Hardening:** `_assigned_officer_only` now requires the OFFICER role for the case jurisdiction at command time -> 403 AUTHORITY_REVOKED (online and via sync). Web: Dexie v1 stores per docs/09 s.3, frozen manifests (canonical JSON + SHA-256), explicit foreground sync with injected deps (upload -> wait CLEAN -> freeze once -> POST with the id as Idempotency-Key -> receipt; lost response -> lookup/replay; 401 -> sign-in needed; 403/409/412/422 -> stored CONFLICT, retries stop), connectivity from `/me` (never `navigator.onLine` alone), identity-switch purge, unsent-work warning on sign-out, UI-13 `/sync` (grouped operations, versions, receipts, conflict panel local vs server with propose / discard), UI-12 offline package card + offline fallback workspace + Save on device / Queue for sync; PWA via vite-plugin-pwa 1.3.0 (static shell precache only, `/api` never cached, user-confirmed reload; nginx serves `sw.js` / manifest with no-cache). Tests: backend **187 passed** alone (incl. `tests/integration/test_sync.py` 4 tests: AT-12-01/02/04/05 + API-051/052 + revoked authority), web **33 passed** (incl. 5 sync-algorithm specs on fake-indexeddb) + build with `sw.js`; gates clean; `pnpm audit` clean. **Container proof PASS:** api `eecf7c16b76e` / web `760efc9d3e6b` rebuilt and verified by image id, offline 0001 applied on start, `scripts/dev/smoke_offline.py` **18/18** through nginx + Keycloak. Incident BL-008 (PostgreSQL crash recovery under an overlapped run) recorded with the clean rerun. Evidence `handover.md` B7 EV-B11-01..08; record s.3m | B12 (decisions, issuance and verification) |
-| B12 | Decisions, issuance and verification | NOT_STARTED | None | Complete prerequisites and task card |
+| B12 | Decisions, issuance and verification | READY_FOR_REVIEW (2026-09-11T19:1xZ; merged to `main` per D-009 - see s.3n) | NEW app `agni.decisions` (migration 0001): server-calculated readiness guard list (API-064), `RecordDecision` TR-10 / TR-12 (API-065) binding the accepted submission revision, accepted report, findings, pinned policy and the `case.decide` grant in force, immutable rationale (INTERNAL) + public reason, one final decision per case, approval opens ISSUANCE_TASK and the issuance request in the same transaction, rejection cancels open obligations; API-066 list. NEW app `agni.certificates` (migrations 0001/0002): IssuanceRequest with a stable identity (number `AGNI-DEMO-<year>-<n>`, uuid5 logical action, frozen render snapshot, hashed + encrypted 256-bit verification token), `certificate.issue` durable job through renderer / signer / verifier ports (WeasyPrint in the containers, simulated PDF in tests; `demo_watermark` receipt that states it is NOT a digital signature; hash-match verifier), lookup-before-resubmit, RECONCILIATION_REQUIRED on unknown outcomes with `reconcile_issuance`, guarded TR-11 publication (SYSTEM event, obligations satisfied, audit, outbox), registry API-067/068, audited reader-bound artifact tickets API-069, anonymous rate-limited no-store public verification API-073 (approved subset only; unknown 404 != revoked; 503 on store failure; exact-number lookup DEMO-only). Web: UI-14 review queue + review page (readiness panel, no preselected outcome, acknowledgment, confirmation with evidence versions, "certificate processing"), UI-16 register, UI-17 detail (download, verification link), UI-18 public verify page, UI-01 public actions. Tests: backend **198 passed** alone (incl. `test_decisions.py` 3 + domain unit 6), web **37 passed** + build, e2e **35/35** with a real WeasyPrint PDF; pip-audit + pnpm audit clean. Two contract regressions caught by the suite and fixed before commit (catalogue size, LIVE default). Evidence `handover.md` B7 EV-B12-01..06; record s.3n | B13 (lifecycle, support and conditional routes) |
 | B13 | Lifecycle, support and conditional routes | NOT_STARTED | None | Complete prerequisites and task card |
 | B14 | Reporting, audit and operational UI | NOT_STARTED | None | Complete prerequisites and task card |
 | B15 | Integration contracts and reconciliation | NOT_STARTED | None | Complete prerequisites and task card |
@@ -990,8 +990,202 @@ Self-review (D-009, no human reviewer named): diff reviewed against task card B1
   caches no API data.
 Required human input: larger host for ClamAV (BL-007); agency inputs for B20.
 Next safe task: B12 - Decisions, issuance and verification.
-End commit and worktree status: recorded in handover.md B12 (CP-050/051) after commit/push;
-  fast-forwarded into main per D-009.
+End commit and worktree status: commit a125d50 on feat/b11-offline, pushed (15:11Z); fast-forwarded
+  into main (D-009) and pushed: origin/main = a125d50.
+```
+
+## 3n. Handoff record - B12 session claude-20260910T172516Z-b00b (2026-09-11)
+
+```text
+Task: B12 - Decisions, issuance and verification (FR-20, FR-21, FR-22; task card B12; docs 02
+  s.3 TR-10/11/12 + s.6 profile (reject_from, separation_of_duties, sample_validity_days,
+  public_fields), 05 decision / issuance_request / certificate (+ certificate_status_instrument
+  deferred to B13), 06 API-064..069 + API-073 + s.7 "Certificate and verification" + s.9
+  "Record a decision", 16 s.2 ports, s.5 issuance boundaries, s.6 unknown signing outcomes, s.7
+  verification, 24 DecisionCommand / CertificateListQuery, 03 UI-01/14/16/17/18, 11 AT-20/21/22)
+Baseline: implementation spec 2.0.0
+Branch and start commit: feat/b12-decisions from main/feat/b11-offline @ a125d50
+Files inspected: cases submission helpers (_lock_case_for_staff, record_event, enter_stage),
+  states TRANSITIONS, notices commands (_satisfy/_open_obligation/_task_budget/_pinned_policy),
+  inspections commands (_intent), identity authz (grant_for/require_capability, RoleBinding),
+  documents ports/adapters/scanning (job pattern, object store), platform jobs/outbox/audit,
+  policies seed (profile keys), notifications templates/fanout, web api/pages patterns.
+Changes made and architecture decisions:
+  NEW app agni.decisions (migration 0001): models.Decision (append-only; unique
+    (application, decision_number) and one final decision per case; evidence_snapshot,
+    policy_version, authority_grant, actor, reason, public_reason, accepted_at, sha256);
+    domain/readiness.py (pure guard list: DECISION_EXISTS, STATUS_NOT_REVIEW_PENDING,
+    ROUTING_UNRESOLVED, INSPECTION_OPEN, NO_ACCEPTED_REPORT, REPORT_NOT_ELIGIBLE,
+    MANDATORY_FINDINGS_OPEN, REINSPECTION_OUTSTANDING, NOTICE_OPEN, AUTHORITY_MISSING /
+    AUTHORITY_SCOPE_MISMATCH, SEPARATION_OF_DUTIES; reject: DECISION_EXISTS, STATUS_NOT_PERMITTED
+    from the profile's reject_from, authority); application/commands.py (case_facts /
+    actor_facts from the database, readiness_body for API-064, RecordDecision for API-065:
+    DecisionCommand validation incl. mandatory review_acknowledged and no caller-specified
+    actor/grant/status/number, current-revision and current-report checks -> 412
+    VERSION_CONFLICT with `changed` = submission_revision | report (a stale read of the
+    reviewed evidence), readiness re-evaluated under the case lock -> 403 FORBIDDEN /
+    AUTHORITY_SCOPE_MISMATCH / SEPARATION_OF_DUTIES or 409 INVALID_TRANSITION carrying the
+    `blockers` extension, TR-10 / TR-12 via transition_for, PUBLIC_CASE decision event + INTERNAL
+    decision.rationale.v1, REVIEW_TASK satisfied, APPROVE opens ISSUANCE_TASK (calendar budget
+    issuance_calendar_minutes) and creates the issuance request in the same transaction,
+    REJECT cancels the open obligations; audit with the grant id; outbox intent);
+    api (DecisionReadinessView supervisor-only + no-store; DecisionsView GET list with staff
+    context / POST command).
+  NEW app agni.certificates (migrations 0001/0002): models IssuanceRequest (versioned; unique
+    decision, logical_action_id, certificate_number; READY -> PROCESSING ->
+    RECONCILIATION_REQUIRED | PUBLISHED | FAILED; frozen render_snapshot; token hash +
+    Fernet ciphertext; artifact FK; provider_request_id; signature_verification; attempts;
+    last_error_code; reconciliation_note), CertificateArtifact (append-only content-addressed
+    object key, sha256, size, media type, mode, renderer), Certificate (unique number and token
+    hash; recorded_status ACTIVE/SUSPENDED/REVOKED/SUPERSEDED; predecessor; external source
+    tuple; is_demo), CertificateSequence (per-year allocator locked FOR UPDATE);
+    ports.py (CertificateRenderer, CertificateSigner submit/lookup, SignatureVerifier with
+    typed unavailable / unknown / rejected outcomes); adapters.py (SimulatedRenderer -> minimal
+    valid PDF for hermetic tests; WeasyPrintRenderer -> HTML with watermark, facts table, QR
+    (qrcode) of the verification link; DemoWatermarkSigner: receipt = watermark statement bound
+    to the artifact hash, NOT a digital signature, class hooks force unavailable / unknown /
+    rejected and lookup states; DemoSignatureVerifier hash match); application/issuance.py
+    (allocate_certificate_number AGNI-DEMO-<year>-<n>, create_issuance_request + durable job
+    `certificate.issue` with the uuid5 logical id; job: freeze snapshot + mint 256-bit token
+    once -> render + store once (staging -> promote, never overwritten) -> lookup by the stable
+    id when a provider id exists -> submit -> verify -> publish inside the completion
+    transaction: re-lock request + case, re-check APPROVED_PENDING_ISSUE, create Certificate,
+    TR-11 -> COMPLETED with a SYSTEM certificate.published.v1 event, ISSUANCE_TASK +
+    CASE_TARGET satisfied, audit rows, outbox intent; unknown/rejected/invalid ->
+    RECONCILIATION_REQUIRED + job UNKNOWN/PERMANENT, no second number; reconcile_issuance
+    resumes the same identity), application/registry.py (effective_status precedence:
+    REVOKED/SUPERSEDED final; expired interval -> EXPIRED over ACTIVE and SUSPENDED; public
+    projection = approved subset only), api (API-067 list with pending-issuance cards, API-068
+    detail with verification_url for authorised readers, API-069 audited reader-bound
+    ticket, artifact GET with integrity check and Cache-Control private/no-store, API-073
+    anonymous verification: per-IP rate limit failing closed to 503 VERIFICATION_UNAVAILABLE,
+    token hash lookup, exact-number lookup only in DEMO under PUBLIC_LOOKUP_PROFILE=
+    TOKEN_OR_NUMBER, 404 unknown without hints, no-store), management command
+    reconcile_issuance (operator path until API-105/106 in B14).
+  platform/errors (+VerificationUnavailable class; the 51-code catalogue of docs/06 s.5 is
+    unchanged - decision guards use INVALID_TRANSITION + `blockers`, stale evidence uses
+    VERSION_CONFLICT + `changed`, as the contract test `test_problem_json` enforces);
+    cases/api/case_views (decision / issuance / certificate / decision_readiness in CaseDetail;
+    approve / reject actions from the readiness, publish-instrument = SYSTEM_JOB);
+    notifications templates decision.approved.v1 / decision.rejected.v1 /
+    certificate.published.v1 (+ fan-out context keys); process_jobs registers the kind; seed
+    grants anita `case.decide`; settings CERTIFICATE_RENDERER_PROVIDER (weasyprint |
+    simulated), PUBLIC_VERIFY_BASE_URL, PUBLIC_LOOKUP_PROFILE, PUBLIC_VERIFY_RATE_LIMIT;
+    (PUBLIC_LOOKUP_PROFILE defaults to TOKEN in LIVE and TOKEN_OR_NUMBER in DEMO);
+    production LIVE refuses a demo renderer and non-TOKEN lookup; compose passes
+    PUBLIC_VERIFY_BASE_URL to api + worker; pyproject mypy overrides qrcode/weasyprint.
+  web: api/decisions.ts, api/certificates.ts, CaseDetail typings; UI-14 ReviewQueuePage
+    (/reviews) + ReviewPage (/applications/:id/review: submitted record, report + blockers,
+    findings, correspondence, readiness panel with authority + blockers, no preselected
+    outcome, rationale + public reason, explicit acknowledgment, confirmation summarising the
+    evidence versions, one stable command key, conflict -> reload, result "Approved -
+    certificate processing" never "issued"); DecisionSummary on the case page; UI-16
+    CertificatesPage (Published / Pending issuance / Historical tabs, DEMONSTRATION badge,
+    exact-number or premises search); UI-17 CertificateDetailPage (status first, watermark
+    label, provenance, ticketed download, copy verification link, empty status history until
+    B13); UI-18 VerifyPage (/verify[/:token]: token or number, ACTIVE green only with a fresh
+    answer, unknown -> "Record not found", outage -> amber "Unable to verify now" + retry, 429
+    message, never cached); UI-01 home actions (Apply / track, Verify certificate) + header
+    Verify link; nav Reviews (supervisor) and Certificates (applicant / supervisor /
+    leadership); locales review.* / certificates.* / verify.* / decision.*.
+  Decisions: (1) exactly one final decision per case in the initial profile (unique
+    constraint) - appeals/corrective instruments are a separate lifecycle (B13+); (2) the
+    readiness read is advisory and the command recomputes it under the lock, so UI state can
+    never authorise; (3) render snapshot and verification token are frozen at the FIRST job
+    attempt and the rendered artifact is stored once - every retry reuses the same number,
+    token and artifact identity (docs/16 s.5-6), so WeasyPrint's non-deterministic bytes never
+    matter; (4) `CertificateArtifact` is its own table (data model says "artifact_id FK"
+    without a target) instead of reusing DocumentVersion, because a server-rendered
+    instrument is not an applicant upload and must not enter the scan/quota pipeline; (5) the
+    demo signer produces a receipt that states in words it is not a digital signature; the
+    verifier is a hash match; LIVE refuses both (production settings) - no real signing is
+    claimed; (6) public verification exposes exactly the approved subset (certificate_number,
+    effective_status, premises display name / locality, issued_at, valid_until, issuer label,
+    source, checked_at, is_demo, demo notice) and answers 404 for unknown, 503 without any
+    assertion on store/registry failure, 429 above 60/min/IP; (7) status precedence for
+    display: REVOKED > SUPERSEDED > EXPIRED (interval) > SUSPENDED > ACTIVE; the recorded
+    administrative state is kept beneath; (8) exact certificate-number lookup is a DEMO-only
+    convenience (PUBLIC_LOOKUP_PROFILE=TOKEN_OR_NUMBER; LIVE requires TOKEN); (9) rejection is
+    permitted only from the stages the pinned policy lists (`reject_from`, demo:
+    REVIEW_PENDING) and cancels open obligations rather than marking them satisfied; (10)
+    certificate lifecycle instruments (suspend / reinstate / revoke / supersede), renewals and
+    external registration (TR-15) are B13 - the detail view already shows an empty status
+    history and disabled actions with reason codes; (11) the baseline certificate inventory of
+    docs/13 s.6 (five seeded sample certificates) is demo fixture data for B19, not seeded here.
+Migrations/data impact: decisions 0001 (1 table), certificates 0001 + 0002 (4 tables; split by
+  Django because of the cross-app FK). No data rewrite. No new Compose service; api + worker
+  gain PUBLIC_VERIFY_BASE_URL.
+Tests actually executed (Windows host, 2026-09-11):
+  uv run --directory backend ruff format agni tests && ruff check agni tests && mypy agni tests
+    -> PASS (255 files); manage.py check -> no issues; makemigrations --check --dry-run ->
+    "No changes detected"
+  uv run --directory backend pytest tests/unit/test_decisions_and_certificates_domain.py
+    tests/integration/test_decisions.py -q -> 9 passed (6 unit + 3 integration; two earlier
+    runs found test mistakes, not product defects: the publish-instrument action exists only
+    from APPROVED_PENDING_ISSUE, the first job backoff step is 2 min, a 366-day clock jump
+    expires the test sessions) - details in handover.md B7 EV-B12-02
+  corepack pnpm --dir web typecheck / lint / test --run / build -> clean, **37 passed (17
+    files)**, built (evidence/B12-web-tests.log); first full vitest run had 3 worker start-up
+    timeouts under host load and a router error in HomePage.test (the new public actions need a
+    router) -> fixed the test, reran the 5 files and then the whole suite
+  uv run --directory backend pytest -q (full suite, ALONE): first run 16:40-16:48Z ->
+    "3 failed, 158 passed, 36 errors in 473 s" - two REAL contract regressions found and fixed
+    (error catalogue must stay at the 51 documented codes -> INVALID_TRANSITION + `blockers`
+    and VERSION_CONFLICT + `changed` instead of two new codes; LIVE default for
+    PUBLIC_LOOKUP_PROFILE must be TOKEN) plus the BL-008 PostgreSQL crash recovery at 16:44:57Z
+    (`signal 13`) that failed 1 test + 36 setups in the recovery window; targeted rerun
+    (test_problem_json, test_production_settings incl. two new LIVE refusals, domain unit,
+    test_decisions) -> 34 passed in 71.5 s; final full run ALONE 17:01-17:10Z ->
+    **198 passed in 585.12 s**; 0 PostgreSQL termination / recovery lines in that window
+    (evidence/B12-backend-tests.log)
+  Container proof (after the user restarted Docker Desktop at ~18:47Z - the Compose CLI had
+    hung twice with no output and no container events; the stale CLI processes were killed):
+    docker compose build api web -> api 9097a52ee330 (17:20:49Z), web 06156ee7b85d
+    (17:19:13Z); up -d --wait api worker scheduler web -> all healthy; running containers
+    verified against those ids; showmigrations -> decisions 0001, certificates 0001 + 0002
+    applied on start; seed_demo baseline re-run (idempotent) so anita holds `case.decide`
+  uv run --directory backend python ../scripts/dev/smoke_decisions.py http://127.0.0.1:5173 ->
+    ALL DECISION SMOKE STEPS PASSED (**35 steps** through nginx + Keycloak, 19:00Z: Priya
+    scheduled / checked in / evidence scanned / all-PASS report on AS-2026-1005 ->
+    REVIEW_PENDING; anita readiness eligible with the seeded grant; 422 without
+    acknowledgment; 412 VERSION_CONFLICT (changed=submission_revision) on stale evidence; 422
+    on a caller-specified status; approve -> 201 APPROVED_PENDING_ISSUE with
+    AGNI-DEMO-2026-101 READY; same key replays; second decision 409 INVALID_TRANSITION;
+    register shows the number only under pending issuance; one worker pass renders the REAL
+    WeasyPrint sample PDF (15,136 bytes, renderer=weasyprint, DEMO_WATERMARK) and publishes ->
+    COMPLETED, certificate ACTIVE, ISSUANCE_TASK + CASE_TARGET satisfied, timeline carries
+    decision.approved.v1 / decision.rationale.v1 / certificate.published.v1; API-068 detail
+    with provenance; API-069 ticket + PDF download with X-Agni-Artifact-Mode; API-073 by token
+    (approved fields only, no-store) and by exact number; unknown -> 404; register lists
+    ACTIVE) (evidence/B12-smoke-decisions.log)
+  Final quality gates on the committed tree (19:0xZ): ruff check "All checks passed!"; mypy
+    "Success: no issues found in 255 source files"; tsc clean; eslint clean;
+    uv run pip-audit -> "No known vulnerabilities found"; pnpm audit --audit-level low ->
+    "No known vulnerabilities found"
+Tests not executed and concrete reason: AT-20-06 / AT-21-06 / AT-22-06 browser + accessibility
+  variants (Playwright, B16/B19); AT-20-05 threaded race of two decision commands (the kernel
+  fence + one-final-decision unique constraint are exercised by the same-key replay and the
+  second-decision 409; a two-thread drill like AT-06-05 is a B17 reliability item); a real
+  signer / signature verifier does not exist by design (docs/19 gate); ClamAV BL-007.
+Screens inspected: jsdom tests of UI-14 (acknowledgment, confirmation, If-Match /
+  Idempotency-Key, blockers disable Approve) and UI-18 (ACTIVE demo record; unknown vs outage);
+  UI-16 / UI-17 / review queue by typecheck + build only (NOTE for B16/B19).
+Security/privacy or external-effect considerations: decision payloads never carry actor,
+  grant, status or certificate number; rationale is INTERNAL and staff-only; public
+  verification is anonymous but rate-limited, no-store and limited to the approved subset (no
+  applicant identity, contacts, private ids, evidence); artifact download is reauthorised,
+  reader-bound, audited and integrity-checked; the verification token is stored as hash +
+  ciphertext and recovered only for authorised readers and the rendered link; no real
+  signature, no government authority, no external registration is claimed anywhere.
+Remaining defects and reproduction: NONE known in the product. Environmental: BL-008
+  (PostgreSQL crash recovery under host load) recurred once during the web test run.
+Self-review (D-009): diff reviewed against task card B12 forbidden shortcuts - no forged
+  official signature (demo watermark receipt says so), certificate numbers are never
+  reallocated on retry (same request, same number, same artifact), no admin completion
+  override (TR-11 only through the job's guarded publish), approval never shows "issued".
+Required human input: BL-007; agency approvals for any real signing arrangement (docs/19).
+Next safe task: B13 - Lifecycle, support and conditional routes.
+End commit and worktree status: recorded in handover.md B12 after commit/push.
 ```
 
 ## 4. Initial owner decisions and blockers

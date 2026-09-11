@@ -407,6 +407,9 @@ class Command(BaseCommand):
             (staff["anita"], Capability.POLICY_ACTIVATE, staff["meera"]),
             # Notice publication / finding verification (security s.5 "J plus capability").
             (staff["anita"], Capability.NOTICE_PUBLISH, staff["meera"]),
+            # Explicit decision authority (docs/13 s.3 u-supervisor; FR-20). Officers never
+            # receive it: the inspecting officer cannot decide.
+            (staff["anita"], Capability.CASE_DECIDE, staff["meera"]),
         ]
         for subject, capability, approver in wanted:
             exists = AuthorityGrant.objects.filter(

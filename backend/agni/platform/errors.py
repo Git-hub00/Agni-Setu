@@ -303,6 +303,10 @@ class ResponseNotVerified(DomainError):
     code = "RESPONSE_NOT_VERIFIED"
 
 
+class VerificationUnavailable(DomainError):
+    code = "VERIFICATION_UNAVAILABLE"
+
+
 class RateLimited(DomainError):
     code = "RATE_LIMITED"
 

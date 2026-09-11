@@ -14,6 +14,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from agni.certificates.application.registry import effective_status
+from agni.certificates.models import Certificate, IssuanceRequest
+from agni.decisions.application.commands import decision_body, readiness_body
+from agni.decisions.models import Decision
 from agni.identity.authz import AuthzSnapshot, load_snapshot
 from agni.identity.domain.roles import Capability, RoleKey
 from agni.identity.models import Principal, PrincipalKind
@@ -282,6 +286,20 @@ class ApplicationDetailView(ApiView):
             is not None
         )
         notice_facts = _notice_facts(application, staff=staff)
+        # Decision readiness (API-064) drives the approve/reject controls for a supervisor of
+        # the case jurisdiction; the command re-evaluates every guard under the lock.
+        readiness_facts: dict[str, Any] | None = None
+        if supervisor_here and application.policy_version_id is not None:
+            readiness_facts = readiness_body(application, snapshot, now)
+        decision = (
+            Decision.objects.filter(application=application).order_by("-decision_number").first()
+        )
+        issuance = (
+            IssuanceRequest.objects.filter(application=application).order_by("-created_at").first()
+        )
+        certificate = (
+            Certificate.objects.filter(application=application).order_by("-issued_at").first()
+        )
         actions: list[dict[str, Any]] = [
             {
                 "key": "edit-draft",
@@ -369,6 +387,17 @@ class ApplicationDetailView(ApiView):
                     if enabled
                     else ("NO_OPEN_FINDINGS" if supervisor_here else "NOT_AUTHORIZED")
                 )
+            elif command in ("approve", "reject"):
+                if readiness_facts is not None:
+                    blockers = readiness_facts[command]["blockers"]
+                    enabled = not blockers
+                    reason = None if enabled else str(blockers[0]["code"])
+                else:
+                    enabled = False
+                    reason = "NOT_AUTHORIZED"
+            elif command == "publish-instrument":
+                enabled = False  # TR-11 is performed by the issuance job, never by a user
+                reason = "SYSTEM_JOB"
             actions.append({"key": command, "enabled": enabled, "reason_code": reason})
         if staff:
             actions.append(
@@ -467,6 +496,44 @@ class ApplicationDetailView(ApiView):
             ],
             "notices": notice_facts["notices"],
             "findings_summary": notice_facts["summary"] if staff else None,
+            # Outcome / issuance summary (API s.7 CaseDetail): the published decision for every
+            # reader, internal rationale for staff, issuance progress and the registry entry.
+            "decision": decision_body(decision, staff=staff) if decision is not None else None,
+            "issuance": (
+                {
+                    "issuance_request_id": str(issuance.pk),
+                    "certificate_number": issuance.certificate_number,
+                    "state": issuance.state,
+                    "published_at": issuance.published_at.isoformat()
+                    if issuance.published_at
+                    else None,
+                    **(
+                        {
+                            "attempts": issuance.attempts,
+                            "last_error_code": issuance.last_error_code,
+                        }
+                        if staff
+                        else {}
+                    ),
+                }
+                if issuance is not None
+                else None
+            ),
+            "certificate": (
+                {
+                    "certificate_id": str(certificate.pk),
+                    "certificate_number": certificate.certificate_number,
+                    "effective_status": effective_status(certificate, now),
+                    "issued_at": certificate.issued_at.isoformat(),
+                    "valid_until": certificate.valid_until.isoformat()
+                    if certificate.valid_until
+                    else None,
+                    "is_demo": certificate.is_demo,
+                }
+                if certificate is not None
+                else None
+            ),
+            "decision_readiness": readiness_facts,
             "routing_exception": (
                 {
                     "exception_id": str(open_exception.pk),
