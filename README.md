@@ -24,8 +24,23 @@ scripts/dev/up.sh app        # generates .env.local with random secrets, starts 
 
 Then open <http://localhost:5173>. The API answers at <http://127.0.0.1:8000/api/v1/health/ready>.
 PostgreSQL is published on **127.0.0.1:55432** (5432 is often taken by a local install).
-Stop with `scripts/dev/down.sh`; data volumes are kept. Details, profiles and memory notes:
-[infra/compose/README.md](infra/compose/README.md).
+The `app` profile also starts the background job worker (document scans). Add `full` for the
+local staff identity provider (Keycloak) and the malware scanner (ClamAV, needs ~1.5 GB RAM):
+`scripts/dev/up.sh app full`. Stop with `scripts/dev/down.sh`; data volumes are kept.
+Details, profiles and memory notes: [infra/compose/README.md](infra/compose/README.md).
+
+Load the synthetic demonstration data (jurisdiction, service, policy v1, personas, one applicant
+with premises) once the api container is healthy:
+
+```bash
+docker exec agni-dev-api-1 python manage.py seed_demo --scenario baseline --require-demo
+```
+
+Demo sign-in: applicants use the one-time code shown in the local demo inbox
+(`GET /api/v1/demo/inbox?channel=EMAIL&contact=<address>`); staff sign in through the local
+Keycloak realm (`arjun`, `meera`, `anita`, ... with the demo passwords in
+`infra/identity/realm-agni-dev.json`). Everything is synthetic; nothing is sent to a real inbox.
+End-to-end smoke checks against the running stack live in `scripts/dev/smoke_*.py`.
 
 ### Developing on the host (optional)
 

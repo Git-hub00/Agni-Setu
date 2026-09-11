@@ -239,6 +239,34 @@ class RoutingUnresolved(DomainError):
     code = "ROUTING_UNRESOLVED"
 
 
+class FileTooLarge(DomainError):
+    code = "FILE_TOO_LARGE"
+
+
+class FileTypeUnsupported(DomainError):
+    code = "FILE_TYPE_UNSUPPORTED"
+
+
+class UploadIncomplete(DomainError):
+    code = "UPLOAD_INCOMPLETE"
+
+
+class UploadExpired(DomainError):
+    code = "UPLOAD_EXPIRED"
+
+
+class FileQuarantined(DomainError):
+    code = "FILE_QUARANTINED"
+
+
+class FileRejected(DomainError):
+    code = "FILE_REJECTED"
+
+
+class EvidenceIncomplete(DomainError):
+    code = "EVIDENCE_INCOMPLETE"
+
+
 class RateLimited(DomainError):
     code = "RATE_LIMITED"
 

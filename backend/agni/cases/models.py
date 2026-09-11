@@ -91,6 +91,9 @@ class Application(VersionedModel):
     current_stage_instance = models.ForeignKey(
         "cases.StageInstance", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
+    current_draft_revision = models.ForeignKey(
+        "cases.DraftRevision", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
 
     class Meta:
         constraints = [
@@ -125,6 +128,35 @@ class Application(VersionedModel):
     @property
     def status_enum(self) -> ApplicationStatus:
         return ApplicationStatus(self.status)
+
+
+class DraftRevision(AppendOnlyModel):
+    """One autosave of the editable draft (data model `draft_revision`). Never a submitted
+    revision: submission (B06) freezes a separate `submission_revision`."""
+
+    application = models.ForeignKey(
+        Application, on_delete=models.PROTECT, related_name="draft_revisions"
+    )
+    revision_number = models.PositiveIntegerField()
+    editable_payload = models.JSONField(default=dict)
+    form_schema_ref = models.CharField(max_length=120, blank=True, default="")
+    form_schema_artifact = models.ForeignKey(
+        "policies.PolicyArtifact", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    saved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"
+    )
+    saved_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["application", "revision_number"], name="uniq_draft_revision_number"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.application_id}#{self.revision_number}"
 
 
 class EventAudience(models.TextChoices):

@@ -8,7 +8,7 @@ supported PostgreSQL service and approved external providers.
 | --- | --- | --- |
 | default | postgres, rabbitmq, valkey, objectstore | minimal infrastructure for host-run Django/Vite |
 | `full` | + keycloak, clamav | staff OIDC issuer and malware scanner (needs ~2 GB more RAM) |
-| `app` | + api, web | fully containerized application (Windows and macOS, D-004) |
+| `app` | + api, worker, web | fully containerized application (Windows and macOS, D-004); `worker` runs the durable job loop (`process_jobs`) |
 
 All ports bind to 127.0.0.1 only.
 
@@ -21,6 +21,7 @@ All ports bind to 127.0.0.1 only.
 | Keycloak | http://localhost:8080 | `start-dev`, never used live |
 | ClamAV | private network only | amd64 image; emulated on Apple Silicon |
 | API | 127.0.0.1:8000 | `app` profile; migrations applied on start in dev |
+| Worker | no port | `app` profile; same image as the API; scans uploads through ClamAV (`SCANNER_PROVIDER=clamav`) - without the `full` profile uploads stay QUARANTINED and the job retries with backoff |
 | Web | http://localhost:`WEB_HOST_PORT` (default 5173) | `app` profile; nginx serves the SPA and proxies `/api/` |
 
 Images are pinned by digest from `infra/images.lock.json`. Do not edit tags here; change the
@@ -43,7 +44,12 @@ Smoke-check the identity flows against the running stack (OTP through the demo i
 
 ```bash
 uv run --directory backend python ../scripts/dev/smoke_identity.py http://127.0.0.1:5173 --oidc
+uv run --directory backend python ../scripts/dev/smoke_policy.py   http://127.0.0.1:5173 --oidc   # after seed_demo
+uv run --directory backend python ../scripts/dev/smoke_drafts.py   http://127.0.0.1:5173          # add --expect-scan QUARANTINED without ClamAV
 ```
+
+Seed the synthetic baseline (idempotent) with
+`docker exec agni-dev-api-1 python manage.py seed_demo --scenario baseline --require-demo`.
 
 Volumes (`postgres-data`, `rabbitmq-data`, `objectstore-data`, `keycloak-data`, `clamav-data`)
 persist across stop/start. `down -v` is never used as a routine restart.
@@ -52,7 +58,9 @@ persist across stop/start. `down -v` is never used as a routine restart.
 
 The stack carries `mem_limit`s sized for a Docker Desktop VM with about 3 GB RAM: the minimal
 profile needs roughly 1.4 GB; `full` adds Keycloak (768 MB) and ClamAV (1.5 GB) and may not fit
-on small machines. Raise the Docker Desktop memory limit or run `full` on CI / a larger host.
+on small machines. ClamAV loads its signature database on first start (several minutes, close
+to its 1.5 GB limit); until it is healthy, scans stay QUARANTINED and are retried - never marked
+clean. Raise the Docker Desktop memory limit or run `full` on CI / a larger host.
 
 ## Secrets
 

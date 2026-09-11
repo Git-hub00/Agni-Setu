@@ -28,7 +28,7 @@ SIGNING_PROVIDER = env.str("SIGNING_PROVIDER", default="demo_watermark")
 SCANNER_PROVIDER = env.str("SCANNER_PROVIDER", default="clamav")
 ENABLE_DEMO_CONTROLS = env.bool("ENABLE_DEMO_CONTROLS", default=False)
 
-DEMO_PROVIDER_VALUES = frozenset({"demo_sink", "demo_watermark", "console"})
+DEMO_PROVIDER_VALUES = frozenset({"demo_sink", "demo_watermark", "console", "demo_eicar", "memory"})
 
 DEBUG = False
 ALLOWED_HOSTS: list[str] = env.list("ALLOWED_HOSTS", default=[])
@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "agni.policies",
     "agni.routing",
     "agni.cases",
+    "agni.documents",
     "agni.notifications",
 ]
 
@@ -100,6 +101,31 @@ if _cache_url:
     }
 else:
     CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+
+# ---- Documents: private object storage + malware scanning (ADR-08, integrations s.3) --------
+# `s3` is the only storage adapter allowed outside tests; `memory` exists for hermetic tests.
+OBJECT_STORE_PROVIDER = env.str("OBJECT_STORE_PROVIDER", default="s3")
+OBJECT_ENDPOINT = env.str("OBJECT_ENDPOINT", default="")
+OBJECT_REGION = env.str("OBJECT_REGION", default="local")
+OBJECT_BUCKET = env.str("OBJECT_BUCKET", default="agni-dev-private")
+OBJECT_ACCESS_KEY = env.str("OBJECT_ACCESS_KEY", default="")
+OBJECT_SECRET_KEY = env.str("OBJECT_SECRET_KEY", default="")
+# clamd INSTREAM endpoint for SCANNER_PROVIDER=clamav; `demo_eicar` is the local test scanner.
+SCANNER_HOST = env.str("SCANNER_HOST", default="clamav")
+SCANNER_PORT = env.int("SCANNER_PORT", default=3310)
+AGNI_UPLOADS = {
+    "MAX_FILE_BYTES": env.int("UPLOAD_MAX_FILE_BYTES", default=10 * 1024 * 1024),
+    "MAX_PACKAGE_FILES": env.int("UPLOAD_MAX_PACKAGE_FILES", default=20),
+    "MAX_PACKAGE_BYTES": env.int("UPLOAD_MAX_PACKAGE_BYTES", default=50 * 1024 * 1024),
+    "RESERVATION_TTL_SECONDS": env.int("UPLOAD_RESERVATION_TTL_SECONDS", default=1800),
+    "ACCESS_TTL_SECONDS": env.int("DOCUMENT_ACCESS_TTL_SECONDS", default=300),
+    "ALLOWED_MEDIA_TYPES": ("application/pdf", "image/jpeg", "image/png"),
+}
+# Durable job worker (docs/08 s.3-4): lease and backoff defaults.
+AGNI_JOBS = {
+    "LEASE_SECONDS": env.int("JOB_LEASE_SECONDS", default=120),
+    "MAX_ATTEMPTS": env.int("JOB_MAX_ATTEMPTS", default=6),
+}
 
 # Injected clock; tests override with agni.platform.clock.FrozenClock via fixtures.
 AGNI_CLOCK = env.str("AGNI_CLOCK", default="agni.platform.clock.SystemClock")

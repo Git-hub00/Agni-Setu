@@ -64,7 +64,17 @@ def _startup_problems() -> list[str]:
     if not env.str("CACHE_URL", default=""):
         problems.append("CACHE_URL is required (abuse controls fail closed without the store)")
 
+    # Private object storage is mandatory in every deployed environment (ADR-08); the in-memory
+    # adapter and a demo scanner are test/demo tools, never deployment options.
+    if env.str("OBJECT_STORE_PROVIDER", default="s3") != "s3":
+        problems.append("OBJECT_STORE_PROVIDER must be s3 in deployed environments")
+    for name in ("OBJECT_ENDPOINT", "OBJECT_BUCKET", "OBJECT_ACCESS_KEY", "OBJECT_SECRET_KEY"):
+        if not env.str(name, default=""):
+            problems.append(f"{name} is required for private object storage")
+
     if SERVICE_MODE == "LIVE":
+        if env.str("SCANNER_PROVIDER", default="clamav") in DEMO_PROVIDER_VALUES:
+            problems.append("SCANNER_PROVIDER must name a real malware scanner in LIVE mode")
         if ENABLE_DEMO_CONTROLS:
             problems.append(
                 "ENABLE_DEMO_CONTROLS must be false in LIVE mode (no demo reset routes)"

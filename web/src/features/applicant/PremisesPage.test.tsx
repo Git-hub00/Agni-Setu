@@ -111,7 +111,7 @@ describe("PremisesPage (UI-04)", () => {
     expect(await screen.findByText("Mehta Family Restaurant")).toBeInTheDocument();
     // The workspace entry became a real link once the session granted it.
     const nav = screen.getByRole("navigation", { name: "Workspaces" });
-    expect(within(nav).getByRole("link", { name: "Applicant" })).toHaveAttribute("href", "/applicant/premises");
+    expect(within(nav).getByRole("link", { name: "Applicant" })).toHaveAttribute("href", "/applications");
 
     const user = userEvent.setup();
     await screen.findByRole("option", { name: /Demonstration fire safety certificate/ });

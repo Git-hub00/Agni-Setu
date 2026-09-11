@@ -4,6 +4,10 @@ import { NotFoundPage } from "./NotFoundPage";
 import { RouteErrorBoundary } from "./RouteErrorBoundary";
 import { AppShell } from "./layouts/AppShell";
 import { PremisesPage } from "../features/applicant/PremisesPage";
+import { ApplicationDetailPage } from "../features/applications/ApplicationDetailPage";
+import { ApplicationsListPage } from "../features/applications/ApplicationsListPage";
+import { ApplicationWizardPage } from "../features/applications/ApplicationWizardPage";
+import { NewApplicationPage } from "../features/applications/NewApplicationPage";
 import { HomePage } from "../features/home/HomePage";
 import { AccountPage } from "../features/identity/AccountPage";
 import { RequireSession } from "../features/identity/RequireSession";
@@ -28,6 +32,10 @@ export const routes: RouteObject[] = [
         children: [
           { path: "account", element: <AccountPage /> },
           { path: "applicant/premises", element: <PremisesPage /> },
+          { path: "applications", element: <ApplicationsListPage /> },
+          { path: "applications/new", element: <NewApplicationPage /> },
+          { path: "applications/:applicationId", element: <ApplicationDetailPage /> },
+          { path: "applications/:applicationId/edit", element: <ApplicationWizardPage /> },
           { path: "policy", element: <PolicyListPage /> },
           { path: "policy/:policyId", element: <PolicyDetailPage /> },
         ],

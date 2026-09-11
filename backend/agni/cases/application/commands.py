@@ -318,12 +318,32 @@ class CreateDraftApplication(CommandHandler[Application]):
 
     def apply(self, uow: UnitOfWork, target: Application | None) -> CommandOutcome[Application]:
         payload = dict(uow.envelope.payload)
+        allowed = {
+            "premises_id",
+            "service_key",
+            "service_id",
+            "application_type",
+            "prior_certificate_reference",
+        }
         violations: list[Violation] = [
             Violation(f"/{key}", "unknown_field", "unknown field")
-            for key in sorted(set(payload) - {"premises_id", "service_key"})
+            for key in sorted(set(payload) - allowed)
         ]
         premises_id = _uuid(payload.get("premises_id"), "/premises_id", violations)
-        service_key = _text(payload, "service_key", violations, max_length=80)
+        service_id: UUID | None = None
+        service_key = ""
+        if payload.get("service_id") not in (None, ""):
+            service_id = _uuid(payload.get("service_id"), "/service_id", violations)
+        else:
+            service_key = _text(payload, "service_key", violations, max_length=80)
+        application_type = payload.get("application_type", "NEW")
+        if application_type not in ("NEW", "RENEWAL"):
+            violations.append(Violation("/application_type", "invalid", "NEW or RENEWAL"))
+        prior = payload.get("prior_certificate_reference")
+        if application_type == "RENEWAL" and not (isinstance(prior, str) and prior.strip()):
+            violations.append(
+                Violation("/prior_certificate_reference", "required", "required for a renewal")
+            )
         if violations or premises_id is None:
             raise ValidationFailed(violations=violations)
 
@@ -331,7 +351,12 @@ class CreateDraftApplication(CommandHandler[Application]):
         premises = Premises.objects.filter(pk=premises_id, owner=uow.actor).first()
         if premises is None:
             raise ResourceNotFound("Premises not found")
-        service = Service.objects.select_related("owner_queue").filter(key=service_key).first()
+        services = Service.objects.select_related("owner_queue__jurisdiction")
+        service = (
+            services.filter(pk=service_id).first()
+            if service_id is not None
+            else services.filter(key=service_key).first()
+        )
         if service is None:
             raise ResourceNotFound("Service not found")
         if not service.active:
@@ -339,6 +364,7 @@ class CreateDraftApplication(CommandHandler[Application]):
 
         now = uow.now
         application = _create_with_unique_reference(uow, premises, service, now)
+        _create_initial_revision(uow, application, premises, service, application_type, prior)
 
         event = CaseEvent.objects.create(
             application=application,
@@ -401,6 +427,65 @@ def _uuid(value: Any, pointer: str, violations: list[Violation]) -> UUID | None:
     except ValueError:
         violations.append(Violation(pointer, "invalid", "must be a UUID"))
         return None
+
+
+def _create_initial_revision(
+    uow: UnitOfWork,
+    application: Application,
+    premises: Premises,
+    service: Service,
+    application_type: str,
+    prior: Any,
+) -> None:
+    """Revision 1 pre-fills the premises snapshot and pins the form schema of the policy in
+    force (or none, when no policy applies yet - the draft then reports that as a blocker)."""
+    from agni.policies.selection import artifact_ref, evaluate_applicability
+
+    from ..models import DraftRevision
+
+    applicability = evaluate_applicability(
+        service,
+        jurisdiction_id=service.owner_queue.jurisdiction_id,
+        category_key=premises.category_key,
+        at=uow.now,
+    )
+    form_ref = applicability.form_schema_ref or ""
+    artifact = None
+    if form_ref:
+        from agni.policies.models import PolicyArtifact
+
+        key, _, number = form_ref.partition("#")
+        artifact = PolicyArtifact.objects.filter(
+            kind="FORM", key=key, number=int(number or 0)
+        ).first()
+    fields: dict[str, Any] = {
+        "display_name": premises.display_name,
+        "address_line1": premises.address_line1,
+        "address_line2": premises.address_line2,
+        "locality": premises.locality,
+        "ward_key": premises.ward_key,
+        "postal_code": premises.postal_code,
+        "category_key": premises.category_key,
+        "area_sqm": str(premises.area_sqm),
+        "height_m": str(premises.height_m),
+        "floor_count": premises.floor_count,
+        "occupancy_count": premises.occupancy_count,
+        "application_type": application_type,
+    }
+    if isinstance(prior, str) and prior.strip():
+        fields["prior_certificate_reference"] = prior.strip()[:40]
+    revision = DraftRevision.objects.create(
+        application=application,
+        revision_number=1,
+        editable_payload={"fields": fields, "declaration_drafts": [], "attachment_links": []},
+        form_schema_ref=form_ref,
+        form_schema_artifact=artifact,
+        saved_by=uow.actor,
+        saved_at=uow.now,
+    )
+    application.current_draft_revision = revision
+    application.save(update_fields=["current_draft_revision", "updated_at"])
+    _ = artifact_ref  # imported for symmetry with selection; policy label read by the detail view
 
 
 def _create_with_unique_reference(

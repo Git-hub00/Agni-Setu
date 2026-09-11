@@ -330,6 +330,31 @@ def governance_actors(db: None, clock: FrozenClock) -> dict[str, Principal]:
     }
 
 
+@pytest.fixture
+def active_policy(
+    governance_actors: dict[str, Principal],
+    service: Service,
+    artifacts: dict[str, PolicyArtifact],
+    clock: FrozenClock,
+) -> Any:
+    """The demo policy v1 ACTIVE for `service` (routes through the real governance commands)."""
+    from .test_policy_governance import approved_active_v1
+
+    return approved_active_v1(governance_actors, service, clock)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_document_adapters() -> Any:
+    """Hermetic object store and scanner per test."""
+    from agni.documents.adapters.memory import MemoryObjectStore
+    from agni.documents.adapters.scanners import DemoEicarScanner
+
+    MemoryObjectStore.reset()
+    DemoEicarScanner.force_unknown = False
+    yield
+    DemoEicarScanner.force_unknown = False
+
+
 # ---- signed-in client -----------------------------------------------------------------------
 
 
@@ -344,6 +369,8 @@ def signed_client(
     monkeypatch.setattr("agni.platform.api.views.get_clock", lambda: clock)
     monkeypatch.setattr("agni.policies.api.views.get_clock", lambda: clock)
     monkeypatch.setattr("agni.cases.api.views.get_clock", lambda: clock)
+    monkeypatch.setattr("agni.documents.api.views.get_clock", lambda: clock)
+    monkeypatch.setattr("agni.documents.scanning.get_clock", lambda: clock)
 
     def factory(principal: Principal) -> Client:
         request = RequestFactory().get("/")

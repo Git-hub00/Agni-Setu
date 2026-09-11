@@ -79,8 +79,8 @@ strict = true
 plugins = ["mypy_django_plugin.main"]
 
 [[tool.mypy.overrides]]
-# django-environ and Authlib ship no type information (no py.typed / stubs).
-module = ["environ", "environ.*", "authlib", "authlib.*"]
+# django-environ, Authlib and boto3/botocore ship no type information (no py.typed / stubs).
+module = ["environ", "environ.*", "authlib", "authlib.*", "boto3", "boto3.*", "botocore", "botocore.*"]
 ignore_missing_imports = true
 
 [tool.django-stubs]

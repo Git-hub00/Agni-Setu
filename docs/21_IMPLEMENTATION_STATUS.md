@@ -18,7 +18,7 @@ Update this file at the end of each agent task. Read actual repository/branch/di
 | B02 | Domain persistence and command kernel | READY_FOR_REVIEW (2026-09-10T20:23Z; PR pending) | Custom `identity.Principal` (AUTH_USER_MODEL, no client-writable role) + `PrincipalFence` lock row; `platform` tables `CommandReceipt`, `OutboxMessage`, `AuditEvent` (per-entity hash chain); master data `Jurisdiction`, `Service` (activation fence), `DutyQueue`; cases `Premises`, `Application` (eleven-state enum + DB check, received-has-submitted_at check, source-tuple uniqueness), `StageInstance` (one open stage per case), `CaseEvent` (append-only, ordered by aggregate version). Kernel `agni.platform.commands.execute`: fence lock -> authorize -> receipt replay/conflict -> FOR UPDATE target -> 428/412 version checks -> apply -> version bump -> audit (abort on failure) -> outbox -> immutable receipt (same command_id referenced by events in-transaction) -> on_commit wake-up. Typed error catalogue (51 codes) + RFC 9457 problem handler + request-id middleware + injected clock. First commands RegisterPremises (API-011) and CreateDraftApplication (API-021). Migrations 0001/0002 per app; applied forward on the local dev DB (7 migrations, readiness schema pass). Tests: **64 passed** (unit 33, properties 6, integration 25 on real PostgreSQL incl. rollback-leaves-nothing, duplicate-command-one-result, stale-version-412, missing-precondition-428, audit-failure-aborts, disabled-principal, cross-principal-not-found, per-principal receipt scope, 2-thread same-key race -> exactly one receipt); ruff/format/mypy strict clean; `makemigrations --check` clean. Record s.3d | Push `feat/b02-command-kernel`, PR; then B03 |
 | B03 | Identity, sessions and scoped permissions | READY_FOR_REVIEW (2026-09-10T22:0xZ; PR pending) | Applicant OTP (6-digit keyed-MAC challenge, 5 min, 5 attempts, 60 s resend, 5/contact/h + 20/IP/h in Valkey/cache failing closed, demo sink, enumeration-safe), staff OIDC via Authlib (PKCE/state/nonce, issuer+subject mapping to provisioned principals only), DB sessions with key+CSRF rotation, 30 min idle / 8 h absolute / epoch recheck, CSRF enforced on every unsafe request incl. anonymous login endpoints, `/me` projection, logout, role bindings + authority grants (DB separation-of-duties constraints) + access requests, governance commands (provision from approved request, approve/revoke grant, disable with epoch bump), scope-first selectors, encrypted verified contacts, demo-only inbox route and `provision_demo_staff` command (refuse outside demo). Web: `/sign-in` (OTP form, countdowns, staff OIDC link, error mapping), `/account`, route guard, granted-workspace nav. Tests: backend **105 passed** (AT-01-01..05, AT-02-01..05 incl. two race tests), web **15 passed**, lint/mypy/tsc clean. **End-to-end against the containers via nginx** (`scripts/dev/smoke_identity.py`): OTP 11/11 steps PASS; OIDC against real Keycloak 26.7.3 realm import: unprovisioned subject refused, provisioned subject signs in, `/me` STAFF ['supervisor']. Fixes found only by the container run: `requests` runtime dep (DEV-04), nginx dynamic upstream + `$http_host`, Keycloak full-URL hostname for dynamic backchannel, 503 for unreachable provider. Record s.3e | Push `feat/b03-identity`, PR; then B04 |
 | B04 | Service policy and master data | READY_FOR_REVIEW (2026-09-10T23:25Z; PR pending) | Policy packages as data: `PolicyArtifact` (FORM/CHECKLIST/CALENDAR/ROUTING, content-hashed, append-only numbers), `PolicyVersion` (DRAFT -> IN_REVIEW -> APPROVED -> SCHEDULED/ACTIVE -> RETIRED, RETURNED loop; DB checks approver != preparer, interval order, effective-requires-approval), append-only `PolicyContributor` and `PolicySimulation`. Draft 2020-12 JSON Schema (`additionalProperties: false`, 29 required keys, cross-field rules) - no executable constructs. Deterministic simulation suite `demo-baseline-v1` (schema, artifacts, checklist mandatory/unique, calendar, documents per category, routing coverage + equal-priority overlap, clock budgets, transition subsets). Governance commands through the kernel: prepare, patch (DRAFT/RETURNED only; review hash cleared), submit-review (freezes candidate hash), simulate (exact hash), approve (independent approver with POLICY_APPROVE grant; separation of duties against every contributor; passed simulation of the exact candidate required; interval validation; half-open overlap check; explicit `close_predecessor` supersession; live mode requires reviewed gate evidence ids), return, activate (POLICY_ACTIVATE grant; service fence `SELECT ... FOR UPDATE`; SCHEDULED vs ACTIVE by effective time; activation epoch bump; ended predecessor RETIRED). Selection `select_policy` refuses 0 (POLICY_UNAVAILABLE) or >1 (POLICY_AMBIGUOUS) effective versions; nonbinding `evaluate_applicability` (API-019) returns exact documents or explicit uncertainty. Routing versions: `RoutingEntry` rows per artifact + `resolve_route` (specific beats wildcard, priority, equal-priority tie -> MULTIPLE_MATCH, NO_MATCH, INACTIVE_TARGET). Delegation (FR-10): beneficiary resolved by verified contact (enumeration-safe), delegate proposes, only the beneficiary confirms, revocation immediate, capabilities allowlisted, visibility selectors include active delegations. Premises API-010..013 (`UpdatePremises` with If-Match). APIs: `/services`, `/services/{id}/applicability`, `/policies` (+detail/patch/submit-review/simulate/approve/return/activate), `/delegations` (+confirm/revoke), `/premises` (+detail/patch). `seed_demo --scenario baseline --require-demo` (refuses outside demo): CENTRAL-PILOT, 3 queues, `demo-fire-noc`, 4 artifacts + 8 routing rows, 9 staff personas with fixed Keycloak ids (realm import pins the same ids), grants (Meera approve, Anita activate), applicant Rakesh + 4 premises, policy v1 taken through the real commands to ACTIVE (effective 2026-01-01). Web: UI-04 `/applicant/premises` (list, register, applicability preview with nonbinding badge), UI-24 `/policy` + `/policy/:id` (record, contributors, simulations, server-allowed actions with If-Match + idempotency key), workspace nav links only for granted workspaces. Tests: backend **122 passed** (AT-27-01/02/05 incl. self-approval blocked, stale hash, overlap, invalid interval, supersession boundary, immutability, ambiguity refusal, threaded activation-vs-submission on real PostgreSQL; AT-03 applicability; routing rules; AT-10-01..03 delegation; premises API idempotency/428/412/422/cross-owner 404), web **18 passed**; ruff/mypy strict/tsc/eslint clean; `makemigrations --check` clean. **Container proof PASS:** api image rebuilt, migrations applied on start, `seed_demo` in the container (v1 ACTIVE via kernel commands; rerun idempotent), Keycloak realm re-imported with fixed ids, `scripts/dev/smoke_policy.py` through nginx: applicant 15/15 (catalogue, OTP as Rakesh, applicability, premises idempotency/428/412, 403 on policies) and staff 7/7 (Meera via real Keycloak, policy list/detail, approve on ACTIVE -> 409 INVALID_TRANSITION). Evidence `handover.md` B7 EV-B04-01..08; record s.3f | Push `feat/b04-policy`, PR; then B05 |
-| B05 | Drafts, files and application wizard | NOT_STARTED | None | Complete prerequisites and task card |
+| B05 | Drafts, files and application wizard | READY_FOR_REVIEW (2026-09-11T00:50Z; PR pending; ClamAV proof BLOCKED by host RAM - see s.3g) | Server drafts: append-only `DraftRevision` per autosave with `Application.current_draft_revision`; revision 1 pre-fills the premises snapshot and pins the FORM artifact of the policy in force; `PatchDraft` (API-023) requires the edited `draft_revision` plus the application `If-Match` and answers a stale second tab with 412 carrying `current_draft_revision` and `current_fields`; declarations D01-D03 (demo constants, individually accepted, exact code/version stored); requirement evaluation from the policy for the declared category (MISSING / PENDING_SCAN / REJECTED / SATISFIED - only a CLEAN linked version satisfies a slot); `blockers` and `allowed_actions` keep Submit disabled with a safe reason (TR-01 arrives with B06). Documents module (`agni.documents`): `UploadReservation` (random private staging key, bounded size/TTL, allowlisted target type, requirement code from the policy, package quota 20 files / 50 MiB), byte transfer streamed through the API (no bucket credentials to the browser; SHA-256 computed server-side; body bounded), `CompleteUpload` (server digest vs client claim vs storage metadata, magic-byte sniff, promotion to content-addressed `objects/<sha256>` never overwritten, QUARANTINED `DocumentVersion`, durable `document.scan` job in the same transaction, staging cleanup after commit), `GrantDocumentAccess` (CLEAN only; append-only `DocumentAccess`; signed principal-bound 5-minute proxy ticket; REJECTED never served), detach (new draft revision, nothing destroyed). Durable jobs (`platform.LogicalJob`/`JobAttempt`): `FOR UPDATE SKIP LOCKED` claim, lease-token fence, backoff 30 s/2 m/10 m/30 m/2 h, max 6 attempts, UNKNOWN -> RECONCILIATION_REQUIRED, `process_jobs` worker (Compose `worker` service). Scanner adapters: clamd INSTREAM (5 s/30 s timeouts; outage/ERROR -> UNKNOWN, never CLEAN) and `demo_eicar`; object stores: S3/SeaweedFS and in-memory (tests); production settings refuse a non-S3 store and a demo scanner in LIVE. Web: UI-05 `/applications` (URL-synced search/status, cursor paging, Continue for drafts, retry on failure), UI-06 `/applications/new` + `/applications/:id/edit` (4 steps, serialised 800 ms autosave with If-Match + per-attempt idempotency key reused on retry, explicit 412 conflict panel with field differences and "use saved / reapply mine", declarations, per-requirement upload reserve -> PUT -> complete with 2 s scan polling, review with blockers, no dead Submit), UI-07 `/applications/:id` slice. Tests: backend **137 passed** (AT-04-01..05, AT-05-01..05, job fence, clamd protocol against a real fake clamd socket, S3 adapter against the live Compose object store), web **22 passed**; ruff/mypy strict/tsc/eslint clean; migrations platform 0002, documents 0001, cases 0003. **Container proof:** api rebuilt (migrations applied on start), `worker` container healthy; SeaweedFS volume budget raised after every PUT failed with "No writable volumes" (found only by the container run); `scripts/dev/smoke_drafts.py` through nginx **17/17 PASS** (fresh OTP applicant, premises, draft, autosave, stale 412, reserve/PUT/complete -> QUARANTINED, link -> PENDING_SCAN, no scanner -> stays QUARANTINED and cannot be opened (409), detach, list); one-off `process_jobs --once` with the local demo scanner in the container -> job COMPLETE, version CLEAN, audit row. **ClamAV: BLOCKED** - the container never became healthy on the 3 GB Docker VM (1.42 GiB of its 1.5 GiB limit while loading signatures, 17 min, then unhealthy; it starved the api); stopped again. The clamd protocol client is proven against a real socket in unit tests; a real ClamAV verdict needs a host with more RAM (CI/larger machine). Evidence `handover.md` B7 EV-B05-01..08; record s.3g | Push `feat/b05-drafts`, PR; then B06 |
 | B06 | Submission, routing and case visibility | NOT_STARTED | None | Complete prerequisites and task card |
 | B07 | Assignment and appointment management | NOT_STARTED | None | Complete prerequisites and task card |
 | B08 | Inspection reports and checklist evaluation | NOT_STARTED | None | Complete prerequisites and task card |
@@ -339,6 +339,89 @@ Security/privacy or external-effect considerations: no client-supplied role/stat
 Remaining defects and reproduction: NONE known.
 Required human input: review/merge PRs (gh CLI not authenticated - BL-006).
 Next safe task: B05 - Drafts, files and application wizard.
+End commit and worktree status: recorded in handover.md B12 after commit/push.
+```
+
+## 3g. Handoff record - B05 session claude-20260910T172516Z-b00b (2026-09-11)
+
+```text
+Task: B05 - Drafts, files and application wizard (FR-04, FR-05; task card B05; docs 05 draft/
+  document tables + s.9 object identity, 24 s.2-3 + DTOs, 16 s.2-3, 08 s.3-4, 03 UI-05/06/07 +
+  s.6-7, 06 API-020..023/033..037, 11 AT-04/AT-05)
+Baseline: implementation spec 2.0.0
+Branch and start commit: feat/b05-drafts from feat/b04-policy @ 2c35c0a
+Files inspected: FR-04/05, data model draft_revision/submission_*/upload_reservation/
+  document_version/document_access/logical_job/job_attempt + s.9, form schemas s.2-3/6/7-8,
+  integrations s.2-3, async jobs s.3-4, UI-05/06/07 + wizard state s.6 + error screens s.7,
+  API rows + DTOs DraftCreate/DraftPatch/UploadReservation/UploadComplete/DocumentAccess,
+  AT-04-01..06, AT-05-01..06.
+Changes made and architecture decisions: NEW app agni/documents (models 0001, ports, adapters
+  s3/memory/scanners, application/commands, api/{views,urls}, selectors, scanning); platform
+  LogicalJob/JobAttempt (0002) + jobs.py + management/commands/process_jobs; cases DraftRevision +
+  Application.current_draft_revision (0003), domain/drafts, application/{access,drafts},
+  CreateDraftApplication (service_id/application_type, revision 1 with pinned form schema),
+  api/views (API-020/022/023) + urls; policies/selection (case-insensitive category match);
+  platform/errors (explicit FILE_*/UPLOAD_*/EVIDENCE_INCOMPLETE classes); settings (object
+  store/scanner/upload/job settings; production refuses non-S3 storage and demo scanner in LIVE;
+  test settings memory store + demo scanner); config/urls; compose `worker` service; web
+  api/applications.ts, features/applications/{useDraftAutosave,ApplicationsListPage,
+  NewApplicationPage,ApplicationWizardPage,ApplicationDetailPage}, router, AppShell nav, locales;
+  scripts/dev/smoke_drafts.py; tests (4 new modules).
+  Decisions: (1) uploads stream through the API to a private staging key - the browser never
+  receives bucket credentials or presigned URLs; completion promotes verified bytes to a
+  content-addressed `objects/<sha256>` key that is never overwritten, and scan/access bind to
+  (key, sha256); (2) the scan verdict is written only by the worker under the job lease fence,
+  exactly once, after re-hashing the object; UNKNOWN (outage, timeout, clamd ERROR) never becomes
+  CLEAN - the job retries with backoff and the version stays QUARANTINED; (3) a draft autosave
+  is an append-only revision + audit row, deliberately NOT a timeline CaseEvent (autosave every
+  800 ms would drown the case timeline); (4) the stale-tab 412 carries current_draft_revision
+  and current_fields so the UI can show differences and reapply chosen edits with a new command
+  key; (5) declarations D01-D03 are backend demo constants served to the UI (single source; to
+  move into the FORM artifact with the admin tooling phase); (6) only the applicant owner, the
+  acting operator or a delegate with `draft.edit` may edit; case.read delegates see but cannot
+  save; (7) Submit is shown as unavailable with a safe reason until B06 delivers TR-01 - the
+  wizard never turns a save into a submission; (8) the durable job table is the source of truth
+  for asynchronous work; Celery/RabbitMQ wake-ups are wired at B10 (recorded limitation).
+Migrations/data impact: platform 0002, documents 0001, cases 0003 (nullable FK + new table);
+  applied on the LOCAL dev DB by the api container; smoke run leaves synthetic drafts/uploads.
+Tests actually executed (Windows host, 2026-09-10T23:5x-2026-09-11T00:5xZ):
+  uv run --directory backend ruff format . && ruff check . && mypy config agni tests
+    && manage.py check && makemigrations --check --dry-run -> PASS (154 files; no drift)
+  uv run --directory backend pytest tests -q -> 137 passed (88 s) incl. the S3 adapter test
+    against the live Compose SeaweedFS (skips with reason when the endpoint is down)
+  corepack pnpm typecheck / lint / test --run / build -> tsc clean, 0 problems, 22 passed,
+    built (evidence/B05-web-vitest.log)
+  docker compose ... up -d --wait api worker -> api healthy (cases 0003, documents 0001,
+    platform 0002 applied), worker healthy ("handlers: document.scan")
+  docker compose ... up -d clamav -> never healthy (17 min, 1.42 GiB / 1.5 GiB, api starved);
+    stopped -> ClamAV verdict BLOCKED on this host
+  docker compose ... up -d --wait objectstore after raising -volume.max 8 -> 64 (every PUT had
+    failed: "No writable volumes and no free volumes left" for the bucket collection)
+  worker paused; uv run --directory backend python ../scripts/dev/smoke_drafts.py
+    http://127.0.0.1:5173 --expect-scan QUARANTINED -> ALL DRAFT/UPLOAD SMOKE STEPS PASSED (17)
+    (evidence/B05-smoke-drafts.log)
+  docker exec -e SCANNER_PROVIDER=demo_eicar agni-dev-api-1 python manage.py process_jobs --once
+    -> claimed=1 complete=1; DocumentVersion plan CLEAN demo_eicar; LogicalJob COMPLETE, attempt
+    SUCCESS, 1 scan audit row; worker started again
+Tests not executed and concrete reason: AT-04-06/AT-05-06 browser/keyboard/viewport checks
+  (Playwright suite arrives B16/B19); resumable multipart upload (not implemented by design -
+  single bounded PUT, docs/16 s.3 step 3); preview derivatives (original served with nosniff +
+  sandbox CSP; sanitized derivatives are a later slice); Celery broker wake-up (B10).
+Screens inspected: /applications, /applications/:id/edit and /applications/:id rendered in
+  jsdom tests only; served bundle not opened in a browser this session.
+Processes restarted and smoke-check result: api rebuilt (healthy), worker started (healthy),
+  objectstore recreated with the larger volume budget (data volume kept), ClamAV started and
+  stopped (never healthy); smoke 17/17 + demo-scanner worker pass CLEAN; see EV-B05-04..08.
+Blocked: EV-B05-05 real ClamAV verdict (host RAM). Unblock: Docker Desktop memory >= 5 GB or
+  run the `full` profile on CI; the worker then scans automatically and `smoke_drafts.py`
+  without `--expect-scan` must report CLEAN + a successful ticketed download.
+Security/privacy or external-effect considerations: no client-supplied checksum/size/state is
+  trusted; media type verified by magic bytes; REJECTED files never served; tickets signed,
+  principal-bound, 5 min, audited; object keys random/server-generated; scanner never receives
+  browser paths; production refuses in-memory storage and demo scanners.
+Remaining defects and reproduction: NONE known.
+Required human input: review/merge PRs (gh CLI not authenticated - BL-006).
+Next safe task: B06 - Submission, routing and case visibility.
 End commit and worktree status: recorded in handover.md B12 after commit/push.
 ```
 

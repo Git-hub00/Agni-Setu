@@ -140,7 +140,10 @@ def evaluate_applicability(
         )
     payload = version.payload
     allowed = tuple(str(c) for c in payload.get("allowed_categories", []))
-    if category_key not in allowed:
+    # Category keys are matched case-insensitively against the policy's canonical spelling;
+    # the canonical key drives the document list.
+    canonical = next((c for c in allowed if c.casefold() == str(category_key).casefold()), None)
+    if canonical is None:
         return Applicability(
             False,
             "This premises category is not covered by the current policy; contact the "
@@ -159,7 +162,7 @@ def evaluate_applicability(
         payload_sha256=version.payload_sha256,
         form_schema_ref=artifact_ref("FORM", str(payload["form_schema_key"])),
         checklist_ref=artifact_ref("CHECKLIST", str(payload["checklist_key"])),
-        required_documents=tuple(required_documents(payload, category_key)),
+        required_documents=tuple(required_documents(payload, canonical)),
         inspection_required=bool(payload.get("inspection_required")),
         allowed_categories=allowed,
     )

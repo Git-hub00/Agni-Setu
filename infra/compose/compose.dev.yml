@@ -96,7 +96,9 @@ services:
       - -ip=objectstore
       - -ip.bind=0.0.0.0
       - -master.volumeSizeLimitMB=256
-      - -volume.max=8
+      # Each S3 bucket is a SeaweedFS collection that pre-allocates volumes; 8 was exhausted by a
+      # second (test) bucket and every PUT failed with "No writable volumes" (B05, EV-B05-06).
+      - -volume.max=64
       - -s3
       - -s3.port=8333
       - -s3.config=/etc/seaweedfs/s3-identities.json
@@ -206,6 +208,37 @@ services:
       retries: 12
       start_period: 20s
     mem_limit: 512m
+
+  worker:
+    <<: *restart
+    profiles: ["app"]
+    # Durable job worker (docs/08): claims `logical_job` rows (document scans at B05; outbox
+    # dispatch and notifications from B10). Same image as the api; no HTTP port.
+    image: agni-setu-api:dev
+    command: ["python", "manage.py", "process_jobs", "--loop", "--interval", "5"]
+    env_file:
+      - ../../.env.local
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.local
+      RUN_MIGRATIONS_ON_START: "false"
+      ALLOWED_HOSTS: api,localhost,127.0.0.1
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      CELERY_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-agni_dev}
+      CACHE_URL: redis://:${VALKEY_PASSWORD}@valkey:6379/0
+      OBJECT_ENDPOINT: http://objectstore:8333
+      SCANNER_HOST: clamav
+      SCANNER_PORT: "3310"
+    depends_on:
+      api:
+        condition: service_healthy
+      objectstore:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket,sys; sys.exit(0)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    mem_limit: 384m
 
   web:
     <<: *restart
