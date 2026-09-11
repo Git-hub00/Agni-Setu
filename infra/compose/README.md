@@ -8,7 +8,7 @@ supported PostgreSQL service and approved external providers.
 | --- | --- | --- |
 | default | postgres, rabbitmq, valkey, objectstore | minimal infrastructure for host-run Django/Vite |
 | `full` | + keycloak, clamav | staff OIDC issuer and malware scanner (needs ~2 GB more RAM) |
-| `app` | + api, worker, web | fully containerized application (Windows and macOS, D-004); `worker` runs the durable job loop (`process_jobs`) |
+| `app` | + api, worker, scheduler, web | fully containerized application (Windows and macOS, D-004); `worker` runs the durable job loop (`process_jobs`); `scheduler` runs the due-obligation scan (30 s) and the outbox dispatcher (60 s) (`run_schedulers`) |
 
 All ports bind to 127.0.0.1 only.
 
@@ -21,7 +21,8 @@ All ports bind to 127.0.0.1 only.
 | Keycloak | http://localhost:8080 | `start-dev`, never used live |
 | ClamAV | private network only | amd64 image; emulated on Apple Silicon |
 | API | 127.0.0.1:8000 | `app` profile; migrations applied on start in dev |
-| Worker | no port | `app` profile; same image as the API; scans uploads through ClamAV (`SCANNER_PROVIDER=clamav`) - without the `full` profile uploads stay QUARANTINED and the job retries with backoff |
+| Worker | no port | `app` profile; same image as the API; scans uploads through ClamAV (`SCANNER_PROVIDER=clamav`) - without the `full` profile uploads stay QUARANTINED and the job retries with backoff; also runs notification fan-out/delivery and obligation threshold jobs (B10) |
+| Scheduler | no port | `app` profile; same image as the API; `run_schedulers --loop`: due-obligation scan every 30 s (unique threshold actions -> durable jobs) and outbox dispatch every 60 s (RabbitMQ wake-ups via `BROKER_PROVIDER=amqp`; the database row stays authoritative, so a broker outage only delays). Safe to run more than one instance |
 | Web | http://localhost:`WEB_HOST_PORT` (default 5173) | `app` profile; nginx serves the SPA and proxies `/api/` |
 
 Images are pinned by digest from `infra/images.lock.json`. Do not edit tags here; change the
@@ -50,6 +51,7 @@ uv run --directory backend python ../scripts/dev/smoke_submission.py http://127.
 uv run --directory backend python ../scripts/dev/smoke_inspections.py http://127.0.0.1:5173      # requires the SCRUTINY case (anita/suresh/priya via Keycloak)
 uv run --directory backend python ../scripts/dev/smoke_reports.py     http://127.0.0.1:5173      # schedules the follow-up attempt, evidence, draft, report -> REVIEW_PENDING
 uv run --directory backend python ../scripts/dev/smoke_notices.py     http://127.0.0.1:5173 --scan-via-demo   # fresh case -> information notice -> reply -> review -> back to SCRUTINY
+uv run --directory backend python ../scripts/dev/smoke_clocks.py      http://127.0.0.1:5173      # obligations, manual escalation, scheduler/dispatcher pass, notifications, operations
 ```
 
 Seed the synthetic baseline (idempotent) with

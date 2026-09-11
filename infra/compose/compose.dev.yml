@@ -240,6 +240,35 @@ services:
       retries: 3
     mem_limit: 384m
 
+  scheduler:
+    <<: *restart
+    profiles: ["app"]
+    # Due-obligation scanner + outbox dispatcher (docs/08 s.5). Safe to run more than once.
+    image: agni-setu-api:dev
+    command: ["python", "manage.py", "run_schedulers", "--loop", "--scan-interval", "30", "--dispatch-interval", "60"]
+    env_file:
+      - ../../.env.local
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.local
+      RUN_MIGRATIONS_ON_START: "false"
+      ALLOWED_HOSTS: api,localhost,127.0.0.1
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      CELERY_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-agni_dev}
+      BROKER_PROVIDER: amqp
+      CACHE_URL: redis://:${VALKEY_PASSWORD}@valkey:6379/0
+      OBJECT_ENDPOINT: http://objectstore:8333
+    depends_on:
+      api:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import sys; sys.exit(0)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    mem_limit: 256m
+
   web:
     <<: *restart
     profiles: ["app"]

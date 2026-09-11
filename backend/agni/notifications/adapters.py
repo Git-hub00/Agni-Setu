@@ -9,7 +9,15 @@ from django.conf import settings
 from agni.platform.errors import DependencyUnavailable
 
 from .models import DemoOutboundMessage
-from .ports import OtpMessage, OtpSender
+from .ports import (
+    MessageSender,
+    OtpMessage,
+    OtpSender,
+    OutboundMessage,
+    ProviderRejected,
+    ProviderUnavailable,
+    SendReceipt,
+)
 
 
 class DemoSinkOtpSender:
@@ -37,3 +45,35 @@ def get_otp_sender() -> OtpSender:
     if provider == "demo_sink":
         return DemoSinkOtpSender()
     raise DependencyUnavailable(f"OTP provider '{provider}' has no approved adapter installed")
+
+
+class DemoSinkMessageSender:
+    """Stores the rendered service message in the local sink. `force_failure` lets tests and the
+    demo walkthrough simulate an unavailable gateway without any network."""
+
+    name = "demo_sink"
+    force_failure: str | None = None  # None | "transient" | "permanent"
+
+    def send(self, message: OutboundMessage) -> SendReceipt:
+        if DemoSinkMessageSender.force_failure == "transient":
+            raise ProviderUnavailable("demo gateway unavailable")
+        if DemoSinkMessageSender.force_failure == "permanent":
+            raise ProviderRejected("demo gateway rejected the destination")
+        row = DemoOutboundMessage.objects.create(
+            channel=message.channel,
+            destination_lookup_hmac=message.destination_lookup_hmac,
+            destination_masked=message.destination_masked,
+            purpose=f"NOTIFICATION:{message.category}",
+            body=f"{message.subject}\n\n{message.body}\n\nDemo message - not an official service.",
+            reference_id=message.logical_id,
+        )
+        return SendReceipt(provider_message_id=f"demo-sink:{row.id}")
+
+
+def get_message_sender() -> MessageSender:
+    provider = settings.NOTIFICATION_PROVIDER
+    if provider == "demo_sink":
+        return DemoSinkMessageSender()
+    raise DependencyUnavailable(
+        f"Notification provider '{provider}' has no approved adapter installed"
+    )

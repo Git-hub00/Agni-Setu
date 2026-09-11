@@ -38,6 +38,19 @@ const WORKSPACE_ROUTE: Partial<Record<Workspace, string>> = {
   admin: "/policy",
 };
 
+/** Cross-workspace tools mounted from B10: monitoring for supervisors/leadership (UI-15) and
+ *  operations for administrators (UI-20). Notifications (UI-19) sit in the header for everyone. */
+function toolLinks(workspaces: Workspace[]): { to: string; label: MessageKey }[] {
+  const links: { to: string; label: MessageKey }[] = [];
+  if (workspaces.includes("supervisor") || workspaces.includes("leadership")) {
+    links.push({ to: "/monitoring", label: "nav.monitoring" });
+  }
+  if (workspaces.includes("admin")) {
+    links.push({ to: "/operations", label: "nav.operations" });
+  }
+  return links;
+}
+
 export function AppShell() {
   const { principal } = useSession();
   const navKeys: readonly MessageKey[] = principal
@@ -62,9 +75,14 @@ export function AppShell() {
         </Link>
         <nav aria-label={t("nav.account")} className="flex items-center gap-3 text-sm">
           {principal ? (
-            <Link to="/account" className="inline-flex min-h-11 items-center rounded-md px-3 text-ink hover:bg-canvas">
-              {principal.display_name}
-            </Link>
+            <>
+              <Link to="/notifications" className="inline-flex min-h-11 items-center rounded-md px-3 text-ink hover:bg-canvas">
+                {t("nav.notifications")}
+              </Link>
+              <Link to="/account" className="inline-flex min-h-11 items-center rounded-md px-3 text-ink hover:bg-canvas">
+                {principal.display_name}
+              </Link>
+            </>
           ) : (
             <Link to="/sign-in" className="inline-flex min-h-11 items-center rounded-md border border-primary px-3 font-medium text-primary hover:bg-primary-soft">
               {t("nav.signIn")}
@@ -95,6 +113,20 @@ export function AppShell() {
               );
             })}
           </ul>
+          {principal && toolLinks(principal.workspaces).length > 0 ? (
+            <>
+              <h2 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-muted">{t("nav.tools")}</h2>
+              <ul className="flex flex-col gap-1 rounded-[var(--radius-card)] border border-border bg-surface p-2 shadow-[var(--shadow-card)]">
+                {toolLinks(principal.workspaces).map((link) => (
+                  <li key={link.to}>
+                    <Link to={link.to} className="flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-ink no-underline hover:bg-canvas">
+                      {t(link.label)}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
         </nav>
 
         <main id="main-content" tabIndex={-1} className="min-w-0 flex-1 outline-none">

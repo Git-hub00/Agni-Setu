@@ -24,7 +24,8 @@ scripts/dev/up.sh app        # generates .env.local with random secrets, starts 
 
 Then open <http://localhost:5173>. The API answers at <http://127.0.0.1:8000/api/v1/health/ready>.
 PostgreSQL is published on **127.0.0.1:55432** (5432 is often taken by a local install).
-The `app` profile also starts the background job worker (document scans). Add `full` for the
+The `app` profile also starts the background job worker (document scans, notification delivery,
+clock thresholds) and the scheduler (due-obligation scan, outbox dispatch). Add `full` for the
 local staff identity provider (Keycloak) and the malware scanner (ClamAV, needs ~1.5 GB RAM):
 `scripts/dev/up.sh app full`. Stop with `scripts/dev/down.sh`; data volumes are kept.
 Details, profiles and memory notes: [infra/compose/README.md](infra/compose/README.md).

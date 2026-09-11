@@ -14,6 +14,8 @@ from typing import Any
 from django.core.management.base import BaseCommand
 
 import agni.documents.scanning  # noqa: F401  (importing registers the job kind)
+import agni.notifications.application.fanout  # noqa: F401  (fan-out + delivery kinds)
+import agni.obligations.application.scheduler  # noqa: F401  (threshold kind)
 from agni.platform import jobs
 from agni.platform.clock import get_clock
 

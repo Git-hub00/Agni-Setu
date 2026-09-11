@@ -129,6 +129,10 @@ AGNI_JOBS = {
     "LEASE_SECONDS": env.int("JOB_LEASE_SECONDS", default=120),
     "MAX_ATTEMPTS": env.int("JOB_MAX_ATTEMPTS", default=6),
 }
+# Outbox wake-up broker (docs/08 s.2): "null" = database polling only; "amqp" = RabbitMQ
+# wake-ups over kombu. The database row is authoritative in both modes.
+BROKER_PROVIDER = env.str("BROKER_PROVIDER", default="null")
+CELERY_BROKER_URL = env.str("CELERY_BROKER_URL", default="")
 
 # Injected clock; tests override with agni.platform.clock.FrozenClock via fixtures.
 AGNI_CLOCK = env.str("AGNI_CLOCK", default="agni.platform.clock.SystemClock")

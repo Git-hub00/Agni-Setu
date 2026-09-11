@@ -63,6 +63,13 @@ class LeaseLost(Exception):
 
 Handler = Callable[[LogicalJob], JobResult]
 _HANDLERS: dict[str, Handler] = {}
+_ACTIVE_CLOCK: Clock | None = None
+
+
+def current_clock() -> Clock:
+    """The clock of the running worker pass (tests inject a frozen clock through
+    `run_due_jobs(clock=...)`); falls back to the configured clock outside a pass."""
+    return _ACTIVE_CLOCK or get_clock()
 
 
 def register(kind: str) -> Callable[[Handler], Handler]:
@@ -213,7 +220,16 @@ def run_due_jobs(
     *, owner: str, limit: int = 10, kinds: Sequence[str] | None = None, clock: Clock | None = None
 ) -> RunReport:
     """One worker pass: claim, execute each handler outside the transaction, record results."""
+    global _ACTIVE_CLOCK  # noqa: PLW0603 - one worker pass per process at a time
     clock = clock or get_clock()
+    _ACTIVE_CLOCK = clock
+    try:
+        return _run_pass(owner=owner, limit=limit, kinds=kinds, clock=clock)
+    finally:
+        _ACTIVE_CLOCK = None
+
+
+def _run_pass(*, owner: str, limit: int, kinds: Sequence[str] | None, clock: Clock) -> RunReport:
     report = RunReport()
     for claim in claim_due_jobs(owner=owner, now=clock.now(), limit=limit, kinds=kinds):
         report.claimed += 1
