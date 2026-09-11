@@ -65,12 +65,14 @@ def visible_applications(
             | Q(acting_operator_id=snapshot.principal_id)
             | application_q
         )
+    scope = Q(pk__in=[])
     jurisdictions = snapshot.jurisdictions_for(RoleKey.SUPERVISOR) | snapshot.jurisdictions_for(
         RoleKey.LEADERSHIP
     )
     if jurisdictions:
         # A NULL jurisdiction on a binding never means global access (data model s.3).
-        return Application.objects.filter(owner_queue__jurisdiction_id__in=jurisdictions).exclude(
-            status="DRAFT"
-        )
-    return Application.objects.none()
+        scope |= Q(owner_queue__jurisdiction_id__in=jurisdictions)
+    if snapshot.has_role(RoleKey.OFFICER):
+        # Officers read the cases of attempts assigned to them (current or historical - FR-09 "A").
+        scope |= Q(inspections__assignments__officer_id=snapshot.principal_id)
+    return Application.objects.filter(scope).exclude(status="DRAFT").distinct()

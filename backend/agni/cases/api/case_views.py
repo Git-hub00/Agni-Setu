@@ -17,6 +17,7 @@ from rest_framework.response import Response
 from agni.identity.authz import AuthzSnapshot, load_snapshot
 from agni.identity.domain.roles import RoleKey
 from agni.identity.models import Principal, PrincipalKind
+from agni.inspections.models import Inspection
 from agni.obligations.models import Obligation, ObligationState
 from agni.platform.api.views import ApiView, ok
 from agni.platform.clock import get_clock
@@ -243,6 +244,17 @@ class ApplicationDetailView(ApiView):
                     if enabled
                     else ("ROUTING_UNRESOLVED" if open_exception else "NOT_AUTHORIZED")
                 )
+            elif command == "require-inspection":
+                required = bool(applicability.inspection_required)
+                enabled = supervisor_here and open_exception is None and required
+                if enabled:
+                    reason = None
+                elif open_exception:
+                    reason = "ROUTING_UNRESOLVED"
+                elif not required:
+                    reason = "NOT_REQUIRED_BY_POLICY"
+                else:
+                    reason = "NOT_AUTHORIZED"
             actions.append({"key": command, "enabled": enabled, "reason_code": reason})
         if staff:
             actions.append(
@@ -293,6 +305,27 @@ class ApplicationDetailView(ApiView):
                 _obligation_summary(o)
                 for o in application.obligations.all()
                 if staff or o.kind == "CASE_TARGET"
+            ],
+            "inspections": [
+                {
+                    "inspection_id": str(i.pk),
+                    "attempt_number": i.attempt_number,
+                    "purpose": i.purpose,
+                    "status": i.status,
+                    "scheduled_start": i.scheduled_start.isoformat() if i.scheduled_start else None,
+                    "scheduled_end": i.scheduled_end.isoformat() if i.scheduled_end else None,
+                    "appointment_timezone": i.appointment_timezone,
+                    # Officer identity is internal; applicants see the appointment facts only.
+                    "officer_name": (
+                        i.current_assignment.officer.display_name
+                        if staff and i.current_assignment is not None
+                        else None
+                    ),
+                    "failed_reason_code": i.failed_reason_code,
+                }
+                for i in Inspection.objects.filter(application=application)
+                .select_related("current_assignment__officer")
+                .order_by("attempt_number")
             ],
             "routing_exception": (
                 {

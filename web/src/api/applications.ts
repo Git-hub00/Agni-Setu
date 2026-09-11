@@ -127,6 +127,17 @@ export interface CaseDetail extends CaseSummary {
     documents: { requirement_code: string; document_version_id: string }[];
   } | null;
   obligations: ObligationSummary[];
+  inspections: {
+    inspection_id: string;
+    attempt_number: number;
+    purpose: string;
+    status: string;
+    scheduled_start: string | null;
+    scheduled_end: string | null;
+    appointment_timezone: string;
+    officer_name: string | null;
+    failed_reason_code: string | null;
+  }[];
   routing_exception: {
     exception_id: string;
     code: string;

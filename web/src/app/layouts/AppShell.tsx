@@ -31,6 +31,7 @@ const WORKSPACE_LABEL: Record<Workspace, MessageKey> = {
  *  the policy route because they prepare drafts there; approval stays with the approver. */
 const WORKSPACE_ROUTE: Partial<Record<Workspace, string>> = {
   applicant: "/overview",
+  officer: "/inspections",
   supervisor: "/overview",
   leadership: "/overview",
   policy: "/policy",

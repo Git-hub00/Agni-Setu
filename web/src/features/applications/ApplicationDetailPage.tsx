@@ -4,6 +4,7 @@ import { Link, useParams, useSearchParams } from "react-router";
 
 import { applicationQuery, requestDocumentAccess, type CaseDetail } from "../../api/applications";
 import { resolveRouting, startScrutiny, timelineQuery } from "../../api/cases";
+import { requireInspection } from "../../api/inspections";
 import { ProblemNotice } from "../../app/ProblemNotice";
 import { t } from "../../locales";
 
@@ -82,6 +83,22 @@ export function ApplicationDetailPage() {
         </div>
       ) : null}
       <StaffActions detail={detail} etag={etag} />
+      {detail.inspections.length > 0 ? (
+        <section className={CARD} aria-labelledby="case-inspections">
+          <h2 id="case-inspections" className="text-base font-semibold">{t("detail.inspections")}</h2>
+          <ul className="mt-3 flex flex-col gap-1 text-sm">
+            {detail.inspections.map((i) => (
+              <li key={i.inspection_id} className="flex flex-wrap items-center gap-3">
+                <span>{t("queue.attempt")} {i.attempt_number} · {i.status}</span>
+                <span className="text-muted">{i.scheduled_start ? `${new Date(i.scheduled_start).toLocaleString()} (${i.appointment_timezone})` : t("queue.notScheduled")}</span>
+                {i.officer_name ? <span className="text-muted">{i.officer_name}</span> : null}
+                {i.failed_reason_code ? <span className="text-warning">{i.failed_reason_code}</span> : null}
+                {i.officer_name ? <Link to={`/inspections/${i.inspection_id}`} className="text-primary">{t("applications.view")}</Link> : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <section className={CARD} aria-labelledby="case-documents">
         <h2 id="case-documents" className="text-base font-semibold">{t("detail.documents")}</h2>
         {detail.submission ? (
@@ -146,6 +163,7 @@ function StaffActions({ detail, etag }: { detail: CaseDetail; etag: string }) {
   const actions = new Map(detail.allowed_actions.map((a) => [a.key, a] as const));
   const canStart = actions.get("start-scrutiny")?.enabled === true;
   const canResolve = actions.get("resolve-routing")?.enabled === true && detail.routing_exception !== null;
+  const canRequire = actions.get("require-inspection")?.enabled === true;
   const [reason, setReason] = useState("");
   const [queueId, setQueueId] = useState("");
   const [jurisdictionId, setJurisdictionId] = useState("");
@@ -159,6 +177,13 @@ function StaffActions({ detail, etag }: { detail: CaseDetail; etag: string }) {
   const start = useMutation({
     mutationFn: () => startScrutiny(detail.application_id, reason, etag, crypto.randomUUID()),
     onSuccess: refresh,
+  });
+  const require = useMutation({
+    mutationFn: () => requireInspection(detail.application_id, reason, etag),
+    onSuccess: async () => {
+      await refresh();
+      await queryClient.invalidateQueries({ queryKey: ["inspections"] });
+    },
   });
   const resolve = useMutation({
     mutationFn: () =>
@@ -176,7 +201,7 @@ function StaffActions({ detail, etag }: { detail: CaseDetail; etag: string }) {
       ),
     onSuccess: refresh,
   });
-  if (!canStart && !canResolve) return null;
+  if (!canStart && !canResolve && !canRequire) return null;
   return (
     <section className={CARD} aria-labelledby="staff-actions">
       <h2 id="staff-actions" className="text-base font-semibold">{t("detail.staffActions")}</h2>
@@ -199,7 +224,13 @@ function StaffActions({ detail, etag }: { detail: CaseDetail; etag: string }) {
         ) : null}
         {start.isError ? <ProblemNotice error={start.error} /> : null}
         {resolve.isError ? <ProblemNotice error={resolve.error} /> : null}
+        {require.isError ? <ProblemNotice error={require.error} /> : null}
         <div className="flex flex-wrap gap-3">
+          {canRequire ? (
+            <button type="button" className={BUTTON} disabled={require.isPending || reason.trim().length < 10} onClick={() => require.mutate()}>
+              {t("detail.requireInspection")}
+            </button>
+          ) : null}
           {canResolve ? (
             <button type="button" className={BUTTON} disabled={resolve.isPending || reason.trim().length < 10 || !queueId || !jurisdictionId} onClick={() => resolve.mutate()}>
               {t("detail.resolveRouting")}

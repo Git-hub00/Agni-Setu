@@ -377,6 +377,21 @@ def leadership(db: None, jurisdiction: Jurisdiction, clock: FrozenClock) -> Prin
 
 
 @pytest.fixture
+def officers(db: None, jurisdiction: Jurisdiction, clock: FrozenClock) -> dict[str, Principal]:
+    """Two eligible inspection officers in the test jurisdiction (personas o1/o2) and one officer
+    bound elsewhere (must never be eligible here)."""
+    bootstrap = make_staff("Bootstrap Ceremony O", "bootstrap-o")
+    suresh = make_staff("Suresh Yadav", "suresh")
+    priya = make_staff("Priya Nair", "priya")
+    bind_role(suresh, RoleKey.OFFICER, bootstrap, clock, jurisdiction=jurisdiction)
+    bind_role(priya, RoleKey.OFFICER, bootstrap, clock, jurisdiction=jurisdiction)
+    other = Jurisdiction.objects.create(code="ELSEWHERE-O", display_name="Elsewhere O")
+    outsider = make_staff("Outside Officer", "outsider")
+    bind_role(outsider, RoleKey.OFFICER, bootstrap, clock, jurisdiction=other)
+    return {"suresh": suresh, "priya": priya, "outsider": outsider}
+
+
+@pytest.fixture
 def foreign_supervisor(db: None, clock: FrozenClock) -> Principal:
     """Supervisor of an unrelated jurisdiction: must see nothing of the test cases."""
     other = Jurisdiction.objects.create(code="ELSEWHERE-1", display_name="Elsewhere")

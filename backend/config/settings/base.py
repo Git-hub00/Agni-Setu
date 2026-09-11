@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "agni.cases",
     "agni.documents",
     "agni.obligations",
+    "agni.inspections",
     "agni.notifications",
 ]
 

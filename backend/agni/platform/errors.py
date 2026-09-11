@@ -239,6 +239,18 @@ class RoutingUnresolved(DomainError):
     code = "ROUTING_UNRESOLVED"
 
 
+class AssignmentChanged(DomainError):
+    code = "ASSIGNMENT_CHANGED"
+
+
+class OfficerUnavailable(DomainError):
+    code = "OFFICER_UNAVAILABLE"
+
+
+class AppointmentConflict(DomainError):
+    code = "APPOINTMENT_CONFLICT"
+
+
 class FileTooLarge(DomainError):
     code = "FILE_TOO_LARGE"
 
