@@ -336,6 +336,9 @@ class SubmitReport(CommandHandler[Inspection]):
         transition = transition_for("accept-report", application.status_enum)
         if transition is None:
             raise InvalidTransition("The case is not waiting for an inspection report")
+        from agni.cases.application.holds import ensure_not_on_hold
+
+        ensure_not_on_hold(application, scope="transition")
 
         evaluation = evaluate(items, observations)
         digest = canonical_sha256(

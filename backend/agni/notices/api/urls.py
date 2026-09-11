@@ -44,4 +44,9 @@ urlpatterns = [
         views.ReinspectView.as_view(),
         name="application-reinspect",
     ),
+    path(
+        "applications/<uuid:application_id>/return-review",
+        views.ReturnReviewView.as_view(),
+        name="application-return-review",
+    ),
 ]

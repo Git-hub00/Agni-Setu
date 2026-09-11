@@ -17,7 +17,16 @@ from .models import DocumentVersion
 def visible_documents(snapshot: AuthzSnapshot, at: datetime) -> QuerySet[DocumentVersion]:
     if not snapshot.active:
         return DocumentVersion.objects.none()
+    from agni.support.application.commands import visible_tickets
+
     applications = visible_applications(snapshot, at).values("pk")
+    # Ticket attachments follow the ticket's readership (FR-30), not general admin status.
+    tickets = visible_tickets(snapshot).values("pk")
     return DocumentVersion.objects.filter(
-        Q(uploaded_by_id=snapshot.principal_id) | Q(application_id__in=applications)
+        Q(uploaded_by_id=snapshot.principal_id)
+        | Q(application_id__in=applications)
+        | Q(
+            reservation__target_type="SUPPORT_ATTACHMENT",
+            reservation__target_id__in=tickets,
+        )
     )

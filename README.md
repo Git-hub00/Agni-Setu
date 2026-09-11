@@ -54,6 +54,13 @@ watermark statement bound to the document hash (no digital signature, no governm
 Anyone can check a sample at `/verify` with the token from the certificate link or, in the demo,
 its exact number; the answer is minimal, never cached, and an unknown record is not a revoked one.
 
+Lifecycle after publication follows the same rules: status actions (suspend, reinstate, revoke,
+supersede) need a supervisor with the separate `certificate.status` grant, a reason and cited
+evidence, and an expired record is never reinstated; a renewal is a new linked application that
+does not extend the old validity. Help lives at `/support`: tickets have their own lifecycle and
+can never change a case; legal appeals, fees and external registration stay disabled in the demo
+profile and show the approved referral instead of a form.
+
 ### Developing on the host (optional)
 
 For code changes with hot reload, run the infrastructure in Docker and the app on your machine.

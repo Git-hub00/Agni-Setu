@@ -752,6 +752,9 @@ class StartScrutiny(CommandHandler[Application]):
         transition = transition_for("start-scrutiny", target.status_enum)
         if transition is None:
             raise InvalidTransition("Scrutiny can only start on a SUBMITTED application")
+        from .holds import ensure_not_on_hold
+
+        ensure_not_on_hold(target, scope="transition")
         if RoutingException.objects.filter(
             application=target, state=RoutingExceptionState.OPEN
         ).exists():

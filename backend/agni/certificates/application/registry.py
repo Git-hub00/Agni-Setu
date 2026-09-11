@@ -117,8 +117,23 @@ def certificate_detail(certificate: Certificate, now: datetime, *, staff: bool) 
                 if request is not None
                 else None
             ),
-            # Lifecycle instruments (suspend / revoke / supersede / renewals) arrive with B13.
-            "status_history": [],
+            "status_history": [
+                {
+                    "instrument_id": str(i.pk),
+                    "action": i.action,
+                    "effective_at": i.effective_at.isoformat(),
+                    "public_reason": i.public_reason,
+                    "status_before": i.status_before,
+                    "status_after": i.status_after,
+                    "successor_certificate_id": str(i.successor_certificate_id)
+                    if i.successor_certificate_id
+                    else None,
+                    "recorded_at": i.created_at.isoformat(),
+                    **({"reason": i.reason, "actor_id": str(i.actor_id)} if staff else {}),
+                }
+                for i in certificate.status_instruments.order_by("effective_at", "created_at")
+            ],
+            "renewals": _renewals(certificate),
             "allowed_actions": [
                 {
                     "key": "download",
@@ -126,14 +141,47 @@ def certificate_detail(certificate: Certificate, now: datetime, *, staff: bool) 
                     "reason_code": None if artifact is not None else "ARTIFACT_UNAVAILABLE",
                 },
                 {"key": "copy-verification-link", "enabled": True, "reason_code": None},
-                {"key": "renewal", "enabled": False, "reason_code": "NOT_AVAILABLE_YET"},
-                {"key": "status-action", "enabled": False, "reason_code": "NOT_AVAILABLE_YET"},
+                _renewal_action(certificate, now, staff=staff),
             ],
             "demo_notice": WATERMARK if certificate.is_demo else None,
             "issuer_reference": certificate.issuer_reference or DEMO_ISSUER,
         }
     )
     return body
+
+
+def _renewals(certificate: Certificate) -> list[dict[str, Any]]:
+    from agni.cases.models import Application
+
+    return [
+        {
+            "application_id": str(a.pk),
+            "draft_reference": a.draft_reference,
+            "public_reference": a.public_reference,
+            "status": a.status,
+        }
+        for a in Application.objects.filter(prior_certificate_id=certificate.pk).order_by(
+            "created_at"
+        )
+    ]
+
+
+def _renewal_action(certificate: Certificate, now: datetime, *, staff: bool) -> dict[str, Any]:
+    """Holder-side renewal (API-070): permitted while the record is ACTIVE or EXPIRED and no
+    renewal case is open; never for a revoked or superseded record."""
+    from agni.cases.models import Application
+
+    if staff:
+        return {"key": "renewal", "enabled": False, "reason_code": "HOLDER_ONLY"}
+    if certificate.recorded_status in (RecordedStatus.REVOKED, RecordedStatus.SUPERSEDED):
+        return {"key": "renewal", "enabled": False, "reason_code": "NOT_RENEWABLE"}
+    if (
+        Application.objects.filter(prior_certificate_id=certificate.pk)
+        .exclude(status__in=("COMPLETED", "REJECTED", "WITHDRAWN"))
+        .exists()
+    ):
+        return {"key": "renewal", "enabled": False, "reason_code": "RENEWAL_IN_PROGRESS"}
+    return {"key": "renewal", "enabled": True, "reason_code": None}
 
 
 def pending_issuance_card(request: IssuanceRequest) -> dict[str, Any]:

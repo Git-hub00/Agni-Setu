@@ -28,7 +28,12 @@ from agni.inspections.application.commands import (
     _reason,
     inspection_body,
 )
-from agni.inspections.models import Inspection, InspectionPurpose, InspectionStatus
+from agni.inspections.models import (
+    Inspection,
+    InspectionPurpose,
+    InspectionReport,
+    InspectionStatus,
+)
 from agni.obligations.domain.clock import WorkingCalendar, due_instant
 from agni.obligations.models import Obligation, ObligationKind, ObligationState, TimeBasis
 from agni.platform.canonical import canonical_sha256
@@ -41,6 +46,7 @@ from agni.platform.errors import (
     ResourceNotFound,
     ResponseNotVerified,
     SeparationOfDuties,
+    ServiceDisabled,
     ValidationFailed,
     Violation,
 )
@@ -204,9 +210,12 @@ def _uuid_list(raw: Any, pointer: str, violations: list[Violation]) -> list[str]
 
 
 def _transition(uow: UnitOfWork, application: Application, command: str) -> tuple[str, str]:
+    from agni.cases.application.holds import ensure_not_on_hold
+
     transition = transition_for(command, application.status_enum)
     if transition is None:
         raise InvalidTransition(f"'{command}' is not permitted from {application.status}")
+    ensure_not_on_hold(application, scope="transition")
     _, target_state, event_type = transition
     return target_state.value, event_type
 
@@ -1367,6 +1376,184 @@ class RequireReinspection(CommandHandler[Application]):
                     {
                         "inspection_id": str(inspection.pk),
                         "findings": [f.checklist_item_code for f in findings.values()],
+                        "reason": reason[:200],
+                    },
+                )
+            ],
+            intents=[_intent(event, uow)],
+        )
+
+
+class ReturnForClarification(CommandHandler[Application]):
+    """API-063 / TR-14 (FR-13): a supervisor returns a REVIEW_PENDING case for on-site
+    clarification. Baseline 2.0 requires a new physical attempt (`requires_new_visit: true`);
+    the accepted report stays immutable; a CLARIFICATION attempt is created and the case waits
+    for the inspection again."""
+
+    def authorize(self, uow: UnitOfWork) -> None:
+        if uow.actor.kind != PrincipalKind.STAFF:
+            raise Forbidden("Only staff return a case for clarification")
+        require_role(load_snapshot(uow.actor, uow.now), RoleKey.SUPERVISOR)
+
+    def lock_target(self, uow: UnitOfWork) -> Application | None:
+        application = _lock_application(uow.envelope.target_id)
+        if application is None or application.status == "DRAFT":
+            raise ResourceNotFound("Application not found")
+        _supervisor_here(uow, application)
+        return application
+
+    def apply(self, uow: UnitOfWork, target: Application | None) -> CommandOutcome[Application]:
+        if target is None:
+            raise ResourceNotFound("Application not found")
+        data = dict(uow.envelope.payload)
+        allowed = {"report_id", "items_requiring_clarification", "reason", "requires_new_visit"}
+        violations = [
+            Violation(f"/{k}", "unknown_field", "unknown field")
+            for k in sorted(set(data) - allowed)
+        ]
+        reason = _reason(data, violations)
+        requires_visit = data.get("requires_new_visit")
+        if requires_visit is None:
+            violations.append(
+                Violation("/requires_new_visit", "required", "literal true in baseline 2.0")
+            )
+        raw_items = data.get("items_requiring_clarification")
+        items: list[dict[str, str]] = []
+        if not isinstance(raw_items, list) or not raw_items:
+            violations.append(
+                Violation("/items_requiring_clarification", "required", "nonempty code/text list")
+            )
+        else:
+            for j, item in enumerate(raw_items):
+                code = item.get("code") if isinstance(item, dict) else None
+                text = item.get("text") if isinstance(item, dict) else None
+                if not isinstance(code, str) or not (1 <= len(code.strip()) <= 40):
+                    violations.append(
+                        Violation(
+                            f"/items_requiring_clarification/{j}/code", "length", "1 to 40 chars"
+                        )
+                    )
+                if not isinstance(text, str) or not (5 <= len(text.strip()) <= 2000):
+                    violations.append(
+                        Violation(
+                            f"/items_requiring_clarification/{j}/text", "length", "5 to 2000 chars"
+                        )
+                    )
+                if isinstance(code, str) and isinstance(text, str):
+                    items.append({"code": code.strip().upper(), "text": text.strip()})
+        report: InspectionReport | None = None
+        try:
+            report = (
+                InspectionReport.objects.filter(
+                    pk=UUID(str(data.get("report_id"))), inspection__application=target
+                )
+                .select_related("inspection__checklist_artifact")
+                .order_by("-accepted_at")
+                .first()
+            )
+        except ValueError:
+            report = None
+        latest = (
+            InspectionReport.objects.filter(inspection__application=target)
+            .order_by("-accepted_at", "-revision_number")
+            .values_list("pk", flat=True)
+            .first()
+        )
+        if report is None or latest != report.pk:
+            violations.append(
+                Violation("/report_id", "invalid", "must be the current accepted report")
+            )
+        if report is not None and items:
+            checklist_codes = {
+                str(i.get("code", "")).upper()
+                for i in report.inspection.checklist_artifact.payload.get("items", [])
+            }
+            for j, item in enumerate(items):
+                if item["code"] not in checklist_codes:
+                    violations.append(
+                        Violation(
+                            f"/items_requiring_clarification/{j}/code",
+                            "unknown_item",
+                            "not an item of the pinned checklist",
+                        )
+                    )
+        if violations:
+            raise ValidationFailed(violations=violations)
+        if requires_visit is not True:
+            raise ServiceDisabled(
+                "A no-visit addendum workflow is not part of baseline 2.0; a new physical "
+                "attempt is required (requires_new_visit must be true)"
+            )
+        if report is None:  # for the type checker; validated above
+            raise ResourceNotFound("Report not found")
+        target_state, event_type = _transition(uow, target, "return-for-clarification")
+        new_version = target.version + 1
+        target.status = target_state
+        inspection = _new_attempt(
+            uow,
+            target,
+            purpose=InspectionPurpose.CLARIFICATION,
+            parent=report.inspection,
+            checklist=report.inspection.checklist_artifact,
+            reason=reason,
+        )
+        event = record_event(
+            uow,
+            target,
+            event_type,
+            {
+                "inspection_id": str(inspection.pk),
+                "attempt_number": inspection.attempt_number,
+                "report_id": str(report.pk),
+                "items_requiring_clarification": items,
+            },
+            audience=EventAudience.PUBLIC_CASE,
+            ordinal=0,
+            version=new_version,
+        )
+        record_event(
+            uow,
+            target,
+            "scrutiny.note.v1",
+            {"reason": reason, "context": "return-for-clarification"},
+            audience=EventAudience.INTERNAL,
+            ordinal=1,
+            version=new_version,
+        )
+        stage = enter_stage(target, target_state, event, uow.now, target.policy_version_id)
+        target.version = new_version
+        target.save(update_fields=["status", "current_stage_instance", "version", "updated_at"])
+        _satisfy(target, ObligationKind.REVIEW_TASK, event)
+        policy = _pinned_policy(target)
+        _open_obligation(
+            target,
+            stage,
+            ObligationKind.INSPECTION_TASK,
+            policy=policy,
+            basis=TimeBasis.CALENDAR,
+            budget=_task_budget(policy, "inspection_calendar_minutes"),
+            event=event,
+            now=uow.now,
+        )
+        inspection.refresh_from_db()
+        return CommandOutcome(
+            status=201,
+            body={
+                **inspection_body(inspection),
+                "application_version": new_version,
+                "items_requiring_clarification": items,
+            },
+            aggregate=target,
+            created=True,
+            audits=[
+                AuditEntry(
+                    "application",
+                    target.pk,
+                    "application.returned_for_clarification",
+                    {
+                        "inspection_id": str(inspection.pk),
+                        "report_id": str(report.pk),
+                        "items": [i["code"] for i in items],
                         "reason": reason[:200],
                     },
                 )

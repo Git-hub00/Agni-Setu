@@ -28,6 +28,8 @@ OBJECT_BUCKET = env.str("TEST_OBJECT_BUCKET", default="agni-test-private")
 SCANNER_PROVIDER = "demo_eicar"
 # Hermetic certificate rendering (WeasyPrint needs Pango/Cairo; the container proof renders it).
 CERTIFICATE_RENDERER_PROVIDER = "simulated"
+# The conftest duty queue owns tickets that are not linked to a case.
+SUPPORT_DEFAULT_QUEUE_KEY = "demo-central-review"
 OIDC_ISSUER = "http://localhost:8080/realms/agni-dev"
 ALLOWED_HOSTS = ["testserver", "127.0.0.1", "localhost"]
 DATABASES["default"]["TEST"] = {"NAME": env.str("TEST_DATABASE_NAME", default="agni_test")}  # noqa: F405

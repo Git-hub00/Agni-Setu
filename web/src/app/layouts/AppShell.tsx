@@ -123,6 +123,9 @@ export function AppShell() {
               <Link to="/notifications" className="inline-flex min-h-11 items-center rounded-md px-3 text-ink hover:bg-canvas">
                 {t("nav.notifications")}
               </Link>
+              <Link to="/support" className="inline-flex min-h-11 items-center rounded-md px-3 text-ink hover:bg-canvas">
+                {t("nav.support")}
+              </Link>
               <Link to="/account" className="inline-flex min-h-11 items-center rounded-md px-3 text-ink hover:bg-canvas">
                 {principal.display_name}
               </Link>

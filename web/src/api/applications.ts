@@ -8,6 +8,7 @@ import { queryOptions } from "@tanstack/react-query";
 
 import { ensureCsrf } from "./auth";
 import { request } from "./client";
+import type { Hold } from "./lifecycle";
 import type { Premises } from "./premises";
 
 export type ApplicationStatus =
@@ -196,6 +197,11 @@ export interface CaseDetail extends CaseSummary {
     is_demo: boolean;
   } | null;
   decision_readiness: Record<string, unknown> | null;
+  /** Holds (B13): the flag for every reader, the records for staff. */
+  on_hold: boolean;
+  holds: Hold[] | null;
+  prior_certificate_id: string | null;
+  closed_at: string | null;
   allowed_actions: AllowedAction[];
 }
 
@@ -283,7 +289,7 @@ export function uploadDocument(applicationId: string, requirementCode: string, f
   return uploadFile("APPLICATION_DRAFT", applicationId, requirementCode, file);
 }
 
-export type UploadTargetType = "APPLICATION_DRAFT" | "INSPECTION_EVIDENCE" | "NOTICE_RESPONSE";
+export type UploadTargetType = "APPLICATION_DRAFT" | "INSPECTION_EVIDENCE" | "NOTICE_RESPONSE" | "SUPPORT_ATTACHMENT";
 
 /** Shared upload flow for every permitted target type (the server decides who may upload where). */
 export async function uploadFile(targetType: UploadTargetType, targetId: string, requirementCode: string, file: File): Promise<DocumentVersion> {

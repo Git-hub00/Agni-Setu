@@ -13,6 +13,8 @@ import { CertificateDetailPage } from "../features/certificates/CertificateDetai
 import { CertificatesPage } from "../features/certificates/CertificatesPage";
 import { ReviewPage } from "../features/review/ReviewPage";
 import { ReviewQueuePage } from "../features/review/ReviewQueuePage";
+import { SupportPage } from "../features/support/SupportPage";
+import { SupportTicketPage } from "../features/support/SupportTicketPage";
 import { VerifyPage } from "../features/verify/VerifyPage";
 import { InspectionDetailPage } from "../features/inspections/InspectionDetailPage";
 import { InspectionsQueuePage } from "../features/inspections/InspectionsQueuePage";
@@ -61,6 +63,8 @@ export const routes: RouteObject[] = [
           { path: "reviews", element: <ReviewQueuePage /> },
           { path: "certificates", element: <CertificatesPage /> },
           { path: "certificates/:certificateId", element: <CertificateDetailPage /> },
+          { path: "support", element: <SupportPage /> },
+          { path: "support/:ticketId", element: <SupportTicketPage /> },
           { path: "monitoring", element: <MonitoringPage /> },
           { path: "sync", element: <SyncPage /> },
           { path: "notifications", element: <NotificationsPage /> },

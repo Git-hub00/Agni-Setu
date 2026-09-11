@@ -22,6 +22,7 @@ from ..application.commands import (
     CompleteCorrections,
     PublishNotice,
     RequireReinspection,
+    ReturnForClarification,
     ReviewItem,
     SubmitResponse,
     VerifyFinding,
@@ -246,6 +247,22 @@ class FindingVerifyView(ApiView):
             target_type="finding",
             target_id=finding_id,
             etag_type="finding",
+        )
+
+
+class ReturnReviewView(ApiView):
+    """API-063 / TR-14."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request: Request, application_id: UUID) -> Response:
+        return self.run_command(
+            request,
+            ReturnForClarification(),
+            command_name="return-for-clarification",
+            target_type="application",
+            target_id=application_id,
+            etag_type="application",
         )
 
 

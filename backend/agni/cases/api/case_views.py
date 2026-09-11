@@ -32,6 +32,14 @@ from agni.routing.models import RoutingException, RoutingExceptionState
 from ..application.access import can_edit_draft
 from ..application.commands import CreateDraftApplication
 from ..application.drafts import PatchDraft, draft_projection
+from ..application.holds import active_holds, hold_body
+from ..application.lifecycle import (
+    CreateHold,
+    ReleaseHold,
+    WithdrawApplication,
+    owns_case,
+    withdrawal_stages,
+)
 from ..application.submission import ResolveRoutingException, StartScrutiny, SubmitApplication
 from ..domain.states import ApplicationStatus, allowed_transitions
 from ..models import Application, CaseEvent, EventAudience, SubmissionRevision
@@ -300,6 +308,13 @@ class ApplicationDetailView(ApiView):
         certificate = (
             Certificate.objects.filter(application=application).order_by("-issued_at").first()
         )
+        holds = active_holds(application)
+        withdraw_ok = owns_case(principal, application) and application.status in (
+            withdrawal_stages(application)
+        )
+        has_accepted_report = Inspection.objects.filter(
+            application=application, current_report__isnull=False
+        ).exists()
         actions: list[dict[str, Any]] = [
             {
                 "key": "edit-draft",
@@ -398,6 +413,38 @@ class ApplicationDetailView(ApiView):
             elif command == "publish-instrument":
                 enabled = False  # TR-11 is performed by the issuance job, never by a user
                 reason = "SYSTEM_JOB"
+            elif command == "withdraw":
+                enabled = withdraw_ok and not holds
+                reason = (
+                    None
+                    if enabled
+                    else (
+                        "ON_HOLD"
+                        if withdraw_ok
+                        else (
+                            "STAGE_NOT_PERMITTED"
+                            if owns_case(principal, application)
+                            else "NOT_AUTHORIZED"
+                        )
+                    )
+                )
+            elif command == "return-for-clarification":
+                enabled = supervisor_here and has_accepted_report and not holds
+                reason = (
+                    None
+                    if enabled
+                    else (
+                        "NOT_AUTHORIZED"
+                        if not supervisor_here
+                        else ("ON_HOLD" if holds else "NO_ACCEPTED_REPORT")
+                    )
+                )
+            if holds and enabled and command not in ("withdraw", "return-for-clarification"):
+                blocked = {s for h in holds for s in h.command_block_scope}
+                if "TRANSITIONS" in blocked or (
+                    "DECISIONS" in blocked and command in ("approve", "reject")
+                ):
+                    enabled, reason = False, "ON_HOLD"
             actions.append({"key": command, "enabled": enabled, "reason_code": reason})
         if staff:
             actions.append(
@@ -407,6 +454,29 @@ class ApplicationDetailView(ApiView):
                     "reason_code": None
                     if (supervisor_here and open_exception)
                     else "NO_OPEN_EXCEPTION",
+                }
+            )
+            terminal = application.status in ("COMPLETED", "REJECTED", "WITHDRAWN")
+            actions.append(
+                {
+                    "key": "add-hold",
+                    "enabled": supervisor_here and not holds and not terminal,
+                    "reason_code": None
+                    if (supervisor_here and not holds and not terminal)
+                    else (
+                        "NOT_AUTHORIZED"
+                        if not supervisor_here
+                        else ("HOLD_ACTIVE" if holds else "CASE_CLOSED")
+                    ),
+                }
+            )
+            actions.append(
+                {
+                    "key": "release-hold",
+                    "enabled": supervisor_here and bool(holds),
+                    "reason_code": None
+                    if (supervisor_here and holds)
+                    else ("NOT_AUTHORIZED" if not supervisor_here else "NO_ACTIVE_HOLD"),
                 }
             )
         body: dict[str, Any] = {
@@ -534,6 +604,14 @@ class ApplicationDetailView(ApiView):
                 else None
             ),
             "decision_readiness": readiness_facts,
+            # Holds (FR-18): staff see the records; every reader sees the flag that explains
+            # blocked actions. A hold is not a case state.
+            "on_hold": bool(holds),
+            "holds": [hold_body(h) for h in holds] if staff else None,
+            "prior_certificate_id": str(application.prior_certificate_id)
+            if application.prior_certificate_id
+            else None,
+            "closed_at": application.closed_at.isoformat() if application.closed_at else None,
             "routing_exception": (
                 {
                     "exception_id": str(open_exception.pk),
@@ -613,6 +691,54 @@ class ResolveRoutingView(ApiView):
             target_type="application",
             target_id=application_id,
             etag_type="application",
+        )
+
+
+class WithdrawView(ApiView):
+    """API-030 / TR-13."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request: Request, application_id: UUID) -> Response:
+        return self.run_command(
+            request,
+            WithdrawApplication(),
+            command_name="withdraw",
+            target_type="application",
+            target_id=application_id,
+            etag_type="application",
+        )
+
+
+class HoldCreateView(ApiView):
+    """API-031."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request: Request, application_id: UUID) -> Response:
+        return self.run_command(
+            request,
+            CreateHold(),
+            command_name="create-hold",
+            target_type="application",
+            target_id=application_id,
+            etag_type="application",
+        )
+
+
+class HoldReleaseView(ApiView):
+    """API-032."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request: Request, hold_id: UUID) -> Response:
+        return self.run_command(
+            request,
+            ReleaseHold(),
+            command_name="release-hold",
+            target_type="hold",
+            target_id=hold_id,
+            etag_type="hold",
         )
 
 

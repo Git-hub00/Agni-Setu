@@ -136,9 +136,16 @@ class ReserveUpload(CommandHandler[UploadReservation]):
         ]
         target_type = str(data.get("target_type", ""))
         permitted_types = (
-            {UploadTargetType.APPLICATION_DRAFT.value, UploadTargetType.NOTICE_RESPONSE.value}
+            {
+                UploadTargetType.APPLICATION_DRAFT.value,
+                UploadTargetType.NOTICE_RESPONSE.value,
+                UploadTargetType.SUPPORT_ATTACHMENT.value,
+            }
             if uow.actor.kind == PrincipalKind.APPLICANT
-            else {UploadTargetType.INSPECTION_EVIDENCE.value}
+            else {
+                UploadTargetType.INSPECTION_EVIDENCE.value,
+                UploadTargetType.SUPPORT_ATTACHMENT.value,
+            }
         )
         if target_type not in permitted_types:
             violations.append(
@@ -180,11 +187,15 @@ class ReserveUpload(CommandHandler[UploadReservation]):
                 extensions={"max_bytes": int(limits["MAX_FILE_BYTES"])},
             )
 
-        application: Application
+        application: Application | None
         if target_type == UploadTargetType.INSPECTION_EVIDENCE:
             application = _evidence_target(uow, target_id, code)
         elif target_type == UploadTargetType.NOTICE_RESPONSE:
             application = _response_target(uow, target_id, code)
+        elif target_type == UploadTargetType.SUPPORT_ATTACHMENT:
+            ticket = _ticket_target(uow, target_id, code)
+            application = ticket.application
+            _check_ticket_quota(target_id, size, uow)
         else:
             draft = editable_draft_for_actor(uow.actor, target_id, uow.now)
             if draft is None:
@@ -203,7 +214,8 @@ class ReserveUpload(CommandHandler[UploadReservation]):
                         )
                     ]
                 )
-        _check_quota(application, size, uow)
+        if application is not None and target_type != UploadTargetType.SUPPORT_ATTACHMENT:
+            _check_quota(application, size, uow)
 
         reservation = UploadReservation.objects.create(
             uploader=uow.actor,
@@ -214,7 +226,10 @@ class ReserveUpload(CommandHandler[UploadReservation]):
             media_type=media_type,
             expected_size=size,
             expected_sha256=sha,
-            object_key=f"staging/{application.pk}/{secrets.token_urlsafe(24)}",
+            object_key=(
+                f"staging/{application.pk if application is not None else target_id}/"
+                f"{secrets.token_urlsafe(24)}"
+            ),
             expires_at=uow.now + timedelta(seconds=int(limits["RESERVATION_TTL_SECONDS"])),
         )
         return CommandOutcome(
@@ -228,7 +243,8 @@ class ReserveUpload(CommandHandler[UploadReservation]):
                     reservation.pk,
                     "upload.reserved",
                     {
-                        "application_id": str(application.pk),
+                        "application_id": str(application.pk) if application is not None else None,
+                        "target_type": target_type,
                         "requirement_code": code,
                         "media_type": media_type,
                         "size_bytes": size,
@@ -308,7 +324,65 @@ def _response_target(uow: UnitOfWork, notice_id: UUID, code: str) -> Application
     return notice.application
 
 
-def _application_for(target: UploadReservation) -> Application:
+SUPPORT_CODE = re.compile(r"^support-[a-z0-9][a-z0-9_-]{0,49}$")
+
+
+def _ticket_target(uow: UnitOfWork, ticket_id: UUID, code: str) -> Any:
+    """SUPPORT_ATTACHMENT: the requester or a support agent of an open ticket attaches a file
+    (`support-<label>`). The file belongs to the ticket's case when there is one; attachment
+    readership follows the ticket (FR-30), never general admin status."""
+    from agni.identity.authz import load_snapshot
+    from agni.support.application.commands import support_scope, visible_tickets
+    from agni.support.models import TicketState
+
+    snapshot = load_snapshot(uow.actor, uow.now)
+    ticket = visible_tickets(snapshot).filter(pk=ticket_id).first()
+    if ticket is None or not (
+        ticket.requester_id == uow.actor.pk or support_scope(snapshot, ticket.owner_queue)
+    ):
+        raise ResourceNotFound("Ticket not found")
+    if ticket.state == TicketState.CLOSED:
+        raise InvalidTransition("Files cannot be added to a closed ticket")
+    if SUPPORT_CODE.match(code) is None:
+        raise ValidationFailed(
+            violations=[
+                Violation(
+                    "/requirement_code", "unknown_requirement", "use support-<label> for a ticket"
+                )
+            ]
+        )
+    return ticket
+
+
+def _check_ticket_quota(ticket_id: UUID, size: int, uow: UnitOfWork) -> None:
+    limits = settings.AGNI_UPLOADS
+    versions = DocumentVersion.objects.filter(
+        reservation__target_type=UploadTargetType.SUPPORT_ATTACHMENT,
+        reservation__target_id=ticket_id,
+    ).exclude(scan_state=ScanState.REJECTED)
+    pending = UploadReservation.objects.filter(
+        target_type=UploadTargetType.SUPPORT_ATTACHMENT,
+        target_id=ticket_id,
+        state__in=[ReservationState.RESERVED, ReservationState.UPLOADED],
+        expires_at__gt=uow.now,
+    )
+    files = versions.count() + pending.count()
+    used = (versions.aggregate(total=Sum("size_bytes"))["total"] or 0) + (
+        pending.aggregate(total=Sum("expected_size"))["total"] or 0
+    )
+    if files + 1 > int(limits["MAX_PACKAGE_FILES"]) or used + size > int(
+        limits["MAX_PACKAGE_BYTES"]
+    ):
+        raise FileTooLarge(
+            "The ticket attachment limit would be exceeded",
+            extensions={
+                "max_files": int(limits["MAX_PACKAGE_FILES"]),
+                "max_package_bytes": int(limits["MAX_PACKAGE_BYTES"]),
+            },
+        )
+
+
+def _application_for(target: UploadReservation) -> Application | None:
     if target.target_type == UploadTargetType.INSPECTION_EVIDENCE:
         from agni.inspections.models import Inspection
 
@@ -317,6 +391,12 @@ def _application_for(target: UploadReservation) -> Application:
         from agni.notices.models import Notice
 
         return Notice.objects.select_related("application").get(pk=target.target_id).application
+    if target.target_type == UploadTargetType.SUPPORT_ATTACHMENT:
+        from agni.support.models import SupportTicket
+
+        return (
+            SupportTicket.objects.select_related("application").get(pk=target.target_id).application
+        )
     return Application.objects.get(pk=target.target_id)
 
 
@@ -482,7 +562,8 @@ class CompleteUpload(CommandHandler[UploadReservation]):
                     version.pk,
                     "document.version_created",
                     {
-                        "application_id": str(application.pk),
+                        "application_id": str(application.pk) if application is not None else None,
+                        "target_type": target.target_type,
                         "requirement_code": version.requirement_code,
                         "sha256": version.sha256,
                         "size_bytes": version.size_bytes,

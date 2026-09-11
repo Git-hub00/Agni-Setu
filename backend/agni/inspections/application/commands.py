@@ -292,6 +292,9 @@ class RequireInspection(CommandHandler[Application]):
         transition = transition_for("require-inspection", target.status_enum)
         if transition is None:
             raise InvalidTransition("An inspection can only be required during SCRUTINY")
+        from agni.cases.application.holds import ensure_not_on_hold
+
+        ensure_not_on_hold(target, scope="transition")
         if RoutingException.objects.filter(
             application=target, state=RoutingExceptionState.OPEN
         ).exists():

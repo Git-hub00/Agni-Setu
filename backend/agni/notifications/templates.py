@@ -26,6 +26,39 @@ class Template:
 
 
 TEMPLATES: dict[str, Template] = {
+    "application.withdrawn.v1": Template(
+        "case-withdrawn",
+        1,
+        (APPLICANT, SUPERVISORS),
+        "CASE",
+        True,
+        "Application {reference} withdrawn",
+        "The application {reference} was withdrawn at your request. Open work on it was closed; "
+        "nothing else changed.",
+        "/applications/{application_id}",
+    ),
+    "certificate.status_changed.v1": Template(
+        "certificate-status",
+        1,
+        (APPLICANT, SUPERVISORS),
+        "CASE",
+        True,
+        "Certificate {certificate_number}: {action}",
+        "An authorised status action ({action}) was recorded for certificate "
+        "{certificate_number}. {public_reason}",
+        "/applications/{application_id}",
+    ),
+    "inspection.clarification_requested.v1": Template(
+        "clarification-requested",
+        1,
+        (APPLICANT, SUPERVISORS),
+        "INSPECTION",
+        True,
+        "Follow-up visit required for {reference}",
+        "The review of {reference} needs clarification on site; a new visit (attempt "
+        "{attempt_number}) will be scheduled.",
+        "/applications/{application_id}",
+    ),
     "decision.approved.v1": Template(
         "decision-approved",
         1,

@@ -26,7 +26,7 @@ Update this file at the end of each agent task. Read actual repository/branch/di
 | B10 | Clocks, outbox dispatch and notifications | READY_FOR_REVIEW (2026-09-11T12:45Z; merged to `main` per D-009 - see s.3l) | **Clocks (FR-18):** `ObligationPause` (authorised, policy-permitted reason codes only; open interval = PAUSED with "due date will be recalculated"), `recompute_obligation` derives `due_at` from immutable facts + the union of pauses (worked example: Mon 09:00 + 240 working min -> 13:00; pause 10-11 -> 14:00; overlapping 10:30-11:30 -> 14:30, not 15:00) and supersedes stale future threshold actions. **Thresholds and escalation (FR-19):** `domain/thresholds.py` plans `REMINDER_75` (75 % of the *active* budget), `DUE` and `ESCALATION_<minutes>` from the pinned policy; `scan_due_obligations` (scheduler, 30 s) inserts the unique `ThresholdAction` per (obligation, stage instance, key) and one durable job with a deterministic logical id - two racing schedulers produce exactly one action/job; the `obligation.threshold` job re-checks state and generation at execution (satisfied -> `CANCELLED_AS_OBSOLETE`, never a fabricated send), creates the unique `Escalation` per threshold action, notifies the duty roster and writes an INTERNAL `obligation.threshold_reached.v1` event. API-074 (one `as_of` cutoff drives counts and urgency), API-075 (clock breakdown, pauses, thresholds, escalations), API-076 manual escalation (idempotent per command, duty roster recipients), API-077 acknowledge (ownership only; obligation untouched). **Outbox dispatch (docs/08 s.2):** `platform/dispatch.py` claims PENDING / stale DISPATCHED rows `FOR UPDATE SKIP LOCKED`, always creates the durable fan-out job (deterministic id) and sends a best-effort broker wake-up through a port (`null` | `amqp` via kombu | `failing` test double); a broker outage leaves rows PENDING with a visible attempt count and the next scan republishes; the fan-out job marks the row COMPLETE. **Notifications (FR-23):** `Notification` (unique per recipient + logical key, versioned template key, safe context, audience-specific body, no attachment URLs), `DeliveryAttempt` (READY -> SENDING -> ACCEPTED_BY_PROVIDER / FAILED; provider acceptance is not delivery), `NotificationPreference` (API-008; mandatory service messages ignore optional channels); templates for 16 event types with audience rules (applicant / supervisors of the owner queue / assigned officer); `notification.fanout` and `notification.deliver` jobs on the demo sink with `force_failure` for outage drills - a gateway outage leaves the in-app notice in place and retries with the job backoff; API-078..080 recipient-only with idempotent read markers and a read-through boundary. **Operations skeleton (UI-20):** API-103/104 (`/jobs`) for administrators: outbox lag, oldest due job, worker activity, dead letters, unknown outcomes, sanitised attempts. `run_schedulers` command + Compose `scheduler` service; `jobs.current_clock()` injects the worker pass clock into handlers. Web: UI-15 `/monitoring` (tabs, KPIs from one cutoff, clock drawer, manual escalation, acknowledge), UI-19 `/notifications` (unread filter, mark read, read-through, delivery status, preferences), UI-20 `/operations`, nav tools + header link. Tests: backend **183 passed** (incl. `tests/integration/test_clocks.py` AT-18-01/02, AT-19-01..05, AT-23-01..05), web **28 passed**; gates clean; migrations obligations 0002 + notifications 0002. **Container proof PASS:** api `b89708eaf2d7` / web `2875d0c683fa` rebuilt and verified, new `scheduler` container healthy, real RabbitMQ wake-ups (`published=34 failed=0`), 9 threshold + 34 fan-out + 12 delivery jobs completed by the worker, `scripts/dev/smoke_clocks.py` **19/19** (obligations from one cutoff, manual escalation + replay, acknowledge != satisfy, notifications read/read-through, preferences, operations summary, supervisor 403 on `/jobs`). Evidence `handover.md` B7 EV-B10-01..06; record s.3l | B11 (offline field application) |
 | B11 | Offline field application | READY_FOR_REVIEW (2026-09-11T15:05Z; merged to `main` per D-009 - see s.3m) | NEW app `agni.offline` (migration 0001): `SyncOperation` (one identity per client operation: unique (principal, operation_id), canonical sha256, ACCEPTED / CONFLICT with the stored result) and `ReportConflict` (reviewed proposal OPEN -> RESOLVED with outcome, reason, cited evidence, resolver). API-048 offline package (current ACTIVE assignee with current OFFICER authority; 24 h expiry; versions; checklist; `Cache-Control: no-store`), API-049 `/sync/operations` (runs the ONLINE SubmitReport / FailVisit handlers through the kernel with `idempotency_key=sync:<id>` and `expected_version=base_inspection_version`; identical replay -> stored result; same id + other content -> 409 SYNC_PAYLOAD_CONFLICT; every refusal recorded as CONFLICT with a safe server snapshot and re-raised with `operation_id/server/sync_state`), API-050 owner-scoped receipt, API-051 proposal (former assignees included), API-052 supervisor resolution (PROPOSE_NEW_REPORT / REINSPECTION_REQUIRED / DECLINE; CLEAN same-case evidence only), `/conflicts` list. **Hardening:** `_assigned_officer_only` now requires the OFFICER role for the case jurisdiction at command time -> 403 AUTHORITY_REVOKED (online and via sync). Web: Dexie v1 stores per docs/09 s.3, frozen manifests (canonical JSON + SHA-256), explicit foreground sync with injected deps (upload -> wait CLEAN -> freeze once -> POST with the id as Idempotency-Key -> receipt; lost response -> lookup/replay; 401 -> sign-in needed; 403/409/412/422 -> stored CONFLICT, retries stop), connectivity from `/me` (never `navigator.onLine` alone), identity-switch purge, unsent-work warning on sign-out, UI-13 `/sync` (grouped operations, versions, receipts, conflict panel local vs server with propose / discard), UI-12 offline package card + offline fallback workspace + Save on device / Queue for sync; PWA via vite-plugin-pwa 1.3.0 (static shell precache only, `/api` never cached, user-confirmed reload; nginx serves `sw.js` / manifest with no-cache). Tests: backend **187 passed** alone (incl. `tests/integration/test_sync.py` 4 tests: AT-12-01/02/04/05 + API-051/052 + revoked authority), web **33 passed** (incl. 5 sync-algorithm specs on fake-indexeddb) + build with `sw.js`; gates clean; `pnpm audit` clean. **Container proof PASS:** api `eecf7c16b76e` / web `760efc9d3e6b` rebuilt and verified by image id, offline 0001 applied on start, `scripts/dev/smoke_offline.py` **18/18** through nginx + Keycloak. Incident BL-008 (PostgreSQL crash recovery under an overlapped run) recorded with the clean rerun. Evidence `handover.md` B7 EV-B11-01..08; record s.3m | B12 (decisions, issuance and verification) |
 | B12 | Decisions, issuance and verification | READY_FOR_REVIEW (2026-09-11T19:1xZ; merged to `main` per D-009 - see s.3n) | NEW app `agni.decisions` (migration 0001): server-calculated readiness guard list (API-064), `RecordDecision` TR-10 / TR-12 (API-065) binding the accepted submission revision, accepted report, findings, pinned policy and the `case.decide` grant in force, immutable rationale (INTERNAL) + public reason, one final decision per case, approval opens ISSUANCE_TASK and the issuance request in the same transaction, rejection cancels open obligations; API-066 list. NEW app `agni.certificates` (migrations 0001/0002): IssuanceRequest with a stable identity (number `AGNI-DEMO-<year>-<n>`, uuid5 logical action, frozen render snapshot, hashed + encrypted 256-bit verification token), `certificate.issue` durable job through renderer / signer / verifier ports (WeasyPrint in the containers, simulated PDF in tests; `demo_watermark` receipt that states it is NOT a digital signature; hash-match verifier), lookup-before-resubmit, RECONCILIATION_REQUIRED on unknown outcomes with `reconcile_issuance`, guarded TR-11 publication (SYSTEM event, obligations satisfied, audit, outbox), registry API-067/068, audited reader-bound artifact tickets API-069, anonymous rate-limited no-store public verification API-073 (approved subset only; unknown 404 != revoked; 503 on store failure; exact-number lookup DEMO-only). Web: UI-14 review queue + review page (readiness panel, no preselected outcome, acknowledgment, confirmation with evidence versions, "certificate processing"), UI-16 register, UI-17 detail (download, verification link), UI-18 public verify page, UI-01 public actions. Tests: backend **198 passed** alone (incl. `test_decisions.py` 3 + domain unit 6), web **37 passed** + build, e2e **35/35** with a real WeasyPrint PDF; pip-audit + pnpm audit clean. Two contract regressions caught by the suite and fixed before commit (catalogue size, LIVE default). Evidence `handover.md` B7 EV-B12-01..06; record s.3n | B13 (lifecycle, support and conditional routes) |
-| B13 | Lifecycle, support and conditional routes | NOT_STARTED | None | Complete prerequisites and task card |
+| B13 | Lifecycle, support and conditional routes | READY_FOR_REVIEW (2026-09-11T20:2xZ; merged to `main` per D-009 - see s.3o) | `CaseHold` (cases 0005) with guarded withdrawal TR-13 (API-030: applicant only, profile stages, disposition of obligations / attempts / notices), holds (API-031/032: listed clocks paused through the B10 pause table, TRANSITIONS / DECISIONS block scope enforced in every transition and the issuance job), TR-14 return-for-clarification (API-063: new CLARIFICATION attempt, no-visit addendum refused as SERVICE_DISABLED); `CertificateStatusInstrument` (certificates 0003) with pure admissibility (expired never reinstated; revocation and supersession final), API-071 status actions needing the `certificate.status` grant + evidence, API-070 linked renewal drafts that never extend validity, registry history / renewals / allowed actions; NEW app `agni.support` (support 0001): tickets with audience-filtered messages, SUPPORT_ATTACHMENT uploads readable only through ticket scope, support status machine with requester reopen, routes + appeals answering 409 SERVICE_DISABLED with the referral; profile-gated API-072/119 stubs. Web: UI-07 lifecycle block (withdraw with confirmation, hold form + release, return form), UI-17 status dialog + renewal, UI-26 support pages. Tests: backend **210 passed** alone (incl. 4 lifecycle integration + 3 admissibility unit), web **39 passed** + build, e2e **29/29** steps (one holder step NOT_RUN, covered by tests). Evidence `handover.md` B7 EV-B13-01..05; record s.3o | B14 (reporting, audit and operational UI) |
 | B14 | Reporting, audit and operational UI | NOT_STARTED | None | Complete prerequisites and task card |
 | B15 | Integration contracts and reconciliation | NOT_STARTED | None | Complete prerequisites and task card |
 | B16 | Security and accessibility hardening | NOT_STARTED | None | Complete prerequisites and task card |
@@ -1185,6 +1185,195 @@ Self-review (D-009): diff reviewed against task card B12 forbidden shortcuts - n
   override (TR-11 only through the job's guarded publish), approval never shows "issued".
 Required human input: BL-007; agency approvals for any real signing arrangement (docs/19).
 Next safe task: B13 - Lifecycle, support and conditional routes.
+End commit and worktree status: commit 3666a25 on feat/b12-decisions, pushed (19:16Z); fast-forwarded
+  into main (D-009) and pushed: origin/main = 3666a25.
+```
+
+## 3o. Handoff record - B13 session claude-20260910T172516Z-b00b (2026-09-11/12)
+
+```text
+Task: B13 - Lifecycle, support and conditional routes (FR-24 certificate lifecycle and renewal,
+  FR-30 support / withdrawal / profile-dependent appeals, FR-18 holds, FR-13 TR-14; task card
+  B13; docs 02 s.3 TR-13/TR-14, s.5 Certificate / Support ticket / Appeal machines, s.6 profile
+  (withdraw_from, permitted_pause_reasons, appeals, external_registration, fees), s.7 holds;
+  05 case_hold / certificate_status_instrument / support_ticket / support_message (appeal and
+  continuing_declaration stay disabled); 06 API-030/031/032, API-063, API-070/071/072,
+  API-112..119; 24 HoldCreate, CertificateStatusCommand, RenewalCreate, ReviewReturn,
+  TicketCreate/TicketMessage/TicketStatus/TicketQuery; 16 s.8, s.9, s.11; 03 UI-07 actions,
+  UI-17 lifecycle, UI-26; 11 AT-24 / AT-30)
+Baseline: implementation spec 2.0.0
+Branch and start commit: feat/b13-lifecycle from main @ 3666a25
+Files inspected: cases submission/commands helpers, inspections `_new_attempt` / `_case_event`,
+  notices RequireReinspection, obligations clock_service (add_pause/end_pause), documents
+  ReserveUpload/CompleteUpload/GrantDocumentAccess/selectors, policies models (PolicyState),
+  routing DutyQueue, identity Capability (CERTIFICATE_STATUS exists; no case.hold / ticket.*
+  capabilities - decisions below), web api/pages patterns.
+Changes made and architecture decisions:
+  cases: models.CaseHold (+ migration 0005: kind ADMINISTRATIVE/COURT_ORDER, reason, basis
+    document, authorized_by, starts/requested_end/ends, affected_obligations, command_block_scope,
+    ACTIVE/RELEASED, etag "hold:<id>:v<n>"); application/holds.py (`ensure_not_on_hold(scope)`
+    guard + `hold_body`, models-only so every command module can import it);
+    application/lifecycle.py: WithdrawApplication (API-030/TR-13: applicant or acting operator,
+    stage must be in the pinned profile's `withdraw_from` - transition table for a draft -,
+    refused while on hold, terminal: obligations CANCELLED, REQUESTED/SCHEDULED attempts
+    CANCELLED with ACTIVE assignments REVOKED, PUBLISHED notices CANCELLED, PUBLIC_CASE
+    application.withdrawn.v1 + INTERNAL case.disposition.v1), CreateHold (API-031: supervisor of
+    the jurisdiction; one ACTIVE hold per case; only ACTIVE obligations of the case may be
+    listed and are paused through clock_service.add_pause with the profile's permitted reason
+    AUTHORIZED_ADMINISTRATIVE_HOLD and hold_id; command_block_scope subset of TRANSITIONS /
+    DECISIONS; COURT_ORDER cites a CLEAN case document; start at most 24 h back - earlier
+    backdating needs a specific authority that is not enabled), ReleaseHold (API-032: ends the
+    hold's open pauses, recomputes, INTERNAL case.hold_released.v1); guard wired into every
+    application transition (notices `_transition`, StartScrutiny, RequireInspection,
+    accept-report, RecordDecision with scope "decision", and the issuance job which waits with
+    RETRYABLE CASE_ON_HOLD instead of publishing); CaseDetail adds on_hold, holds (staff),
+    prior_certificate_id, closed_at and the actions withdraw / add-hold / release-hold /
+    return-for-clarification, with ON_HOLD reason codes on blocked transitions.
+  notices: ReturnForClarification (API-063 / TR-14, FR-13): supervisor, current accepted report,
+    nonempty items (codes of the pinned checklist), requires_new_visit must be literal true
+    (false -> 409 SERVICE_DISABLED: no no-visit addendum in baseline 2.0), creates a
+    CLARIFICATION attempt, REVIEW_TASK satisfied, INSPECTION_TASK opened, PUBLIC_CASE
+    inspection.clarification_requested.v1 + INTERNAL note.
+  certificates: models.CertificateStatusInstrument (+ migration 0003; append-only; action,
+    grant, actor, effective_at, reason, public_reason, evidence, successor, status before/after);
+    domain/lifecycle.py pure admissibility (ACTIVE -> SUSPEND/REVOKE/SUPERSEDE; SUSPENDED ->
+    REINSTATE/REVOKE/SUPERSEDE; EXPIRED interval -> REVOKE/SUPERSEDE only; REVOKED/SUPERSEDED ->
+    nothing); application/lifecycle.py RecordStatusAction (API-071: supervisor of the
+    jurisdiction + `certificate.status` grant; effective_at between issue and now; SUSPEND/REVOKE
+    cite a CLEAN case document; SUPERSEDE names an in-force ACTIVE certificate of the same
+    premises without predecessor and links it; 409 CERTIFICATE_STATUS_CONFLICT when not
+    admissible; PUBLIC_CASE certificate.status_changed.v1; audit with the grant) and
+    CreateRenewalDraft (API-070: holder/operator, not for REVOKED/SUPERSEDED, one open renewal
+    per certificate, new DRAFT for the same premises with `prior_certificate_id`, RENEWAL type
+    and the number in the draft fields; the source certificate is not touched); registry detail
+    now carries status_history (reasons for staff only), renewals and the holder-side renewal
+    action; API-068 adds allowed_status_actions per reader; API-072 external registration and
+    API-119 declarations are profile-gated routes answering 409 SERVICE_DISABLED.
+  support (NEW app, migration 0001): SupportTicket (requester, optional readable case, category,
+    subject, description, OPEN/IN_PROGRESS/WAITING_FOR_REQUESTER/RESOLVED/CLOSED, owner queue =
+    the case's queue or SUPPORT_DEFAULT_QUEUE_KEY, priority), SupportMessage (append-only;
+    REQUESTER/INTERNAL audience; MESSAGE/STATUS kind; cited CLEAN files as a JSON id list -
+    deviation from the "document_refs through table" of docs/05, recorded); commands CreateTicket
+    (API-113), AddTicketMessage (API-115: requesters write REQUESTER only; staff notes INTERNAL;
+    state nudges OPEN->IN_PROGRESS on a staff reply and WAITING->IN_PROGRESS on a requester
+    reply; closed tickets need a reopen), ChangeTicketStatus (API-116: staff machine; requester
+    may only reopen RESOLVED/CLOSED -> IN_PROGRESS; every change is a STATUS entry); scope =
+    requester, ADMIN (global) or SUPERVISOR of the owner queue's jurisdiction; views API-112/114
+    (audience-filtered), /support/routes (profile flags + referral), API-117/118 appeals -> 409
+    SERVICE_DISABLED with the approved referral text - no appeal row is ever created.
+  documents: SUPPORT_ATTACHMENT upload target for requesters and support agents of an open
+    ticket (`support-<label>` codes, per-ticket quota, DocumentVersion.application follows the
+    ticket's case or stays NULL); visible_documents includes attachments of tickets the reader
+    may see (FR-30 "attachment scope inherits ticket readership").
+  notifications: templates application.withdrawn.v1, certificate.status_changed.v1,
+    inspection.clarification_requested.v1 (+ context keys action / attempt_number); seed grants
+    anita `certificate.status`; settings SUPPORT_DEFAULT_QUEUE_KEY (test: demo-central-review).
+  web: api/support.ts, api/lifecycle.ts, certificates.ts (status actions, renewal, history and
+    renewal types), CaseDetail typings (on_hold, holds, prior_certificate_id, closed_at);
+    features/lifecycle/CaseLifecycleActions (UI-07: applicant withdrawal with a reasoned
+    confirmation, supervisor hold form listing the ACTIVE clocks and the blocked scope, active
+    hold cards with release, return-for-clarification form) mounted on the case page; UI-26
+    SupportPage (routes card with the appeal referral, new-ticket form with optional case link,
+    ticket list) and SupportTicketPage (audience-filtered conversation, reply with a scanned
+    attachment, staff-only internal-note toggle, permitted status buttons, requester reopen);
+    UI-17 CertificateDetailPage rewritten with status history, renewals, holder renewal button
+    (navigates to the new draft) and the authority's status dialog offering only the enabled
+    actions with evidence selection; nav "Support" for signed-in users.
+  Decisions: (1) no dedicated `case.hold` / `ticket.*` capabilities exist in the identity model
+    - holds require the SUPERVISOR role of the case jurisdiction (an administrative act), support
+    scope is ADMIN (global) or SUPERVISOR of the owner queue's jurisdiction; recorded as a gap
+    for docs/07 review; (2) hold pauses reuse the B10 pause table with the only pause reason the
+    demo profile permits; a COURT_ORDER hold is distinguished on the hold record, not by a new
+    pause reason (the profile would refuse it); (3) command_block_scope semantics: TRANSITIONS
+    blocks every application transition incl. publication, DECISIONS blocks TR-10/TR-12 only,
+    an empty list pauses clocks without blocking; (4) an IN_PROGRESS attempt is not cancelled by
+    a withdrawal (the attempt machine has no IN_PROGRESS -> CANCELLED edge); REQUESTED/SCHEDULED
+    attempts are; (5) staff cannot withdraw on the applicant's behalf (not specified; refused
+    with 403); (6) expired records: REINSTATE and SUSPEND are inadmissible, REVOKE/SUPERSEDE
+    stay possible; reinstatement only for a still-in-force suspension (workflow s.5 invariant);
+    (7) renewal eligibility = recorded ACTIVE or SUSPENDED (incl. an expired interval), never
+    REVOKED/SUPERSEDED, one open renewal per certificate; (8) appeals, declarations, external
+    registration and fees are disabled by the demo profile and answer with the referral - no
+    model rows, no "filed" wording anywhere; (9) support attachments cited in messages are a
+    JSON id list rather than a through table (simplicity; readership still follows the ticket).
+Migrations/data impact: cases 0005 (case_hold), certificates 0003 (status instrument), support
+  0001 (2 tables). No data rewrite. No new Compose service.
+Tests actually executed (Windows host, 2026-09-12):
+  uv run --directory backend ruff format / ruff check agni tests / mypy agni tests -> clean
+    (275 files); manage.py check -> no issues; makemigrations --check --dry-run -> "No changes
+    detected"
+  uv run --directory backend pytest tests/unit/test_certificate_lifecycle_rules.py
+    tests/integration/test_lifecycle.py -q -> after three test-side fixes (earlier SATISFIED
+    obligations are not CANCELLED by a withdrawal; a hold bumps the case version so the officer
+    re-reads the attempt; a two-hour clock jump expires the test session - 20 minutes used)
+    -> 12 passed: AT-30-01 withdrawal (403 staff / 404 stranger / 422 no reason / 200 WITHDRAWN
+    with obligations CANCELLED, attempt CANCELLED, assignment REVOKED, public + internal events,
+    second withdrawal and a hold on the closed case refused); holds (court order without basis
+    422; administrative hold pauses only the listed clock, report submission 409 with hold_id,
+    second hold 409, applicant sees on_hold without records, staff actions ON_HOLD/HOLD_ACTIVE,
+    stale release 412, release recomputes due_at = original + pause, report then accepted;
+    withdrawal refused in REVIEW_PENDING per profile; TR-14 false -> 409 SERVICE_DISABLED,
+    unknown item 422, then CLARIFICATION attempt 2 with obligations moved); AT-24 (no grant ->
+    AUTHORITY_MISSING; with grant SUSPEND needs evidence 422, plain supervisor 403, SUSPEND 201 ->
+    public SUSPENDED, holder history without reasons, stale 412, REINSTATE 201; renewal 403 for
+    staff, 201 linked DRAFT with RENEWAL fields and untouched valid_until, second renewal 409;
+    +366 days: SUSPEND/REINSTATE inadmissible 409 CERTIFICATE_STATUS_CONFLICT, REVOKE 201 ->
+    public REVOKED, history SUSPEND/REINSTATE/REVOKE, reinstatement and renewal of a revoked
+    record 409); AT-30 support (routes + appeal 409 with referral, out-of-scope case 422, ticket
+    201 on the case queue, stranger sees nothing, staff list/scope, INTERNAL note hidden from
+    the requester, requester INTERNAL 403, SUPPORT_ATTACHMENT upload + scan + cited in a reply,
+    staff opens it through API-036 and a stranger cannot, staff reply -> IN_PROGRESS, waiting,
+    requester reply resumes, requester resolve 403, resolve, requester reopen, resolve, close,
+    reply after close 409, case status/version untouched, no-case ticket on the support desk
+    queue) (evidence/B13-targeted-tests.log)
+  corepack pnpm --dir web typecheck / lint / test --run / build -> clean, **39 passed (19
+    files)** incl. SupportTicketPage.test (requester view hides internal controls; reply carries
+    the ticket ETag) and CaseLifecycleActions.test (reason + confirmation before the withdraw
+    command with If-Match), built (evidence/B13-web-tests.log, B13-web-build.log)
+  uv run --directory backend pytest -q (full suite, ALONE, 20:03-20:10Z) -> **210 passed in
+    362.43 s**; 0 PostgreSQL termination / recovery lines in that window
+    (evidence/B13-backend-tests.log)
+  Container proof: docker compose build api web -> api 21919bddf49d (20:11:24Z), web
+    328f02f12da7 (20:13:03Z); up -d --wait api worker scheduler web -> all healthy; running
+    containers verified against those ids; showmigrations -> cases 0005, certificates 0003,
+    support 0001 applied on start; seed_demo re-run (idempotent) so anita holds
+    `certificate.status`
+  uv run --directory backend python ../scripts/dev/smoke_lifecycle.py http://127.0.0.1:5173 ->
+    ALL LIFECYCLE SMOKE STEPS PASSED (**29 steps** through nginx + Keycloak + demo OTP, 20:16Z:
+    allowed status actions per grant; SUSPEND without evidence 422; SUSPEND with a CLEAN case
+    document 201 -> public verification SUSPENDED; REINSTATE 201 -> history SUSPEND/REINSTATE;
+    holder renewal step honestly marked NOT_RUN because the smoke applicant is not the holder of
+    AGNI-DEMO-2026-101 (covered by the integration test); administrative hold on an open case
+    pauses 2 obligations and disables transition actions with ON_HOLD; release resumes them;
+    appeals route 409 SERVICE_DISABLED with the referral; ticket 201; supervisor support scope;
+    INTERNAL note hidden from the requester; staff reply -> IN_PROGRESS; RESOLVED; requester
+    reopen; requester resolve 403) (evidence/B13-smoke-lifecycle.log)
+  Dependency audits: no new dependencies in B13 (pip-audit / pnpm audit last run clean at B12).
+Tests not executed and concrete reason: AT-24-06 / AT-30-06 browser + accessibility variants
+  (Playwright, B16/B19); AT-24-05 / AT-30-05 threaded races (kernel fence + unique constraints
+  exercised by replay/412 paths; drills are B17); SUPERSEDE end-to-end (needs a second ACTIVE
+  certificate of the same premises - covered by the admissibility unit test and validation
+  paths only); UI-15 hold controls live on the case page (UI-07) rather than on the monitoring
+  tabs (documented deviation; the monitoring "Paused" tab shows paused clocks from B10).
+Screens inspected: jsdom tests of UI-26 ticket page and UI-07 withdrawal block; SupportPage,
+  hold/return forms and the UI-17 status dialog by typecheck + build only (NOTE for B16/B19).
+Security/privacy or external-effect considerations: INTERNAL support notes never reach the
+  requester; ticket attachments are readable only through ticket scope; holds and status
+  instruments require jurisdiction roles (and the `certificate.status` grant) and are audited
+  with reasons; withdrawal is the applicant's own action; appeals/fees/declarations/external
+  registration stay disabled with the approved referral wording; no support command can touch
+  a case, a certificate, a decision or a grant.
+Remaining defects and reproduction: NONE known in the product.
+Self-review (D-009): diff reviewed against task card B13 proofs - a terminal case cannot be
+  reopened through support (support commands never mutate cases; tested), a renewal does not
+  extend the source validity (tested), an expired record is not reinstated (tested), the hold
+  clock impact is the listed obligations only and release adds exactly the pause length
+  (tested); forbidden shortcut respected: conditional legal flows are not enabled and no fake
+  appeal filing exists.
+Required human input: docs/07 capability model for holds and support scope (see decision 1);
+  BL-007; agency-approved appeal / fee / external-registration profiles before any of those
+  routes can be enabled.
+Next safe task: B14 - Reporting, audit and operational UI.
 End commit and worktree status: recorded in handover.md B12 after commit/push.
 ```
 

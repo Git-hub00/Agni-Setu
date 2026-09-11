@@ -245,6 +245,15 @@ def issue_certificate(job: LogicalJob) -> JobResult:
             error_code="INVALID_TRANSITION",
             safe_message="the case is no longer awaiting issuance",
         )
+    from agni.cases.application.holds import ensure_not_on_hold
+
+    try:
+        ensure_not_on_hold(request.application, scope="transition")
+    except InvalidTransition as exc:
+        # An authorised hold blocks publication too; the job waits (backoff) instead of failing.
+        return JobResult(
+            AttemptOutcome.RETRYABLE, error_code="CASE_ON_HOLD", safe_message=str(exc)[:120]
+        )
     now = jobs.current_clock().now()
     request = _ensure_snapshot(request, now)
 

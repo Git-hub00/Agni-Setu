@@ -307,6 +307,10 @@ class VerificationUnavailable(DomainError):
     code = "VERIFICATION_UNAVAILABLE"
 
 
+class CertificateStatusConflict(DomainError):
+    code = "CERTIFICATE_STATUS_CONFLICT"
+
+
 class RateLimited(DomainError):
     code = "RATE_LIMITED"
 

@@ -133,6 +133,8 @@ def _context(application: Application, payload: dict[str, Any]) -> dict[str, Any
         "certificate_number": payload.get("certificate_number"),
         "valid_until": payload.get("valid_until"),
         "kind": payload.get("kind"),
+        "action": payload.get("action"),
+        "attempt_number": payload.get("attempt_number"),
     }
     return context
 

@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     "agni.offline",
     "agni.decisions",
     "agni.certificates",
+    "agni.support",
 ]
 
 # Custom principal is the user model from the first migration (data model s.8).
@@ -147,6 +148,8 @@ PUBLIC_LOOKUP_PROFILE = env.str(
     "PUBLIC_LOOKUP_PROFILE", default="TOKEN" if SERVICE_MODE == "LIVE" else "TOKEN_OR_NUMBER"
 )
 PUBLIC_VERIFY_RATE_LIMIT = env.int("PUBLIC_VERIFY_RATE_LIMIT", default=60)  # per IP per minute
+# Support desk (FR-30): tickets without a case link are owned by this duty queue.
+SUPPORT_DEFAULT_QUEUE_KEY = env.str("SUPPORT_DEFAULT_QUEUE_KEY", default="central-scrutiny")
 # Outbox wake-up broker (docs/08 s.2): "null" = database polling only; "amqp" = RabbitMQ
 # wake-ups over kombu. The database row is authoritative in both modes.
 BROKER_PROVIDER = env.str("BROKER_PROVIDER", default="null")

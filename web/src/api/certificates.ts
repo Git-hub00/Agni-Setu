@@ -56,11 +56,53 @@ export interface CertificateDetail extends CertificateSummary {
     signature_verification?: Record<string, unknown> | null;
     attempts?: number;
   } | null;
-  status_history: { action: string; effective_at: string; public_reason: string }[];
+  status_history: {
+    instrument_id: string;
+    action: StatusAction;
+    effective_at: string;
+    public_reason: string;
+    status_before: string;
+    status_after: string;
+    successor_certificate_id: string | null;
+    recorded_at: string;
+    reason?: string;
+    actor_id?: string;
+  }[];
+  renewals: { application_id: string; draft_reference: string; public_reference: string | null; status: string }[];
   allowed_actions: { key: string; enabled: boolean; reason_code: string | null }[];
+  allowed_status_actions: { action: StatusAction; enabled: boolean; reason_code: string | null }[];
   demo_notice: string | null;
   issuer_reference: string;
   verification_url: string;
+}
+
+export type StatusAction = "SUSPEND" | "REINSTATE" | "REVOKE" | "SUPERSEDE";
+
+async function command<T>(path: string, body: Record<string, unknown>, etag?: string): Promise<{ data: T; etag: string }> {
+  await ensureCsrf();
+  const response = await request<{ data: T }>(path, { method: "POST", body, ...(etag ? { ifMatch: etag } : {}), idempotencyKey: crypto.randomUUID() });
+  return { data: response.data.data, etag: response.etag ?? "" };
+}
+
+/** API-071: authorised status instrument; the server checks admissibility, grant and evidence. */
+export function recordStatusAction(
+  certificateId: string,
+  input: { action: StatusAction; reason: string; public_reason: string; evidence_document_id?: string; successor_certificate_id?: string },
+  etag: string,
+) {
+  return command<{ instrument: { instrument_id: string; action: string; status_after: string }; certificate: CertificateSummary }>(
+    `/certificates/${certificateId}/status-actions`,
+    { ...input },
+    etag,
+  );
+}
+
+/** API-070: a new linked renewal DRAFT; the source certificate is not modified. */
+export function createRenewal(certificateId: string) {
+  return command<{ application_id: string; draft_reference: string; status: string; prior_certificate_number: string; source_valid_until: string | null; note: string }>(
+    `/certificates/${certificateId}/renewals`,
+    { declaration_of_current_details: true },
+  );
 }
 
 export interface CertificateRegister {

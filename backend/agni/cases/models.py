@@ -223,6 +223,70 @@ class EventAudience(models.TextChoices):
     RESTRICTED = "RESTRICTED"
 
 
+class HoldKind(models.TextChoices):
+    ADMINISTRATIVE = "ADMINISTRATIVE"
+    COURT_ORDER = "COURT_ORDER"
+
+
+class HoldState(models.TextChoices):
+    ACTIVE = "ACTIVE"
+    RELEASED = "RELEASED"
+
+
+class CaseHold(VersionedModel):
+    """Authorised legal/administrative hold (data model `case_hold`; workflow s.7). Not a
+    twelfth case state: it blocks the listed command scope and pauses only the listed
+    obligations. Release and time corrections are recorded as events, never edits."""
+
+    application = models.ForeignKey(Application, on_delete=models.PROTECT, related_name="holds")
+    kind = models.CharField(max_length=16, choices=HoldKind.choices)
+    reason = models.TextField()
+    basis_document = models.ForeignKey(
+        "documents.DocumentVersion",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
+    authorized_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"
+    )
+    authority_grant_id = models.UUIDField(null=True, blank=True)
+    starts_at = models.DateTimeField()
+    requested_end_at = models.DateTimeField(null=True, blank=True)
+    ends_at = models.DateTimeField(null=True, blank=True)
+    affected_obligations = models.JSONField(default=list)
+    command_block_scope = models.JSONField(default=list)
+    state = models.CharField(max_length=10, choices=HoldState.choices, default=HoldState.ACTIVE)
+    released_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
+    release_reason = models.TextField(blank=True, default="")
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(kind__in=[k.value for k in HoldKind]), name="chk_case_hold_kind"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(state__in=[s.value for s in HoldState]),
+                name="chk_case_hold_state",
+            ),
+        ]
+        indexes = [models.Index(fields=["application", "state"], name="idx_case_hold_state")]
+
+    def __str__(self) -> str:
+        return f"{self.kind} hold on {self.application_id} [{self.state}]"
+
+    @property
+    def etag(self) -> str:
+        return f'"hold:{self.id}:v{self.version}"'
+
+
 class CaseEvent(AppendOnlyModel):
     """Append-only business timeline ordered by aggregate version, never browser time."""
 

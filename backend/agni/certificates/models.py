@@ -8,6 +8,7 @@ read time; the administrative `recorded_status` is preserved beneath the derived
 
 from __future__ import annotations
 
+from django.conf import settings
 from django.db import models
 
 from agni.platform.models import AppendOnlyModel, VersionedModel
@@ -177,3 +178,54 @@ class Certificate(VersionedModel):
     @property
     def etag(self) -> str:
         return f'"certificate:{self.id}:v{self.version}"'
+
+
+class StatusAction(models.TextChoices):
+    SUSPEND = "SUSPEND"
+    REINSTATE = "REINSTATE"
+    REVOKE = "REVOKE"
+    SUPERSEDE = "SUPERSEDE"
+
+
+class CertificateStatusInstrument(AppendOnlyModel):
+    """Authorised status action (data model `certificate_status_instrument`): reason, public
+    reason, basis evidence and the grant in force; the effect is applied under the certificate
+    lock. Append-only - a reversal is another instrument."""
+
+    certificate = models.ForeignKey(
+        Certificate, on_delete=models.PROTECT, related_name="status_instruments"
+    )
+    action = models.CharField(max_length=12, choices=StatusAction.choices)
+    authority_grant = models.ForeignKey(
+        "identity.AuthorityGrant", on_delete=models.PROTECT, related_name="+"
+    )
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    effective_at = models.DateTimeField()
+    reason = models.TextField()
+    public_reason = models.TextField()
+    evidence = models.ForeignKey(
+        "documents.DocumentVersion",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
+    successor_certificate = models.ForeignKey(
+        Certificate, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    status_before = models.CharField(max_length=12, choices=RecordedStatus.choices)
+    status_after = models.CharField(max_length=12, choices=RecordedStatus.choices)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(action__in=[a.value for a in StatusAction]),
+                name="chk_status_instrument_action",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["certificate", "effective_at"], name="idx_status_instrument_cert")
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.action} {self.certificate_id} @ {self.effective_at:%Y-%m-%d}"

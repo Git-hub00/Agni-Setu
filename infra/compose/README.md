@@ -54,6 +54,7 @@ uv run --directory backend python ../scripts/dev/smoke_notices.py     http://127
 uv run --directory backend python ../scripts/dev/smoke_clocks.py      http://127.0.0.1:5173      # obligations, manual escalation, scheduler/dispatcher pass, notifications, operations
 uv run --directory backend python ../scripts/dev/smoke_offline.py     http://127.0.0.1:5173      # offline package, failed-visit sync + replay + tamper refusal, conflict proposal/resolution (needs a SCRUTINY case)
 uv run --directory backend python ../scripts/dev/smoke_decisions.py   http://127.0.0.1:5173      # all-PASS report -> readiness -> approve -> worker renders the sample PDF -> register, download, public verification
+uv run --directory backend python ../scripts/dev/smoke_lifecycle.py   http://127.0.0.1:5173      # suspend/reinstate + public status, holder renewal, hold + release on an open case, support ticket with internal note, appeal referral (needs smoke_decisions first)
 ```
 
 Seed the synthetic baseline (idempotent) with

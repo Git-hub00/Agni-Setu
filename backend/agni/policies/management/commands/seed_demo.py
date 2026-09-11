@@ -410,6 +410,8 @@ class Command(BaseCommand):
             # Explicit decision authority (docs/13 s.3 u-supervisor; FR-20). Officers never
             # receive it: the inspecting officer cannot decide.
             (staff["anita"], Capability.CASE_DECIDE, staff["meera"]),
+            # Certificate lifecycle instruments (FR-24) need their own explicit authority.
+            (staff["anita"], Capability.CERTIFICATE_STATUS, staff["meera"]),
         ]
         for subject, capability, approver in wanted:
             exists = AuthorityGrant.objects.filter(

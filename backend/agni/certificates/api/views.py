@@ -33,11 +33,17 @@ from agni.platform.errors import (
     InvalidTransition,
     RateLimited,
     ResourceNotFound,
+    ServiceDisabled,
     VerificationUnavailable,
 )
 
 from ..adapters import WATERMARK
 from ..application.issuance import verification_url
+from ..application.lifecycle import (
+    CreateRenewalDraft,
+    RecordStatusAction,
+    allowed_status_actions,
+)
 from ..application.registry import (
     EFFECTIVE_STATUSES,
     certificate_detail,
@@ -133,9 +139,72 @@ class CertificateDetailView(ApiView):
         body["verification_url"] = verification_url(
             decrypt_contact(certificate.verification_token_ciphertext)
         )
+        body["allowed_status_actions"] = allowed_status_actions(
+            certificate, load_snapshot(principal, now), now
+        )
         response = ok(body, request)
         response["ETag"] = certificate.etag
         return response
+
+
+class CertificateStatusActionView(ApiView):
+    """API-071."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request: Request, certificate_id: UUID) -> Response:
+        return self.run_command(
+            request,
+            RecordStatusAction(),
+            command_name="certificate-status-action",
+            target_type="certificate",
+            target_id=certificate_id,
+            etag_type="certificate",
+        )
+
+
+class CertificateRenewalView(ApiView):
+    """API-070: a new linked DRAFT; the certificate itself is not a command target here."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request: Request, certificate_id: UUID) -> Response:
+        return self.run_command(
+            request,
+            CreateRenewalDraft(),
+            command_name="create-renewal",
+            target_type="certificate-renewal",
+            target_id=certificate_id,
+            etag_type="application",
+        )
+
+
+class ConditionalRouteView(ApiView):
+    """API-072 external registration and API-119 continuing declarations are profile-gated
+    (integrations s.9, s.8). The demo profile does not enable them: the route exists, answers
+    409 SERVICE_DISABLED with the approved referral wording and creates nothing."""
+
+    permission_classes = [IsAuthenticated]
+    feature = "external_registration"
+
+    def post(self, request: Request, **kwargs: Any) -> Response:
+        from agni.support.application.conditional import conditional_routes
+
+        routes = conditional_routes()
+        route = routes.get(self.feature, {"enabled": False})
+        if not route.get("enabled"):
+            raise ServiceDisabled(
+                f"{self.feature.replace('_', ' ')} is not enabled by the active profile",
+                extensions={"feature": self.feature, **route},
+            )
+        raise ServiceDisabled(  # pragma: no cover - no approved live profile exists
+            f"{self.feature.replace('_', ' ')} has no approved implementation in this build",
+            extensions={"feature": self.feature},
+        )
+
+
+class DeclarationsView(ConditionalRouteView):
+    feature = "continuing_declarations"
 
 
 class CertificateAccessView(ApiView):

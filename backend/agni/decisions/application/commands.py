@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from agni.cases.application.holds import ensure_not_on_hold
 from agni.cases.application.submission import (
     _lock_case_for_staff,
     _reason,
@@ -354,6 +355,7 @@ class RecordDecision(CommandHandler[Application]):
         transition = transition_for(command, target.status_enum)
         if transition is None:
             raise InvalidTransition(f"'{command}' is not permitted from {target.status}")
+        ensure_not_on_hold(target, scope="decision")
         _, target_state, event_type = transition
 
         new_version = target.version + 1  # the kernel increments after apply; events carry it

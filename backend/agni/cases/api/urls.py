@@ -41,5 +41,16 @@ urlpatterns = [
         case_views.ResolveRoutingView.as_view(),
         name="application-resolve-routing",
     ),
+    path(
+        "applications/<uuid:application_id>/withdraw",
+        case_views.WithdrawView.as_view(),
+        name="application-withdraw",
+    ),
+    path(
+        "applications/<uuid:application_id>/holds",
+        case_views.HoldCreateView.as_view(),
+        name="application-holds",
+    ),
+    path("holds/<uuid:hold_id>/release", case_views.HoldReleaseView.as_view(), name="hold-release"),
     path("overview", case_views.OverviewView.as_view(), name="overview"),
 ]

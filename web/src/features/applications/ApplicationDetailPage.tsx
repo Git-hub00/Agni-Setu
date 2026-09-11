@@ -7,6 +7,7 @@ import { resolveRouting, startScrutiny, timelineQuery } from "../../api/cases";
 import { requireInspection } from "../../api/inspections";
 import { ProblemNotice } from "../../app/ProblemNotice";
 import { t } from "../../locales";
+import { CaseLifecycleActions } from "../lifecycle/CaseLifecycleActions";
 import { NoticeActions, NoticesSection } from "../notices/CaseNotices";
 import { DecisionSummary } from "../review/DecisionSummary";
 
@@ -86,6 +87,7 @@ export function ApplicationDetailPage() {
       ) : null}
       <StaffActions detail={detail} etag={etag} />
       <DecisionSummary detail={detail} />
+      <CaseLifecycleActions detail={detail} etag={etag} />
       <NoticesSection detail={detail} />
       <NoticeActions detail={detail} etag={etag} />
       {detail.inspections.length > 0 ? (
