@@ -234,6 +234,8 @@ export const en = {
   "home.apiReady": "API is ready",
   "home.apiNotReady": "API is not ready",
   "home.apiError": "The API could not be reached",
+  "problem.retryAfterBefore": "You can try again in",
+  "problem.retryAfterAfter": "seconds.",
   "home.apiCheck.database": "Database",
   "home.apiCheck.schema": "Schema",
   "home.apiCheck.configuration": "Configuration",
