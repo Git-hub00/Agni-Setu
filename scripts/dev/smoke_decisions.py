@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -37,6 +38,20 @@ def worker_pass() -> str:
         timeout=300,
     )
     return (run.stdout + run.stderr).strip()[-200:]
+
+
+def wait_for_publication(boss: requests.Session, app_id: str, seconds: int = 120) -> dict[str, object]:
+    """The LIVE worker may already hold the certificate.issue claim when the one-off pass runs
+    (two legitimate workers, one lease); poll the case until TR-11 lands or the issuance settles
+    in a state that will not publish, so the assertion judges the outcome, not the race."""
+    deadline = time.monotonic() + seconds
+    while True:
+        detail: dict[str, object] = boss.get(f"{BASE}/api/v1/applications/{app_id}", timeout=T).json()["data"]
+        issuance = detail.get("issuance") or {}
+        state = issuance.get("state") if isinstance(issuance, dict) else None
+        if detail.get("status") == "COMPLETED" or state in ("FAILED", "RECONCILIATION_REQUIRED") or time.monotonic() > deadline:
+            return detail
+        time.sleep(3)
 
 
 def obs(code: str, result: str, note: str = "", docs: list[str] | None = None) -> dict[str, object]:
@@ -121,8 +136,8 @@ def main() -> None:
 
     out = worker_pass()
     step("one-off worker pass in the api container (certificate.issue with WeasyPrint + demo watermark)", "error" not in out.lower(), out[-120:])
-    case_after = boss.get(f"{BASE}/api/v1/applications/{app_id}", timeout=T).json()["data"]
-    step("TR-11 published: case COMPLETED, certificate ACTIVE", case_after["status"] == "COMPLETED" and case_after["certificate"] is not None and case_after["certificate"]["effective_status"] == "ACTIVE", f"status={case_after['status']} issuance={case_after.get('issuance')}")
+    case_after = wait_for_publication(boss, app_id)
+    step("TR-11 published: case COMPLETED, certificate ACTIVE (one-off pass or the live worker; polled up to 120 s)", case_after["status"] == "COMPLETED" and case_after["certificate"] is not None and case_after["certificate"]["effective_status"] == "ACTIVE", f"status={case_after['status']} issuance={case_after.get('issuance')}")
     certificate_id = case_after["certificate"]["certificate_id"]
     obligations = {o["kind"]: o["state"] for o in case_after["obligations"]}
     step("ISSUANCE_TASK and CASE_TARGET satisfied", obligations.get("ISSUANCE_TASK") == "SATISFIED" and obligations.get("CASE_TARGET") == "SATISFIED", f"{obligations}")
