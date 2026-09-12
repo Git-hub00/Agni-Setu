@@ -52,6 +52,7 @@ dev = [
     "pip-audit>=2.9,<3",
     "locust>=2.32,<3",
     "pyyaml>=6,<7",
+    "pytest-cov>=7.1.0",
 ]
 
 [tool.uv]
@@ -95,3 +96,16 @@ django_settings_module = "config.settings.test"
 DJANGO_SETTINGS_MODULE = "config.settings.test"
 testpaths = ["tests"]
 filterwarnings = ["error::RuntimeWarning:django.db.models"]
+
+# Coverage (G-25): measured by CI over the unit, integration, security and readiness suites with
+# `--cov-fail-under=80`; the baseline measured on 2026-09-12 was 87 % of 13,079 statements.
+# Migrations and management entry points are generated / operational glue, not logic under test.
+[tool.coverage.run]
+branch = false
+source = ["agni", "config"]
+omit = ["*/migrations/*", "config/asgi.py", "config/wsgi.py", "manage.py"]
+
+[tool.coverage.report]
+skip_covered = true
+show_missing = true
+precision = 1
