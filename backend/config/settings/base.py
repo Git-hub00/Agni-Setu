@@ -250,6 +250,11 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
         "agni.platform.api.renderers.SafeJSONRenderer",
     ],
+    # JSON-only API: one parser with a bounded failure mode for deeply nested documents
+    # (security s.9). Form / multipart bodies were never part of the contract.
+    "DEFAULT_PARSER_CLASSES": [
+        "agni.platform.api.parsers.BoundedJSONParser",
+    ],
     "EXCEPTION_HANDLER": "agni.platform.api.exceptions.problem_exception_handler",
 }
 
