@@ -112,6 +112,51 @@ describe("ApplicationWizardPage (UI-06)", () => {
     expect(body.fields).toEqual({ locality: "Patel Nagar" });
   });
 
+  it("warns before the page unloads while edits are unsaved, and stays quiet once saved (UI-1139/UI-1141, G-08)", async () => {
+    document.cookie = "csrftoken=test-token";
+    const gate: { release: (() => void) | null } = { release: null };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string, init?: RequestInit) => {
+        const url = String(input);
+        if (url === "/api/v1/me") return Promise.resolve(json(200, { data: PRINCIPAL }));
+        if (url === `/api/v1/applications/${APP_ID}` && (init?.method ?? "GET") === "GET") {
+          return Promise.resolve(json(200, { data: detail(1, "Karol Bagh") }, { ETag: `"application:${APP_ID}:v1"` }));
+        }
+        if (url === `/api/v1/applications/${APP_ID}/draft`) {
+          // Hold the save until the test releases it, so the "saving" window is observable.
+          return new Promise<Response>((resolve) => {
+            gate.release = () => {
+              const saved = { ...detail(2, "Patel Nagar").draft, application_id: APP_ID, version: 2 };
+              resolve(json(200, { data: saved }, { ETag: `"application:${APP_ID}:v2"` }));
+            };
+          });
+        }
+        return Promise.resolve(json(404, { code: "RESOURCE_NOT_FOUND" }));
+      }),
+    );
+    const unload = () => {
+      const event = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    renderAt(`/applications/${APP_ID}/edit`);
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { level: 1, name: /DR-2026-ABC123/ });
+    expect(unload(), "nothing edited yet: no prompt").toBe(false);
+    await user.click(screen.getByRole("button", { name: /2\. Details and declarations/ }));
+    const locality = screen.getByLabelText("Locality");
+    await user.clear(locality);
+    await user.type(locality, "Patel Nagar");
+    expect(screen.getByRole("status")).toHaveAttribute("data-save-state", "dirty");
+    expect(unload(), "unsaved edits: the browser must ask before leaving").toBe(true);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveAttribute("data-save-state", "saving"), { timeout: 3000 });
+    expect(unload(), "save in flight: still guarded").toBe(true);
+    gate.release?.();
+    await waitFor(() => expect(screen.getByRole("status")).toHaveAttribute("data-save-state", "saved"), { timeout: 3000 });
+    expect(unload(), "everything saved: no prompt").toBe(false);
+  });
+
   it("shows a conflict with field differences on 412 instead of overwriting", async () => {
     document.cookie = "csrftoken=test-token";
     vi.stubGlobal(
