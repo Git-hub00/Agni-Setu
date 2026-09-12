@@ -55,6 +55,9 @@ export default defineConfig({
     },
   },
   build: {
-    sourcemap: true,
+    // Maps are produced for internal symbolication (kept with the build artefacts) but the bundles
+    // carry no sourceMappingURL and nginx answers 404 for *.map, so the implementation structure
+    // is not published (security s.9 "information exposure"; G-07).
+    sourcemap: "hidden",
   },
 });
