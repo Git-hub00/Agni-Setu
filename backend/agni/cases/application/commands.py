@@ -76,16 +76,18 @@ def _text(
     required: bool = True,
 ) -> str:
     value = payload.get(key)
-    if value is None or value == "":
+    if value is not None and not isinstance(value, str):
+        violations.append(Violation(f"/{key}", "invalid", "must be a string"))
+        return ""
+    # Validate what would be stored: a value that is blank once stripped is not a value.
+    stripped = value.strip() if value else ""
+    if not stripped:
         if required:
             violations.append(Violation(f"/{key}", "required", "is required"))
         return ""
-    if not isinstance(value, str):
-        violations.append(Violation(f"/{key}", "invalid", "must be a string"))
-        return ""
-    if len(value) > max_length:
+    if len(stripped) > max_length:
         violations.append(Violation(f"/{key}", "max_length", f"at most {max_length} characters"))
-    return value.strip()
+    return stripped
 
 
 class RegisterPremises(CommandHandler[Premises]):
