@@ -80,7 +80,17 @@ export function PolicyDetailPage() {
       <ActionsPanel policy={policy} etag={etag ?? ""} />
       <section aria-labelledby="policy-payload" className={CARD}>
         <h2 id="policy-payload" className="text-base font-semibold text-ink">{t("policy.payload")}</h2>
-        <pre className="mt-3 max-h-96 overflow-auto rounded-md bg-canvas p-3 text-xs">{JSON.stringify(policy.payload, null, 2)}</pre>
+        {/* Scrollable content must be reachable by keyboard (WCAG 2.1.1; axe scrollable-region-focusable):
+            a focusable named region is the documented remedy, hence the tabIndex on a non-interactive element. */}
+        <pre
+          role="region"
+          aria-label={t("policy.payloadJson")}
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable region must receive focus
+          tabIndex={0}
+          className="mt-3 max-h-96 overflow-auto rounded-md bg-canvas p-3 text-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          {JSON.stringify(policy.payload, null, 2)}
+        </pre>
       </section>
     </div>
   );

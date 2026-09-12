@@ -116,4 +116,27 @@ describe("PolicyDetailPage (UI-24)", () => {
     expect(body.reason).toBe("Independent approval of v2");
     expect(typeof body.effective_from).toBe("string");
   });
+
+  it("exposes the scrollable payload as a keyboard-reachable named region (WCAG 2.1.1, UI-1178)", async () => {
+    document.cookie = "csrftoken=test-token";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string, init?: RequestInit) => {
+        const url = String(input);
+        if (url === "/api/v1/me") return Promise.resolve(json(200, { data: APPROVER }));
+        if (url === `/api/v1/policies/${POLICY_ID}` && (init?.method ?? "GET") === "GET") {
+          return Promise.resolve(json(200, { data: DETAIL }, { ETag: `"policy_version:${POLICY_ID}:v3"` }));
+        }
+        return Promise.resolve(json(404, { code: "RESOURCE_NOT_FOUND" }));
+      }),
+    );
+    renderAt(`/policy/${POLICY_ID}`);
+    await screen.findByRole("heading", { level: 1, name: /demo-fire-noc v2/ });
+    // The payload block scrolls (max-h + overflow); a scrollable region must be focusable so that
+    // keyboard users can scroll it (axe `scrollable-region-focusable`, serious).
+    const payload = screen.getByRole("region", { name: "Payload JSON (scrollable)" });
+    expect(payload.tagName).toBe("PRE");
+    expect(payload).toHaveAttribute("tabindex", "0");
+    expect(payload).toHaveTextContent("DEMO-DEPARTMENT-REVIEW");
+  });
 });

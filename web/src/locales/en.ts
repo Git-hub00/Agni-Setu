@@ -296,6 +296,7 @@ export const en = {
   "policy.simulationPassed": "Passed",
   "policy.simulationFailed": "Failed",
   "policy.payload": "Payload (read-only)",
+  "policy.payloadJson": "Payload JSON (scrollable)",
   "policy.actions": "Actions",
   "policy.actionsHelp": "Buttons reflect the server's current view. Each action is re-authorised on the server with your current grants; contributors can never approve their own version.",
   "policy.reason": "Reason (recorded in the audit trail)",
