@@ -21,6 +21,7 @@ docs/11. Usage: uv run --directory backend python ../scripts/ci/acceptance_matri
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from collections import defaultdict
@@ -28,7 +29,21 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / "docs" / "ACCEPTANCE_MATRIX.md"
+
+
+def docs_dir() -> Path:
+    """Where the documentation pack lives: AGNI_DOCS_DIR, else the first existing of
+    project-notes/docs (local-only pack since 2105f31) and docs (the historical location)."""
+    override = os.environ.get("AGNI_DOCS_DIR")
+    candidates = [Path(override)] if override else []
+    candidates += [ROOT / "project-notes" / "docs", ROOT / "docs"]
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    return candidates[-1]
+
+
+OUT = docs_dir() / "ACCEPTANCE_MATRIX.md"
 SCAN = {
     "automated": [ROOT / "backend" / "tests", ROOT / "web" / "src", ROOT / "web" / "e2e"],
     "smoke": [ROOT / "scripts" / "dev", ROOT / "scripts" / "ops"],
@@ -157,9 +172,9 @@ def main(argv: list[str]) -> int:
     if options.check:
         current = OUT.read_text(encoding="utf-8") if OUT.is_file() else ""
         if body(current) != body(rendered):
-            print("docs/ACCEPTANCE_MATRIX.md is stale; regenerate it", file=sys.stderr)
+            print(f"{OUT} is stale or missing; regenerate it", file=sys.stderr)
             return 1
-        print("acceptance matrix up to date")
+        print(f"acceptance matrix up to date ({OUT})")
         return 0
     OUT.write_text(rendered, encoding="utf-8")
     totals = rendered.split("## 6. Totals", 1)[1]
