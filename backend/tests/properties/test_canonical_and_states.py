@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from hypothesis import given, settings
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from agni.cases.domain.states import (
@@ -45,7 +45,9 @@ json_values = st.recursive(
 )
 
 
-@settings(max_examples=200, deadline=None)
+# too_slow: a single 30 s stall of the shared test host (observed 2026-09-12 under coverage
+# instrumentation while PostgreSQL recovered) is not a property of canonical hashing.
+@settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 @given(st.dictionaries(st.text(max_size=12), json_values, max_size=8))
 def test_canonical_hash_is_independent_of_key_order(payload: dict[str, object]) -> None:
     items = list(payload.items())
