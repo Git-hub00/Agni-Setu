@@ -24,6 +24,7 @@ from agni.identity.models import Principal, PrincipalKind
 from agni.inspections.models import Inspection
 from agni.obligations.models import Obligation, ObligationState
 from agni.platform.api.payloads import has_control_characters
+from agni.platform.api.throttles import FailClosedScopedRateThrottle
 from agni.platform.api.views import ApiView, ok
 from agni.platform.clock import get_clock
 from agni.platform.errors import AuthenticationRequired, MalformedRequest, ResourceNotFound
@@ -141,6 +142,8 @@ class ApplicationListView(ApiView):
     """API-020 list (scope before filter/count; stable cursor) and API-021 create."""
 
     permission_classes = [IsAuthenticated]
+    throttle_classes = [FailClosedScopedRateThrottle]
+    throttle_scope = "search"
 
     def get(self, request: Request) -> Response:
         principal = _principal(request)

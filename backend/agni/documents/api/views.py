@@ -19,6 +19,7 @@ from rest_framework.response import Response
 from agni.cases.application.drafts import DetachDraftDocument
 from agni.identity.authz import load_snapshot
 from agni.identity.models import Principal
+from agni.platform.api.throttles import FailClosedScopedRateThrottle
 from agni.platform.api.views import ApiView, ok
 from agni.platform.clock import get_clock
 from agni.platform.errors import (
@@ -69,6 +70,8 @@ def content_disposition(disposition: str, original_name: str) -> str:
 
 class UploadListView(ApiView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [FailClosedScopedRateThrottle]
+    throttle_scope = "upload-reserve"
 
     def post(self, request: Request) -> Response:
         principal = _principal(request)

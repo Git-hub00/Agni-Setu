@@ -269,6 +269,13 @@ REST_FRAMEWORK = {
     "DEFAULT_PARSER_CLASSES": [
         "agni.platform.api.parsers.BoundedJSONParser",
     ],
+    # Per-principal limits for the costly endpoints (security s.9; G-05). Applied per view
+    # through FailClosedScopedRateThrottle; the OTP / public-verification limiters are separate.
+    "DEFAULT_THROTTLE_RATES": {
+        "search": env.str("THROTTLE_SEARCH", default="120/min"),
+        "upload-reserve": env.str("THROTTLE_UPLOAD_RESERVE", default="60/min"),
+        "export-request": env.str("THROTTLE_EXPORT_REQUEST", default="20/min"),
+    },
     "EXCEPTION_HANDLER": "agni.platform.api.exceptions.problem_exception_handler",
 }
 
