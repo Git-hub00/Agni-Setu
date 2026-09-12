@@ -6,7 +6,8 @@ set -eu
 
 if [ "${RUN_MIGRATIONS_ON_START:-false}" = "true" ]; then
   echo "[entrypoint] applying migrations (RUN_MIGRATIONS_ON_START=true)"
-  python manage.py migrate --noinput
+  # Schema changes are never cut short by the request-path statement timeout.
+  DB_STATEMENT_TIMEOUT_MS=0 python manage.py migrate --noinput
 fi
 
 if [ "$#" -gt 0 ]; then

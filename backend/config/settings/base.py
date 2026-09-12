@@ -215,6 +215,18 @@ DATABASES = {
     "default": env.db_url("DATABASE_URL", default="postgresql://127.0.0.1:5432/agni_dev"),
 }
 DATABASES["default"]["CONN_MAX_AGE"] = env.int("DB_CONN_MAX_AGE", default=60)
+# Bounded connections (docs/08 s.9 "bounded work"; G-06): a connect timeout so an unreachable
+# server fails fast, a server-side statement timeout so a runaway query cannot pin a worker,
+# and a health check before a persistent connection is reused so a PostgreSQL restart does not
+# fail the first request after recovery. Migrations run with DB_STATEMENT_TIMEOUT_MS=0 (the
+# entrypoint and the production one-shot `migrate` service), never with the request-path limit.
+DB_STATEMENT_TIMEOUT_MS = env.int("DB_STATEMENT_TIMEOUT_MS", default=30_000)
+_db_options = dict(DATABASES["default"].get("OPTIONS", {}))
+_db_options["connect_timeout"] = env.int("DB_CONNECT_TIMEOUT_SECONDS", default=5)
+if DB_STATEMENT_TIMEOUT_MS > 0:
+    _db_options["options"] = f"-c statement_timeout={DB_STATEMENT_TIMEOUT_MS}"
+DATABASES["default"]["OPTIONS"] = _db_options
+DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Browser policy (security s.4): every environment, not only production.
