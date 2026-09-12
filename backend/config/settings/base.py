@@ -178,7 +178,9 @@ MIDDLEWARE = [
     "agni.platform.correlation.RequestIdMiddleware",
     "agni.platform.hardening.HardeningMiddleware",
     "django.middleware.security.SecurityMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
+    # Django's SessionMiddleware with the outage contract: a lost database connection during
+    # the session save answers 503, not 400 (docs/08 s.6).
+    "agni.platform.session_middleware.ResilientSessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
