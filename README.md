@@ -46,6 +46,11 @@ and accessibility suite (Playwright + axe-core, WCAG 2.2 AA) runs against the sa
 `corepack pnpm --dir web test:e2e` after `corepack pnpm --dir web exec playwright install chromium`;
 the security boundary suite is `uv run --directory backend pytest tests/security` and the tracked-file
 secret scan is `python scripts/ci/scan_secrets.py` (both are part of `scripts/ci/verify.sh` and CI).
+Reliability evidence lives in `backend/tests/faults` (in-process fault injection on the real
+database) and `scripts/ops/`: `drill_broker_outage.py` and `drill_worker_restart.py` stop and
+restart real containers, `backup.sh` + `restore-check.sh` rehearse an isolated database restore
+with an integrity report, and `measure_load.py` runs the Locust workload model (reduced size on a
+laptop; the declared 100-user protocol needs a larger host).
 
 Field officers can install the web app (PWA). The service worker caches only the static
 application shell and never API responses; case data for offline work is downloaded per attempt

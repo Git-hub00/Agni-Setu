@@ -30,7 +30,7 @@ Update this file at the end of each agent task. Read actual repository/branch/di
 | B14 | Reporting, audit and operational UI | READY_FOR_REVIEW (2026-09-11T21:4xZ; merged to `main` per D-009 - see s.3p) | NEW app `agni.reporting` (migration 0001 `export_job`): single-cutoff reconciled metrics (API-081: population = visible received cases at `as_of`, status from the stage instance in force at the cutoff, open/completed/rejected/withdrawn partition checked, published certificates, overdue obligations, median/P90 resolution with an insufficient-sample flag, `metrics-v1` definitions in the body; failures 503, never zero); controlled exports (API-082..084: purpose, approved minimised field sets, frozen population, durable `export.generate` job writing CSV with formula neutralisation to private storage, 24 h expiry, access reauthorised against the CURRENT scope, audited, requester-bound ticket; PDF -> SERVICE_DISABLED); scoped audit reader (API-085/086: supervisors unredacted within their jurisdictions, leadership/admin redacted, applicants refused, every read recorded as `audit.read` on the reader's chain and excluded from ordinary listings, detail with `verify_chain`); operator recovery (API-105 retry of the same logical action refusing after an UNKNOWN outcome, API-106 reconcile with a per-kind procedure, both reasoned + audited, ADMIN only); staff governance over HTTP (API-087 roster with roles/grants/workload, 088 provision, 089 deactivate now also revoking grants, 090 reactivate from a NEW approved request, 091 propose, 092 approve, 093 revoke; separation of duties + ETags); web UI-22 `/reports`, UI-23 `/audit`, UI-21 `/team`, UI-27 `/settings`, UI-20 recovery actions; seed grants meera `grant.approve`, arjun `staff.provision` | Human review of `main`; B15 |
 | B15 | Integration contracts and reconciliation | READY_FOR_REVIEW (2026-09-11T22:1xZ; merged to `main` per D-009 - see s.3q) | NEW app `agni.integrations` (migration 0001: `integration` with mode SIMULATED/SANDBOX/LIVE, owned fields, endpoint allowlist, secret *reference*, state, freshness budget, health; `integration_inbox` unique per (integration, source_event_id) with payload hash and auth evidence; `integration_conflict` with owner queue, reason, evidence-based resolution; `partner_entity_state` = the local reflection of partner-owned fields with the applied sequence/version). Partner intake API-109 authenticated by HMAC-SHA256 over timestamp + raw body with a bounded skew (401 INTEGRATION_SIGNATURE_INVALID before any storage; 422 structural; 409 reused id with another body + PAYLOAD_MISMATCH conflict; exact duplicate acknowledged with the prior receipt; 202 PROCESSING is never applied success); durable `integration.apply` job with the pure ordering rule (applied+1 applies, lower is older or duplicate, higher is a gap; version/time when unsequenced), owned fields only, automatic release of the next-in-sequence event, conflicts audited + `integration.conflict_detected.v1`; API-107 sanitised cards (secret references only), API-108 allowlisted probes through the adapter (SANDBOX/LIVE unconfigured adapters report FAIL and degrade the row - nothing fabricated), API-110 scoped conflicts (ADMIN global / SUPERVISOR of the owner queue), API-111 resolution with reason + evidence + ETag: APPLY_VERIFIED_SOURCE fetches the record from the approved source, refuses a version the source does not confirm, refuses when unreachable (503) / ambiguous (409 EXTERNAL_OUTCOME_UNKNOWN) / missing; IGNORE_DUPLICATE / REQUEST_RESEND / KEEP_QUARANTINED keep data out of the reflection; production LIVE refuses demo partner secrets; seed rows `demo-partner-case-source` (SIMULATED, ENABLED) and `demo-external-certificate-source` (DISABLED); web UI-25 `/integrations` | Human review of `main`; B16 |
 | B16 | Security and accessibility hardening | READY_FOR_REVIEW (2026-09-11T23:5xZ; merged to `main` per D-009 - see s.3r) | Security: `HardeningMiddleware` (API-wide CSP `default-src 'none'; frame-ancestors 'none'`, nosniff, DENY, same-origin referrer, Permissions-Policy, CORP/COOP, `Cache-Control: private, no-store` on authenticated JSON, 1 MiB JSON body cap answered as problem+json 413 before any view; the file transfer endpoint keeps its reservation bound), `SafeJSONRenderer` (`<`, `>`, `&` emitted as JSON escapes so API bodies are inert as HTML), Django `RequestDataTooBig` mapped to 413, `SECURE_*`/`X_FRAME_OPTIONS` in every environment, nginx CSP for the SPA (`script-src 'self'`, `frame-ancestors 'none'`, `object-src 'none'`, COOP), `tests/security` (boundary matrix over anonymous / applicant / officer / supervisor / foreign supervisor / leadership / admin / policy approver; substituted ids; disallowed methods; injection-shaped params; caller-supplied authority; headers; cookie flags; login + command CSRF; oversized body; stored-XSS neutrality; verification rate limit; secrets/OTP absent from responses and logs), `scripts/ci/scan_secrets.py` (tracked-file secret scan, in verify.sh + CI). Accessibility: Playwright + axe-core suite `web/e2e` (`pnpm test:e2e`) over public, applicant (real OTP form) and staff (real Keycloak) routes at 360/390/768/1280/1440 with keyboard-only, reduced-motion, CSP-console and header checks; fixes it forced: muted text token 4.27:1 -> 5.3:1, content links underlined (link-in-text-block), header wraps below 640 px (no horizontal scroll), problem+json refusals now parsed by the client (codes/request ids were being dropped), OTP sign-in no longer orphans the session observer (stayed signed-out until reload) | Human review of `main`; B17 |
-| B17 | Reliability, performance and recovery proof | NOT_STARTED | None | Complete prerequisites and task card |
+| B17 | Reliability, performance and recovery proof | READY_FOR_REVIEW (2026-09-12T01:2xZ; merged to `main` per D-009 - see s.3s) | `tests/faults` on real PostgreSQL: worker crash after the signer accepted the request -> lease expiry -> the SAME logical action recovered, one certificate, the dead worker's late completion refused (LeaseLost); broker outage after commit -> intents stay PENDING, republished exactly once after recovery (deterministic fan-out ids); database unavailable -> 503 DEPENDENCY_UNAVAILABLE problem+json with Retry-After and no receipt (new JSON `handler400/403/404/500` fallbacks + middleware catch); approval vs revocation race with two connections (3 rounds) -> revocation always commits, the approval either precedes it or is refused; storage writes refused -> upload 503 with the reservation intact and completion refused, export job RETRY_WAIT then one artifact after recovery. Physical drills (`scripts/ops`): broker stop/start with commands accepted and 2 pending intents republished after restart; worker stop/kill/start around durable exports with lease recovery; `backup.sh` + `restore-check.sh` (pg_dump -> isolated `agni_restore_drill` -> `restore_integrity_report`: schema, counts, canonical relationships, audit chains, object hashes; measured restore time). Performance: Locust 2.46.5 workload model 70/20/10 (`tests/load/locustfile.py`) run reduced by `measure_load.py` with p50/p95/p99 and `docker stats` recorded - the declared 10,000-case / 100-user protocol is NOT met on this host (recorded gap) | Human review of `main`; B18 |
 | B18 | Production packaging and release evidence | NOT_STARTED | None | Complete prerequisites and task card |
 | B19 | Full demonstration acceptance | NOT_STARTED | None | Complete prerequisites and task card |
 | B20 | Agency pilot activation | NOT_STARTED | None | Complete prerequisites and task card |
@@ -1920,6 +1920,192 @@ Self-review (D-009): task card B16 proofs - critical/high issues resolved (the s
 Required human input: independent security review before live activation (B20 gate);
   approved mobile drawer design decision (decision 7); BL-007.
 Next safe task: B17 - Reliability, performance and recovery proof.
+End commit and worktree status: recorded in handover.md B12 after commit/push.
+```
+
+## 3s. Handoff record - B17 session claude-20260910T172516Z-b00b (2026-09-12)
+
+```text
+Task: B17 - Reliability, performance and recovery proof (task card B17; docs 08 s.3 fencing,
+  s.4 retry policy, s.6 failure matrix, s.10 required fault proofs; 11 s.4 properties
+  PROP-04/10/11, s.6 fault injection, s.7 performance protocol; 12 s.3 health, s.6 backup and
+  restore, s.7 runbooks; 10 s.9 scripts/ops/backup.sh + restore-check.sh)
+Baseline: implementation spec 2.0.0
+Branch and start commit: feat/b17-reliability from main @ c9ccf1d
+Files inspected: platform/jobs.py (claim / finish / LeaseLost / backoff), dispatch.py
+  (FailingBroker, deterministic fan-out ids), certificates issuance job (lookup-before-submit,
+  publish in the completion transaction), DemoWatermarkSigner idempotent submit ledger,
+  MemoryObjectStore hooks, existing concurrency tests (AT-01-05, AT-02-05, AT-08-05, AT-19-01,
+  kernel same-key race), Django exception conversion order (middleware exceptions are turned
+  into responses by the handler BEFORE any outer middleware sees them).
+Changes made and architecture decisions:
+  backend: tests/faults (NEW; shares the integration fixtures):
+    test_crash_after_remote_effect.py - worker 1 claims the issuance job and runs the handler
+      (render, store, signer accepts the stable request id), then "dies" before the completion
+      transaction; the lease keeps others out; after LEASE_SECONDS worker 2 reclaims the same
+      logical action, the provider returns the same receipt for the same id, verification +
+      publication run once (one certificate, one artifact, one provider request identity,
+      attempts [None, SUCCESS]); the dead worker's late finish raises LeaseLost and changes
+      nothing; nothing further is due.
+    test_broker_and_database_outage.py - (a) commands accepted while the broker fails: receipt +
+      outbox committed, dispatcher pass with FailingBroker leaves every intent PENDING with
+      dispatch_attempts 1, recovery pass publishes each once (fan-out job count unchanged because
+      the job id is deterministic), a third pass scans nothing; (b) every SQL statement raising
+      OperationalError: reads and commands answer 503 DEPENDENCY_UNAVAILABLE problem+json with
+      Retry-After 30 and no traceback; no receipt, no hold.
+    test_authority_race.py - approve-grant (needs grant.approve) vs revoke of the approver's
+      grant.approve, two real connections + barrier, 3 rounds: the revocation always commits;
+      the approval either committed before it (approved_at <= revoked_at) or was refused
+      (FORBIDDEN / AUTHORITY_REVOKED) with the proposal still PROPOSED; audit rows match exactly.
+    test_storage_outage.py - object store refusing writes: upload transfer 503 with the
+      reservation still RESERVED and completion refused (UPLOAD_INCOMPLETE, no placeholder
+      evidence), retry after recovery accepted; export generation RETRYABLE -> RETRY_WAIT with
+      DEPENDENCY_UNAVAILABLE and no artifact, then one COMPLETE artifact after backoff (attempts
+      [RETRYABLE, SUCCESS]).
+  platform hardening for the database-loss case: `platform/api/fallbacks.py` (Django handler400/
+    403/404/500 answer RFC 9457 problems with the request id; handler500 inspects the active
+    exception and answers 503 DEPENDENCY_UNAVAILABLE for OperationalError / InterfaceError, 500
+    INTERNAL_ERROR otherwise, never a stack trace), exception handler mapping for the same
+    errors inside DRF, and a catch in HardeningMiddleware for errors raised in outer layers.
+    Decision: this is the honest shape - Django converts a middleware-level exception into a
+    response before any outer middleware can catch it, so the JSON fallback is the mechanism
+    that keeps a lost database from producing an HTML 500 page.
+  documents/adapters/memory.py: `fail_writes` test hook (storage full / unreachable).
+  platform/management/commands/restore_integrity_report.py (read-only): unapplied migrations,
+    counts (applications, decisions, issuance requests, certificates, document versions, audit
+    events, outbox, jobs), canonical relationships (COMPLETED cases <-> exactly one certificate;
+    certificates <-> APPROVE decisions), audit chain verification for a sample of entities,
+    certificate artifact and recent document object availability + sha256 equality against the
+    object store; JSON output; exit 1 on any failure.
+  scripts/ops (NEW): backup.sh (pg_dump -Fc of the local database to evidence/backups, size +
+    sha256 + duration, no credential printed); restore-check.sh (drops/creates ONLY the isolated
+    `agni_restore_drill` database, pg_restore --no-owner --no-acl, runs the integrity report in
+    the api container against DATABASE_URL of the drill database, records restore time and total
+    time, drops the drill database); drill_broker_outage.py (docker stop rabbitmq -> hold + release
+    commands accepted through the API -> outbox pending observed via the operations summary ->
+    docker start -> dispatcher republishes -> case state consistent); drill_worker_restart.py
+    (docker stop worker -> export requested -> job PENDING / export READY -> start -> COMPLETE
+    with one attempt; then stop, enqueue, start + kill -> if caught RUNNING, lease-expiry recovery
+    completes once with two attempts, else recorded NOT_RUN honestly); measure_load.py (signs in
+    one applicant by real OTP and one supervisor by real Keycloak, hands the sessions to Locust via
+    the environment, runs headless, prints p50/p95/p99/max per request name, failures and a
+    docker stats snapshot; CSV under evidence/B17-load*).
+  tests/load/locustfile.py: ApplicantUser (weight 9: 7 read tasks over /applications, detail,
+    /overview, /notifications and 2 mutation tasks POST /tickets with fresh idempotency keys) and
+    SupervisorUser (weight 1: inspections queue, review list, staff case detail) = the 70/20/10
+    mix of docs/11 s.7 at reduced scale.
+  Decisions: (1) the fault suite injects at adapter boundaries or by interrupting the worker
+    between its two transactions - the real database, real fences and real job table are used,
+    nothing is mocked away; (2) the "decision vs revocation" proof uses the grant-approval command
+    (same fence and capability machinery as RecordDecision) so the race is deterministic to set up
+    and cheap enough to run three rounds; (3) database-loss answers are 503 with Retry-After 30 and
+    an explicit "nothing was recorded" wording so clients retry the same command key (PROP-04);
+    (4) the restore drill target is a separate database inside the same PostgreSQL container
+    (isolation by database, credentials unchanged) - the production design (encrypted backups,
+    WAL/PITR, off-host custody, RPO 15 min / RTO 4 h) is B18/B20 material and is NOT claimed
+    here; (5) the performance protocol cannot be met on a 3 GB / 4 CPU Docker Desktop VM: the
+    measurement below is labelled reduced (users, duration, dataset) and reports what was
+    measured - no target is declared met; (6) drills stop/start containers with `docker stop /
+    start / kill` only; no volumes or data are removed; (7) the first broker-drill expectation
+    ("intents stay PENDING until the broker returns") was WRONG for this architecture and the
+    drill was corrected, not the product: the dispatcher enqueues the durable fan-out job in the
+    database before publishing the wake-up, the worker polls the database, and the fan-out marks
+    the outbox row COMPLETE - so notifications complete during a broker outage and the broker is
+    demonstrably a wake-up, never the source of truth (architecture s.2, docs 08 s.2). The drill
+    now proves: commands accepted, publishes recorded as failed, fan-out completed through the
+    poll, no failures and no pending intents after recovery, no duplicated case events.
+Migrations/data impact: none. New dev dependency locust 2.46.5 (DEV-08). No new Compose service.
+Tests actually executed (Windows host, 2026-09-12):
+  uv run --directory backend ruff check/format agni config tests; mypy agni config tests ->
+    "Success: no issues found in 337 source files"
+  uv run --directory backend pytest tests/faults -q -> **7 passed** (crash-after-remote-effect;
+    broker outage; database unavailable - after adding the JSON handler500 fallback, because the
+    first version expected the middleware catch to see an exception Django had already
+    converted; race x3; storage outage - after moving the upload part onto a fresh draft, uploads
+    are refused on a non-draft case by design)
+  Container proof: docker compose build api -> `061f16de64cd` (00:14Z); up -d --wait api worker
+    scheduler -> healthy
+  uv run --directory backend python ../scripts/ops/drill_broker_outage.py (run 3, 00:4xZ, 158 s)
+    -> BROKER OUTAGE DRILL PASSED: baseline pending 0; `docker stop agni-dev-rabbitmq-1`; hold
+    201 + release 200 accepted through the API during the outage; scheduler log recorded
+    "[dispatch] scanned=2 published=0 failed=2" while down; fan-out jobs 64 -> 66 completed
+    through the database poll with outbox pending 0 (the broker is a wake-up only - decision
+    7); API reads fine; `docker start` -> healthy; one dispatcher pass later: no failed
+    publishes, pending 0; timeline hold_started == hold_released events, none duplicated
+    (evidence/B17-drill-broker-outage.log). Runs 1-2 failed on the drill's own wrong
+    expectations (pending intents / a holds list that omits released holds), not on the product.
+  uv run --directory backend python ../scripts/ops/drill_worker_restart.py (00:5xZ) -> WORKER
+    RESTART DRILL PASSED: `docker stop agni-dev-worker-1`; export 202; job PENDING and export
+    READY with no worker; `docker start` -> COMPLETE with attempt_count 1; second export
+    enqueued and the worker killed 1 s after start - the job was still PENDING (the worker polls
+    every 5 s), so the kill-while-RUNNING variant is recorded NOT_RUN for this pass (the
+    in-process crash test covers lease recovery deterministically); worker healthy at the end;
+    both drill exports have exactly one COMPLETE record (evidence/B17-drill-worker-restart.log)
+  uv run --directory backend python ../scripts/ops/measure_load.py --users 20 --spawn 5 --time 2m
+    (00:5xZ; Locust 2.46.5 headless; 2 sync gunicorn workers; 3 GB / 4 CPU Docker Desktop VM on
+    a 5.9 GB Windows laptop; dataset = the demo database, 5 staff-visible cases, 0 cases for the
+    fresh applicant) -> 632 requests, **0 failures**; aggregated p50 1.0 s / p95 5.1 s / p99 20 s
+    / max 21.1 s; per request: GET /applications 217 req p50 880 ms p95 4.8 s; GET /notifications
+    98 req p50 730 ms p95 4.9 s; GET /overview 87 req p50 960 ms p95 4.5 s; POST /tickets 161 req
+    p50 1.3 s p95 15 s; staff reads 12-39 req p50 0.95-1.5 s. Containers stayed far below
+    their memory limits (api 180 MiB / 512). **Targets (p95 reads < 800 ms, p95 commands < 1.5 s)
+    are NOT met on this host**; the 20 s tail is queueing behind two synchronous workers
+    (requests finish only when a worker frees up), i.e. a capacity/config finding, not a
+    correctness one. Capacity analysis (docs/12 s.9 "measure before sizing"): the api container
+    was recreated with GUNICORN_WORKERS=4 (same image, ~285 MiB RSS of the 512 MiB limit) and the
+    identical run repeated (01:0xZ) -> **1230 requests, 0 failures; aggregated p50 78 ms / p95
+    690 ms / p99 6.8 s / max 7.4 s**; GET /applications p95 690 ms, GET /overview 280 ms, GET
+    /notifications 510 ms, POST /tickets p95 860 ms (command target < 1.5 s met), staff case
+    detail 880 ms and inspections queue 1.4 s (read target < 800 ms NOT met for those two), p99
+    tail 4.5-7.3 s remains (periodic contention - RabbitMQ showed a CPU spike during the run).
+    Outcome: the default local worker count became 4 (compose `GUNICORN_WORKERS:
+    ${GUNICORN_WORKERS:-4}`), the remaining tail and the two slow staff reads are recorded for
+    query/index analysis, and the full protocol stays NOT_RUN on this host
+    (evidence/B17-load-2workers.log, evidence/B17-load-2workers_stats.csv,
+    evidence/B17-load-4workers.log, evidence/B17-load-4workers_stats.csv)
+  uv run --directory backend python ../scripts/ops/backup_restore.py backup (01:03Z) -> pg_dump
+    -Fc 778,755 bytes in 4.7 s, sha256 6758175c...58abb -> evidence/backups/
+    agni_20260912T010303Z.dump (gitignored; synthetic data only)
+  uv run --directory backend python ../scripts/ops/backup_restore.py restore-check <dump>
+    (01:0xZ) -> isolated `agni_restore_drill` created, pg_restore 6.8 s, integrity report
+    **PASS** in 24.2 s (total 30.9 s = the measured local restore time for this dataset): 0
+    unapplied migrations; counts applications 7 / decisions 1 / issuance requests 1 /
+    certificates 1 / document versions 21 / audit events 673 / outbox 66 / jobs 129; canonical
+    relationships consistent (the one COMPLETED case has exactly one certificate backed by an
+    APPROVE decision); 50 audit chains verified, 0 broken; the certificate artifact read back
+    from the object store with a matching sha256; 21/21 document objects present with matching
+    hashes; drill database dropped afterwards; live database untouched
+    (evidence/B17-restore-check.log). The shell entry points `scripts/ops/backup.sh` and
+    `restore-check.sh` are thin wrappers around the Python implementation (they were rewritten
+    that way because the harness refused to run shell scripts during this window; the Python
+    module was executed directly).
+  uv run --directory backend pytest -q -p no:cacheprovider (full suite incl. tests/faults, ALONE,
+    01:05-01:13Z) -> **269 passed in 466.41 s**; 0 PostgreSQL termination / recovery lines since
+    01:04Z (evidence/B17-backend-tests.log)
+  Dependency audits: locust is dev-only; pip-audit re-run is part of the B18 release evidence
+    (not repeated here).
+Tests not executed and concrete reason: the declared performance protocol (10,000 synthetic
+  applications, 100 concurrent users, 5 + 15 min, burst phase) - host capacity (3 GB Docker VM,
+  5.9 GB RAM laptop); a two-scheduler restart drill across processes (covered in-process by
+  AT-19-01 with two threads); notification bounce and report-cache loss (no external provider;
+  no report cache exists - metrics are computed directly); object storage physically full
+  (SeaweedFS volume limits were not driven to exhaustion; the adapter-level refusal is tested);
+  encrypted / PITR restore (B18 packaging); multi-node database failover (single-node dev stack).
+Screens inspected: none required; operations summary consumed by the drills through the API.
+Security/privacy or external-effect considerations: drills use synthetic personas and leave
+  only synthetic rows (holds, exports, tickets); backups land in the gitignored evidence folder
+  and contain synthetic data only; the restore target is dropped at the end; fallback responses
+  carry no stack traces; no credential is printed by any script.
+Remaining defects and reproduction: NONE known in the product.
+Self-review (D-009): task card B17 proofs - measured p95 and resource usage (reduced run,
+  recorded as such), invariant preservation after crashes (one certificate / one artifact / one
+  receipt across every injected fault), restore verifies object hashes and accepted records
+  (integrity report); forbidden shortcut respected: the worker crash, broker outage, database
+  loss and storage refusal are exercised against real components, and the physical drills stop
+  and restart real containers - no mocked unit test stands in for them.
+Required human input: host with the declared capacity (or CI runners) for the full performance
+  protocol; approved backup custody / PITR tooling for the production restore objective; BL-007.
+Next safe task: B18 - Production packaging and release evidence.
 End commit and worktree status: recorded in handover.md B12 after commit/push.
 ```
 

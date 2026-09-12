@@ -8,6 +8,7 @@ from typing import Any
 
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django.core.exceptions import RequestDataTooBig, TooManyFieldsSent
+from django.db import InterfaceError, OperationalError
 from django.http import Http404
 from rest_framework import exceptions as drf
 from rest_framework.response import Response
@@ -16,6 +17,7 @@ from agni.platform.correlation import current_request_id
 from agni.platform.errors import (
     AuthenticationRequired,
     CsrfFailed,
+    DependencyUnavailable,
     DomainError,
     Forbidden,
     InternalError,
@@ -78,6 +80,14 @@ def _translate(exc: Exception) -> DomainError:
         wait_raw = getattr(exc, "wait", None)
         wait = int(wait_raw) if wait_raw else None
         return RateLimited(retry_after_seconds=wait)
+    if isinstance(exc, OperationalError | InterfaceError):
+        # Database unreachable / connection lost (docs/08 s.6): temporarily unavailable; this
+        # answer never implies an accepted receipt, so the same command key may be retried.
+        return DependencyUnavailable(
+            "The service is temporarily unavailable; nothing was recorded. Retry the same "
+            "command shortly.",
+            retry_after_seconds=30,
+        )
     return InternalError()
 
 

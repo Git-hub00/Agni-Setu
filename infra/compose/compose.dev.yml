@@ -185,6 +185,11 @@ services:
       RUN_MIGRATIONS_ON_START: "true"
       ALLOWED_HOSTS: api,localhost,127.0.0.1
       TRUST_X_FORWARDED_FOR: "true"
+      # Gunicorn sync workers (docs/08 s.9 bounded work). B17 measured the same 20-user workload
+      # with 2 workers (aggregated p50 1.0 s / p95 5.1 s, queueing tail 20 s) and with 4 workers
+      # (p50 78 ms / p95 690 ms, ~285 MiB RSS) on the 3 GB VM - status21 s.3s. 4 is the local
+      # default; production sizing is measured per host (docs/12 s.9).
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-4}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       CELERY_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-agni_dev}
       CACHE_URL: redis://:${VALKEY_PASSWORD}@valkey:6379/0

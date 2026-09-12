@@ -18,6 +18,7 @@ class MemoryObjectStore:
     def __init__(self) -> None:
         self._objects: dict[str, bytes] = {}
         self.fail_next_read = False  # test hook: simulate a transient storage outage
+        self.fail_writes = False  # test hook: storage full / unreachable for every write
 
     @classmethod
     def shared(cls) -> MemoryObjectStore:
@@ -32,6 +33,10 @@ class MemoryObjectStore:
             cls._instance = cls()
 
     def put_staging(self, key: str, chunks: Iterable[bytes], *, max_bytes: int) -> StoredObject:
+        if self.fail_writes:
+            from ..ports import ObjectStoreUnavailable
+
+            raise ObjectStoreUnavailable("simulated storage outage (writes refused)")
         digest = hashlib.sha256()
         buffer = bytearray()
         for chunk in chunks:

@@ -51,3 +51,9 @@ if settings.ENABLE_DEMO_CONTROLS and settings.APP_ENV != "production":
 urlpatterns: list[URLPattern | URLResolver] = [
     path("api/v1/", include((api_v1, "api"), namespace="api")),
 ]
+
+# Framework fallbacks stay JSON problems with a request id and no stack trace (B17; docs/08 s.6).
+handler400 = "agni.platform.api.fallbacks.bad_request"
+handler403 = "agni.platform.api.fallbacks.permission_denied"
+handler404 = "agni.platform.api.fallbacks.not_found"
+handler500 = "agni.platform.api.fallbacks.server_error"

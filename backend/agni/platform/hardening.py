@@ -14,10 +14,11 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from django.conf import settings
+from django.db import InterfaceError, OperationalError
 from django.http import HttpRequest, HttpResponse, JsonResponse
 
 from .correlation import current_request_id
-from .errors import MalformedRequest
+from .errors import DependencyUnavailable, MalformedRequest
 
 API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 PERMISSIONS_POLICY = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
@@ -37,8 +38,25 @@ class HardeningMiddleware:
         too_big = self._body_too_large(request)
         if too_big is not None:
             return too_big
-        response = self.get_response(request)
+        try:
+            response = self.get_response(request)
+        except (OperationalError, InterfaceError):
+            # The database went away somewhere below (session load/save, authentication, a
+            # view): answer "temporarily unavailable" uniformly, with no stack trace and no
+            # implied receipt (docs/08 s.6). The API exception handler does the same inside DRF.
+            response = self._unavailable(request)
         self._add_headers(request, response)
+        return response
+
+    @staticmethod
+    def _unavailable(request: HttpRequest) -> HttpResponse:
+        problem = DependencyUnavailable(
+            "The service is temporarily unavailable; nothing was recorded. Retry the same "
+            "command shortly.",
+            retry_after_seconds=30,
+        ).to_problem(current_request_id())
+        response = JsonResponse(problem, status=503, content_type="application/problem+json")
+        response["Retry-After"] = "30"
         return response
 
     def _body_too_large(self, request: HttpRequest) -> HttpResponse | None:

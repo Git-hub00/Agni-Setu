@@ -59,6 +59,19 @@ uv run --directory backend python ../scripts/dev/smoke_reporting.py   http://127
 uv run --directory backend python ../scripts/dev/smoke_integrations.py http://127.0.0.1:5173     # HMAC-signed partner events (apply, duplicate ack, body mismatch 409, unsigned 401, sequence gap -> conflict), allowlisted probe, evidence-based resolution
 ```
 
+Reliability drills against the same stack (they stop/start real containers or read the
+database; nothing is deleted except the isolated `agni_restore_drill` database they create):
+
+```bash
+uv run --directory backend python ../scripts/ops/drill_broker_outage.py   http://127.0.0.1:5173   # stop RabbitMQ, accept commands, watch the outbox republish after restart
+uv run --directory backend python ../scripts/ops/drill_worker_restart.py  http://127.0.0.1:5173   # stop / kill the worker around a durable export job; lease recovery
+scripts/ops/backup.sh && scripts/ops/restore-check.sh evidence/backups/agni_<utc>.dump           # logical backup + isolated restore + integrity report
+uv run --directory backend python ../scripts/ops/measure_load.py          http://127.0.0.1:5173 --users 20 --time 2m   # Locust 70/20/10 workload, reduced size
+```
+
+The api runs 4 gunicorn workers by default (`GUNICORN_WORKERS`, measured in B17: 2 workers
+queued a 20-user run to p95 5.1 s, 4 workers gave p95 690 ms at ~285 MiB RSS).
+
 Seed the synthetic baseline (idempotent) with
 `docker exec agni-dev-api-1 python manage.py seed_demo --scenario baseline --require-demo`.
 
