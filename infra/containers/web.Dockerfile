@@ -14,7 +14,8 @@ COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
 COPY . .
-RUN pnpm build
+# Source maps are "hidden" build artefacts (vite.config.ts); they never enter the served image.
+RUN pnpm build && find dist -type f -name '*.map' -delete
 
 # ---------------------------------------------------------------------------------------------
 FROM nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de AS runtime

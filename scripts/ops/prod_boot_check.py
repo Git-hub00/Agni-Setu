@@ -404,6 +404,28 @@ def main(argv: list[str]) -> int:
             "content-security-policy" in headers and "x-content-type-options: nosniff" in headers,
             "B15 hardening headers present on API responses",
         )
+        # Source maps never leave the build (G-07): no *.map in the served tree, no
+        # sourceMappingURL in the bundles, and nginx answers 404 for any *.map path.
+        web = names.get("web", f"{PROJECT}-web-1")
+        maps = run(
+            [
+                "docker",
+                "exec",
+                web,
+                "sh",
+                "-c",
+                "find /usr/share/nginx/html -type f -name '*.map' | wc -l;"
+                " grep -l sourceMappingURL /usr/share/nginx/html/assets/*.js 2>/dev/null | wc -l",
+            ],
+            check_exit=False,
+        )
+        counts = [line.strip() for line in maps.stdout.splitlines() if line.strip()]
+        check(
+            counts == ["0", "0"],
+            f"B21 web image ships no source maps / sourceMappingURL (map files, bundles = {counts})",
+        )
+        map_status, _ = probe(api, f"http://{PROJECT}-web-1:8080/assets/index-probe.js.map")
+        check(map_status == "404", f"B22 nginx refuses *.map paths ({map_status})")
         write = run(
             ["docker", "exec", api, "sh", "-c", "touch /app/prodcheck 2>&1 || echo READONLY"],
             check_exit=False,
