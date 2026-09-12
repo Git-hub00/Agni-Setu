@@ -37,7 +37,7 @@ from ..application.commands import (
     document_body,
     verify_access_ticket,
 )
-from ..models import DocumentVersion, ReservationState, ScanState, UploadReservation
+from ..models import ReservationState, ScanState, UploadReservation
 from ..ports import ObjectNotFound, ObjectStoreUnavailable, ObjectTooLarge
 from ..selectors import visible_documents
 
@@ -215,7 +215,13 @@ class DocumentContentView(ApiView):
         now = get_clock().now()
         if access is None or access.expires_at <= now:
             raise ResourceNotFound("Document access ticket is not valid")
-        document = DocumentVersion.objects.filter(pk=document_id).first()
+        # A ticket proves a grant was recorded, not that the holder may still read the file:
+        # re-authorise against the CURRENT scope so a revoked binding, an ended delegation or a
+        # disabled principal cannot ride a ticket issued moments earlier (security s.5; the
+        # export artifact route applies the same rule through `scope_still_covers`).
+        document = (
+            visible_documents(load_snapshot(principal, now), now).filter(pk=document_id).first()
+        )
         if document is None or document.scan_state != ScanState.CLEAN:
             raise ResourceNotFound("Document is not available")
         store = get_object_store()
