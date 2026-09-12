@@ -23,6 +23,7 @@ from agni.identity.domain.roles import Capability, RoleKey
 from agni.identity.models import Principal, PrincipalKind
 from agni.inspections.models import Inspection
 from agni.obligations.models import Obligation, ObligationState
+from agni.platform.api.payloads import has_control_characters
 from agni.platform.api.views import ApiView, ok
 from agni.platform.clock import get_clock
 from agni.platform.errors import AuthenticationRequired, MalformedRequest, ResourceNotFound
@@ -151,6 +152,8 @@ class ApplicationListView(ApiView):
                 raise MalformedRequest("unknown status filter")
             queryset = queryset.filter(status=status)
         query = (request.query_params.get("q") or "").strip()[:80]
+        if has_control_characters(query):
+            raise MalformedRequest("search term must not contain control characters")
         if query:
             queryset = queryset.filter(
                 Q(draft_reference__icontains=query)

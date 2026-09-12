@@ -20,6 +20,8 @@ from agni.platform.commands import ActorContext, CommandEnvelope, CommandHandler
 from agni.platform.correlation import current_request_id
 from agni.platform.errors import CsrfFailed
 
+from .payloads import reject_control_characters
+
 UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 
@@ -98,6 +100,9 @@ class ApiView(APIView):
             if payload is not None
             else (request.data if isinstance(request.data, dict) else {})
         )
+        # Boundary hygiene before any handler runs: control characters (NUL first of all) are a
+        # validation failure with a pointer, never a database error.
+        reject_control_characters(body)
         envelope = CommandEnvelope(
             actor=self.actor_context(request),
             command_name=command_name,
