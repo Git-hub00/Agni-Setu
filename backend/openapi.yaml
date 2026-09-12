@@ -1,0 +1,1956 @@
+openapi: 3.0.3
+info:
+  title: Agni Setu API
+  version: 0.1.0
+  description: 'Fire-safety certificate case management. Contracts: docs/06_API_AND_EVENT_CONTRACTS.md'
+paths:
+  /api/v1/appeals:
+    post:
+      operationId: appeals_create
+      description: |-
+        API-117: disabled until an approved appeal profile exists. Answers with the referral
+        route; no appeal record is created and the source decision is untouched.
+      tags:
+      - appeals
+      responses:
+        '200':
+          description: No response body
+  /api/v1/appeals/{appeal_id}/decisions:
+    post:
+      operationId: appeals_decisions_create
+      description: |-
+        API-117: disabled until an approved appeal profile exists. Answers with the referral
+        route; no appeal record is created and the source decision is untouched.
+      parameters:
+      - in: path
+        name: appeal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - appeals
+      responses:
+        '200':
+          description: No response body
+  /api/v1/applications:
+    get:
+      operationId: applications_retrieve
+      description: API-020 list (scope before filter/count; stable cursor) and API-021
+        create.
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: applications_create
+      description: API-020 list (scope before filter/count; stable cursor) and API-021
+        create.
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/applications/{application_id}:
+    get:
+      operationId: applications_retrieve_2
+      description: 'API-022: canonical detail with allowed actions and safe blockers.'
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/applications/{application_id}/complete-corrections:
+    post:
+      operationId: applications_complete_corrections_create
+      description: API-061.
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/applications/{application_id}/decision-readiness:
+    get:
+      operationId: applications_decision_readiness_retrieve
+      description: |-
+        API-064: the server-calculated guard list for the current supervisor. The read result
+        never authorises the later command by itself.
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/applications/{application_id}/decisions:
+    get:
+      operationId: applications_decisions_retrieve
+      description: 'API-066 (GET: published decision plus authorised internal context)
+        and API-065 (POST).'
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: applications_decisions_create
+      description: 'API-066 (GET: published decision plus authorised internal context)
+        and API-065 (POST).'
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/applications/{application_id}/draft:
+    patch:
+      operationId: applications_draft_partial_update
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/applications/{application_id}/external-registration:
+    post:
+      operationId: applications_external_registration_create
+      description: |-
+        API-072 external registration and API-119 continuing declarations are profile-gated
+        (integrations s.9, s.8). The demo profile does not enable them: the route exists, answers
+        409 SERVICE_DISABLED with the approved referral wording and creates nothing.
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/applications/{application_id}/findings:
+    get:
+      operationId: applications_findings_retrieve
+      description: API-059.
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/applications/{application_id}/holds:
+    post:
+      operationId: applications_holds_create
+      description: API-031.
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/applications/{application_id}/notices:
+    get:
+      operationId: applications_notices_retrieve
+      description: API-053 (GET) and API-054 (POST) on the case.
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: applications_notices_create
+      description: API-053 (GET) and API-054 (POST) on the case.
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/applications/{application_id}/reinspect:
+    post:
+      operationId: applications_reinspect_create
+      description: API-062.
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/applications/{application_id}/require-inspection:
+    post:
+      operationId: applications_require_inspection_create
+      description: API-029 (case-level command).
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/applications/{application_id}/resolve-routing:
+    post:
+      operationId: applications_resolve_routing_create
+      description: API-028.
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/applications/{application_id}/return-review:
+    post:
+      operationId: applications_return_review_create
+      description: API-063 / TR-14.
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/applications/{application_id}/revisions:
+    get:
+      operationId: applications_revisions_retrieve
+      description: 'API-026: immutable accepted submission revisions visible by scope.'
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/applications/{application_id}/start-scrutiny:
+    post:
+      operationId: applications_start_scrutiny_create
+      description: API-027 / TR-02.
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/applications/{application_id}/submit:
+    post:
+      operationId: applications_submit_create
+      description: API-024 / TR-01.
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/applications/{application_id}/timeline:
+    get:
+      operationId: applications_timeline_retrieve
+      description: 'API-025: audience-filtered chronological events ordered by aggregate
+        version/ordinal.'
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/applications/{application_id}/withdraw:
+    post:
+      operationId: applications_withdraw_create
+      description: API-030 / TR-13.
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - applications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/audit-events:
+    get:
+      operationId: audit_events_retrieve
+      description: 'API-085: permitted event fields; the query itself is audited.'
+      tags:
+      - audit-events
+      responses:
+        '200':
+          description: No response body
+  /api/v1/audit-events/{audit_event_id}:
+    get:
+      operationId: audit_events_retrieve_2
+      description: 'API-086: safe redacted detail plus integrity metadata (chain verified
+        on read).'
+      parameters:
+      - in: path
+        name: audit_event_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - audit-events
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/csrf:
+    get:
+      operationId: auth_csrf_retrieve
+      description: 'API-001: set the CSRF cookie and return the token; never authenticates.'
+      tags:
+      - auth
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/logout:
+    post:
+      operationId: auth_logout_create
+      description: 'API-006: flush the server session (CSRF enforced by ApiView).'
+      tags:
+      - auth
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/oidc/callback:
+    get:
+      operationId: auth_oidc_callback_retrieve
+      description: 'API-005: validate the token, map issuer+subject to a provisioned
+        staff principal.'
+      tags:
+      - auth
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/oidc/start:
+    get:
+      operationId: auth_oidc_start_retrieve
+      description: 'API-004: server-side PKCE/state/nonce, redirect to the staff identity
+        provider.'
+      tags:
+      - auth
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/otp/challenges:
+    post:
+      operationId: auth_otp_challenges_create
+      description: 'API-002: enumeration-safe challenge creation with anti-abuse limits.'
+      tags:
+      - auth
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/otp/verify:
+    post:
+      operationId: auth_otp_verify_create
+      description: 'API-003: consume the single-use challenge and rotate the authenticated
+        session.'
+      tags:
+      - auth
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/authority-grants:
+    get:
+      operationId: authority_grants_retrieve
+      description: API-091 (POST proposes) plus a scoped listing of grants for UI-21.
+      tags:
+      - authority-grants
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: authority_grants_create
+      description: API-091 (POST proposes) plus a scoped listing of grants for UI-21.
+      tags:
+      - authority-grants
+      responses:
+        '200':
+          description: No response body
+  /api/v1/authority-grants/{grant_id}/approve:
+    post:
+      operationId: authority_grants_approve_create
+      description: 'API-092: independent approval; `reason` is recorded as the approval
+        basis.'
+      parameters:
+      - in: path
+        name: grant_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - authority-grants
+      responses:
+        '200':
+          description: No response body
+  /api/v1/authority-grants/{grant_id}/revoke:
+    post:
+      operationId: authority_grants_revoke_create
+      description: API-093.
+      parameters:
+      - in: path
+        name: grant_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - authority-grants
+      responses:
+        '200':
+          description: No response body
+  /api/v1/certificates:
+    get:
+      operationId: certificates_retrieve
+      description: |-
+        API-067: scoped authoritative register plus pending-issuance cards. A reserved number is
+        never listed as an issued active instrument.
+      tags:
+      - certificates
+      responses:
+        '200':
+          description: No response body
+  /api/v1/certificates/{certificate_id}:
+    get:
+      operationId: certificates_retrieve_2
+      description: 'API-068: provenance, derived effective status and allowed lifecycle
+        actions.'
+      parameters:
+      - in: path
+        name: certificate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - certificates
+      responses:
+        '200':
+          description: No response body
+  /api/v1/certificates/{certificate_id}/access:
+    post:
+      operationId: certificates_access_create
+      description: |-
+        API-069: reauthorise the reader, audit, and issue a short-lived principal-bound ticket
+        for the labelled artifact. The public token is never used for this.
+      parameters:
+      - in: path
+        name: certificate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - certificates
+      responses:
+        '200':
+          description: No response body
+  /api/v1/certificates/{certificate_id}/artifact:
+    get:
+      operationId: certificates_artifact_retrieve
+      description: Ticketed byte retrieval of the immutable artifact (the ticket is
+        bound to the reader).
+      parameters:
+      - in: path
+        name: certificate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - certificates
+      responses:
+        '200':
+          description: No response body
+  /api/v1/certificates/{certificate_id}/declarations:
+    post:
+      operationId: certificates_declarations_create
+      description: |-
+        API-072 external registration and API-119 continuing declarations are profile-gated
+        (integrations s.9, s.8). The demo profile does not enable them: the route exists, answers
+        409 SERVICE_DISABLED with the approved referral wording and creates nothing.
+      parameters:
+      - in: path
+        name: certificate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - certificates
+      responses:
+        '200':
+          description: No response body
+  /api/v1/certificates/{certificate_id}/renewals:
+    post:
+      operationId: certificates_renewals_create
+      description: 'API-070: a new linked DRAFT; the certificate itself is not a command
+        target here.'
+      parameters:
+      - in: path
+        name: certificate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - certificates
+      responses:
+        '200':
+          description: No response body
+  /api/v1/certificates/{certificate_id}/status-actions:
+    post:
+      operationId: certificates_status_actions_create
+      description: API-071.
+      parameters:
+      - in: path
+        name: certificate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - certificates
+      responses:
+        '200':
+          description: No response body
+  /api/v1/conflicts:
+    get:
+      operationId: conflicts_retrieve
+      description: Conflicts visible to the supervisor of the case jurisdiction (UI-14
+        / UI-13 review).
+      tags:
+      - conflicts
+      responses:
+        '200':
+          description: No response body
+  /api/v1/conflicts/{conflict_id}/resolve:
+    post:
+      operationId: conflicts_resolve_create
+      description: API-052.
+      parameters:
+      - in: path
+        name: conflict_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - conflicts
+      responses:
+        '200':
+          description: No response body
+  /api/v1/delegations:
+    get:
+      operationId: delegations_retrieve
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      tags:
+      - delegations
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: delegations_create
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      tags:
+      - delegations
+      responses:
+        '200':
+          description: No response body
+  /api/v1/delegations/{delegation_id}/confirm:
+    post:
+      operationId: delegations_confirm_create
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: delegation_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - delegations
+      responses:
+        '200':
+          description: No response body
+  /api/v1/delegations/{delegation_id}/revoke:
+    post:
+      operationId: delegations_revoke_create
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: delegation_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - delegations
+      responses:
+        '200':
+          description: No response body
+  /api/v1/demo/inbox:
+    get:
+      operationId: demo_inbox_retrieve
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      tags:
+      - demo
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/documents/{document_id}:
+    get:
+      operationId: documents_retrieve
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: document_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - documents
+      responses:
+        '200':
+          description: No response body
+  /api/v1/documents/{document_id}/access:
+    post:
+      operationId: documents_access_create
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: document_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - documents
+      responses:
+        '200':
+          description: No response body
+  /api/v1/documents/{document_id}/content:
+    get:
+      operationId: documents_content_retrieve
+      description: 'Ticketed retrieval: signature + age + principal binding + recorded
+        grant + CLEAN state.'
+      parameters:
+      - in: path
+        name: document_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - documents
+      responses:
+        '200':
+          description: No response body
+  /api/v1/documents/{document_id}/detach:
+    post:
+      operationId: documents_detach_create
+      description: 'API-037: detach an unsubmitted draft reference (a new draft revision);
+        never deletes.'
+      parameters:
+      - in: path
+        name: document_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - documents
+      responses:
+        '200':
+          description: No response body
+  /api/v1/escalations/{escalation_id}/acknowledge:
+    post:
+      operationId: escalations_acknowledge_create
+      description: API-077.
+      parameters:
+      - in: path
+        name: escalation_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - escalations
+      responses:
+        '200':
+          description: No response body
+  /api/v1/exports:
+    get:
+      operationId: exports_retrieve
+      description: API-082 (POST) and the requester's export list for UI-22 tracking.
+      tags:
+      - exports
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: exports_create
+      description: API-082 (POST) and the requester's export list for UI-22 tracking.
+      tags:
+      - exports
+      responses:
+        '200':
+          description: No response body
+  /api/v1/exports/{export_id}:
+    get:
+      operationId: exports_retrieve_2
+      description: 'API-083: owner (or operations administrator) status with the current-scope
+        check.'
+      parameters:
+      - in: path
+        name: export_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - exports
+      responses:
+        '200':
+          description: No response body
+  /api/v1/exports/{export_id}/access:
+    post:
+      operationId: exports_access_create
+      description: 'API-084: reauthorise requester, scope, expiry and purpose; audit;
+        short-lived ticket.'
+      parameters:
+      - in: path
+        name: export_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - exports
+      responses:
+        '200':
+          description: No response body
+  /api/v1/exports/{export_id}/artifact:
+    get:
+      operationId: exports_artifact_retrieve
+      description: Ticketed CSV retrieval bound to the requester; integrity-checked;
+        never cached.
+      parameters:
+      - in: path
+        name: export_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - exports
+      responses:
+        '200':
+          description: No response body
+  /api/v1/findings/{finding_id}/verify:
+    post:
+      operationId: findings_verify_create
+      description: API-060.
+      parameters:
+      - in: path
+        name: finding_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - findings
+      responses:
+        '200':
+          description: No response body
+  /api/v1/holds/{hold_id}/release:
+    post:
+      operationId: holds_release_create
+      description: API-032.
+      parameters:
+      - in: path
+        name: hold_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - holds
+      responses:
+        '200':
+          description: No response body
+  /api/v1/inspections:
+    get:
+      operationId: inspections_retrieve
+      description: API-038.
+      tags:
+      - inspections
+      responses:
+        '200':
+          description: No response body
+  /api/v1/inspections/{inspection_id}:
+    get:
+      operationId: inspections_retrieve_2
+      description: API-039.
+      parameters:
+      - in: path
+        name: inspection_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - inspections
+      responses:
+        '200':
+          description: No response body
+  /api/v1/inspections/{inspection_id}/cancel:
+    post:
+      operationId: inspections_cancel_create
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: inspection_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - inspections
+      responses:
+        '200':
+          description: No response body
+  /api/v1/inspections/{inspection_id}/check-in:
+    post:
+      operationId: inspections_check_in_create
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: inspection_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - inspections
+      responses:
+        '200':
+          description: No response body
+  /api/v1/inspections/{inspection_id}/conflicts:
+    post:
+      operationId: inspections_conflicts_create
+      description: API-051.
+      parameters:
+      - in: path
+        name: inspection_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - inspections
+      responses:
+        '200':
+          description: No response body
+  /api/v1/inspections/{inspection_id}/draft:
+    put:
+      operationId: inspections_draft_update
+      description: |-
+        API-045: PUT the officer's server draft (guarded by the inspection ETag; the response ETag
+        is the draft's own version).
+      parameters:
+      - in: path
+        name: inspection_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - inspections
+      responses:
+        '200':
+          description: No response body
+  /api/v1/inspections/{inspection_id}/fail-visit:
+    post:
+      operationId: inspections_fail_visit_create
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: inspection_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - inspections
+      responses:
+        '200':
+          description: No response body
+  /api/v1/inspections/{inspection_id}/offline-package:
+    get:
+      operationId: inspections_offline_package_retrieve
+      description: |-
+        API-048: minimal authorised assignment snapshot with expiry and versions for the current
+        ACTIVE assignee of an open attempt. Reads only; the package is not proof of anything.
+      parameters:
+      - in: path
+        name: inspection_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - inspections
+      responses:
+        '200':
+          description: No response body
+  /api/v1/inspections/{inspection_id}/reassign:
+    post:
+      operationId: inspections_reassign_create
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: inspection_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - inspections
+      responses:
+        '200':
+          description: No response body
+  /api/v1/inspections/{inspection_id}/reports:
+    post:
+      operationId: inspections_reports_create
+      description: API-047.
+      parameters:
+      - in: path
+        name: inspection_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - inspections
+      responses:
+        '200':
+          description: No response body
+  /api/v1/inspections/{inspection_id}/schedule:
+    post:
+      operationId: inspections_schedule_create
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: inspection_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - inspections
+      responses:
+        '200':
+          description: No response body
+  /api/v1/integration-conflicts:
+    get:
+      operationId: integration_conflicts_retrieve
+      description: 'API-110: owned schema, order and source conflicts.'
+      tags:
+      - integration-conflicts
+      responses:
+        '200':
+          description: No response body
+  /api/v1/integration-conflicts/{conflict_id}:
+    get:
+      operationId: integration_conflicts_retrieve_2
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: conflict_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - integration-conflicts
+      responses:
+        '200':
+          description: No response body
+  /api/v1/integration-conflicts/{conflict_id}/resolve:
+    post:
+      operationId: integration_conflicts_resolve_create
+      description: API-111.
+      parameters:
+      - in: path
+        name: conflict_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - integration-conflicts
+      responses:
+        '200':
+          description: No response body
+  /api/v1/integrations:
+    get:
+      operationId: integrations_retrieve
+      description: 'API-107: mode, health, ownership and sanitised configuration;
+        never a secret value.'
+      tags:
+      - integrations
+      responses:
+        '200':
+          description: No response body
+  /api/v1/integrations/{integration_ref}:
+    get:
+      operationId: integrations_retrieve_2
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: integration_ref
+        schema:
+          type: string
+        required: true
+      tags:
+      - integrations
+      responses:
+        '200':
+          description: No response body
+  /api/v1/integrations/{integration_ref}/events:
+    post:
+      operationId: integrations_events_create
+      description: |-
+        API-109: partner inbox. Authenticated by the partner scheme on the raw body; the
+        project session/CSRF machinery does not apply here and grants nothing.
+      parameters:
+      - in: path
+        name: integration_ref
+        schema:
+          type: string
+        required: true
+      tags:
+      - integrations
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/integrations/{integration_ref}/test:
+    post:
+      operationId: integrations_test_create
+      description: API-108.
+      parameters:
+      - in: path
+        name: integration_ref
+        schema:
+          type: string
+        required: true
+      tags:
+      - integrations
+      responses:
+        '200':
+          description: No response body
+  /api/v1/jobs:
+    get:
+      operationId: jobs_retrieve
+      description: |-
+        API-103 with the operations summary UI-20 needs (outbox lag, oldest due job, dead letters,
+        unknown outcomes, last worker activity).
+      tags:
+      - jobs
+      responses:
+        '200':
+          description: No response body
+  /api/v1/jobs/{job_id}:
+    get:
+      operationId: jobs_retrieve_2
+      description: 'API-104: attempts with safe errors only.'
+      parameters:
+      - in: path
+        name: job_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - jobs
+      responses:
+        '200':
+          description: No response body
+  /api/v1/jobs/{job_id}/reconcile:
+    post:
+      operationId: jobs_reconcile_create
+      description: 'API-106: provider lookup / verification before completion or retry
+        (reason required).'
+      parameters:
+      - in: path
+        name: job_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - jobs
+      responses:
+        '200':
+          description: No response body
+  /api/v1/jobs/{job_id}/retry:
+    post:
+      operationId: jobs_retry_create
+      description: 'API-105: safe retry of the same logical action (reason required).'
+      parameters:
+      - in: path
+        name: job_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - jobs
+      responses:
+        '200':
+          description: No response body
+  /api/v1/me:
+    get:
+      operationId: me_retrieve
+      description: 'API-007: identity, workspaces, scopes, capabilities, epoch and
+        gates.'
+      tags:
+      - me
+      responses:
+        '200':
+          description: No response body
+  /api/v1/me/preferences:
+    get:
+      operationId: me_preferences_retrieve
+      description: API-008 (GET/PATCH /me/preferences).
+      tags:
+      - me
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: me_preferences_partial_update
+      description: API-008 (GET/PATCH /me/preferences).
+      tags:
+      - me
+      responses:
+        '200':
+          description: No response body
+  /api/v1/notice-items/{item_id}/review:
+    post:
+      operationId: notice_items_review_create
+      description: API-058.
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - notice-items
+      responses:
+        '200':
+          description: No response body
+  /api/v1/notices/{notice_id}:
+    get:
+      operationId: notices_retrieve
+      description: API-055.
+      parameters:
+      - in: path
+        name: notice_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - notices
+      responses:
+        '200':
+          description: No response body
+  /api/v1/notices/{notice_id}/accept-information:
+    post:
+      operationId: notices_accept_information_create
+      description: API-057.
+      parameters:
+      - in: path
+        name: notice_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - notices
+      responses:
+        '200':
+          description: No response body
+  /api/v1/notices/{notice_id}/responses:
+    post:
+      operationId: notices_responses_create
+      description: API-056.
+      parameters:
+      - in: path
+        name: notice_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - notices
+      responses:
+        '200':
+          description: No response body
+  /api/v1/notifications:
+    get:
+      operationId: notifications_retrieve
+      description: API-078.
+      tags:
+      - notifications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/notifications/{notification_id}/read:
+    post:
+      operationId: notifications_read_create
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: notification_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - notifications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/notifications/read-through:
+    post:
+      operationId: notifications_read_through_create
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      tags:
+      - notifications
+      responses:
+        '200':
+          description: No response body
+  /api/v1/obligations:
+    get:
+      operationId: obligations_retrieve
+      description: API-074.
+      tags:
+      - obligations
+      responses:
+        '200':
+          description: No response body
+  /api/v1/obligations/{obligation_id}:
+    get:
+      operationId: obligations_retrieve_2
+      description: 'API-075: clock breakdown, pauses, threshold history and escalations.'
+      parameters:
+      - in: path
+        name: obligation_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - obligations
+      responses:
+        '200':
+          description: No response body
+  /api/v1/obligations/{obligation_id}/escalations:
+    post:
+      operationId: obligations_escalations_create
+      description: API-076.
+      parameters:
+      - in: path
+        name: obligation_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - obligations
+      responses:
+        '200':
+          description: No response body
+  /api/v1/officers:
+    get:
+      operationId: officers_retrieve
+      description: |-
+        Scoped officer roster for scheduling: the eligible officers of the supervisor's
+        jurisdictions.
+      tags:
+      - officers
+      responses:
+        '200':
+          description: No response body
+  /api/v1/overview:
+    get:
+      operationId: overview_retrieve
+      description: 'UI-09: role-specific counts from the same scoped population as
+        the list, one cutoff.'
+      tags:
+      - overview
+      responses:
+        '200':
+          description: No response body
+  /api/v1/policies:
+    get:
+      operationId: policies_retrieve
+      description: API-095 list / API-096 prepare.
+      tags:
+      - policies
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: policies_create
+      description: API-095 list / API-096 prepare.
+      tags:
+      - policies
+      responses:
+        '200':
+          description: No response body
+  /api/v1/policies/{policy_id}:
+    get:
+      operationId: policies_retrieve_2
+      description: API-097 detail / API-098 patch.
+      parameters:
+      - in: path
+        name: policy_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - policies
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: policies_partial_update
+      description: API-097 detail / API-098 patch.
+      parameters:
+      - in: path
+        name: policy_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - policies
+      responses:
+        '200':
+          description: No response body
+  /api/v1/policies/{policy_id}/activate:
+    post:
+      operationId: policies_activate_create
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: policy_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - policies
+      responses:
+        '200':
+          description: No response body
+  /api/v1/policies/{policy_id}/approve:
+    post:
+      operationId: policies_approve_create
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: policy_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - policies
+      responses:
+        '200':
+          description: No response body
+  /api/v1/policies/{policy_id}/return:
+    post:
+      operationId: policies_return_create
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: policy_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - policies
+      responses:
+        '200':
+          description: No response body
+  /api/v1/policies/{policy_id}/simulate:
+    post:
+      operationId: policies_simulate_create
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: policy_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - policies
+      responses:
+        '200':
+          description: No response body
+  /api/v1/policies/{policy_id}/submit-review:
+    post:
+      operationId: policies_submit_review_create
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: policy_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - policies
+      responses:
+        '200':
+          description: No response body
+  /api/v1/premises:
+    get:
+      operationId: premises_retrieve
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      tags:
+      - premises
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: premises_create
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      tags:
+      - premises
+      responses:
+        '200':
+          description: No response body
+  /api/v1/premises/{premises_id}:
+    get:
+      operationId: premises_retrieve_2
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: premises_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - premises
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: premises_partial_update
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: premises_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - premises
+      responses:
+        '200':
+          description: No response body
+  /api/v1/public/certificates/{token}:
+    get:
+      operationId: public_certificates_retrieve
+      description: |-
+        API-073: minimal, non-cacheable authoritative assertion. Unknown != revoked; an outage
+        never yields an active assertion.
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - public
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/reports/summary:
+    get:
+      operationId: reports_summary_retrieve
+      description: 'API-081: single-cutoff reconciled metrics for the reader''s scope.'
+      tags:
+      - reports
+      responses:
+        '200':
+          description: No response body
+  /api/v1/schedule:
+    get:
+      operationId: schedule_retrieve
+      description: 'API-040: bookings and unavailability inside a bounded window for
+        permitted officers.'
+      tags:
+      - schedule
+      responses:
+        '200':
+          description: No response body
+  /api/v1/services:
+    get:
+      operationId: services_retrieve
+      description: 'API-018: enabled public services with safe availability explanations.'
+      tags:
+      - services
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/services/{service_id}/applicability:
+    post:
+      operationId: services_applicability_create
+      description: 'API-019: nonbinding form/document preview; submission revalidates
+        policy.'
+      parameters:
+      - in: path
+        name: service_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - services
+      responses:
+        '200':
+          description: No response body
+  /api/v1/staff:
+    get:
+      operationId: staff_retrieve
+      description: 'API-087: roster with roles, grants and workload; contact/IdP identifiers
+        are not shown.'
+      tags:
+      - staff
+      responses:
+        '200':
+          description: No response body
+  /api/v1/staff/{staff_id}:
+    get:
+      operationId: staff_retrieve_2
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: staff_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - staff
+      responses:
+        '200':
+          description: No response body
+  /api/v1/staff/{staff_id}/availability:
+    post:
+      operationId: staff_availability_create
+      description: API-094.
+      parameters:
+      - in: path
+        name: staff_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - staff
+      responses:
+        '200':
+          description: No response body
+  /api/v1/staff/{staff_id}/deactivate:
+    post:
+      operationId: staff_deactivate_create
+      description: API-089.
+      parameters:
+      - in: path
+        name: staff_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - staff
+      responses:
+        '200':
+          description: No response body
+  /api/v1/staff/{staff_id}/reactivate:
+    post:
+      operationId: staff_reactivate_create
+      description: API-090.
+      parameters:
+      - in: path
+        name: staff_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - staff
+      responses:
+        '200':
+          description: No response body
+  /api/v1/staff/invitations:
+    post:
+      operationId: staff_invitations_create
+      description: 'API-088: provision from an approved access request (never self).'
+      tags:
+      - staff
+      responses:
+        '200':
+          description: No response body
+  /api/v1/support/routes:
+    get:
+      operationId: support_routes_retrieve
+      description: |-
+        Profile-gated conditional routes for UI-26 (appeals referral, fees, declarations,
+        external registration).
+      tags:
+      - support
+      responses:
+        '200':
+          description: No response body
+  /api/v1/sync/operations:
+    post:
+      operationId: sync_operations_create
+      description: API-049.
+      tags:
+      - sync
+      responses:
+        '200':
+          description: No response body
+  /api/v1/sync/operations/{operation_id}:
+    get:
+      operationId: sync_operations_retrieve
+      description: 'API-050: owner-scoped canonical outcome or absence.'
+      parameters:
+      - in: path
+        name: operation_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - sync
+      responses:
+        '200':
+          description: No response body
+  /api/v1/tickets:
+    get:
+      operationId: tickets_retrieve
+      description: API-112 (GET) and API-113 (POST).
+      tags:
+      - tickets
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: tickets_create
+      description: API-112 (GET) and API-113 (POST).
+      tags:
+      - tickets
+      responses:
+        '200':
+          description: No response body
+  /api/v1/tickets/{ticket_id}:
+    get:
+      operationId: tickets_retrieve_2
+      description: 'API-114: audience-filtered conversation.'
+      parameters:
+      - in: path
+        name: ticket_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - tickets
+      responses:
+        '200':
+          description: No response body
+  /api/v1/tickets/{ticket_id}/messages:
+    post:
+      operationId: tickets_messages_create
+      description: API-115.
+      parameters:
+      - in: path
+        name: ticket_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - tickets
+      responses:
+        '200':
+          description: No response body
+  /api/v1/tickets/{ticket_id}/status:
+    post:
+      operationId: tickets_status_create
+      description: API-116.
+      parameters:
+      - in: path
+        name: ticket_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - tickets
+      responses:
+        '200':
+          description: No response body
+  /api/v1/uploads:
+    post:
+      operationId: uploads_create
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      tags:
+      - uploads
+      responses:
+        '200':
+          description: No response body
+  /api/v1/uploads/{upload_id}/complete:
+    post:
+      operationId: uploads_complete_create
+      description: |-
+        All project endpoints extend this. Unsafe methods require a valid CSRF token even when
+        no session exists (login/OTP endpoints are not exempt).
+      parameters:
+      - in: path
+        name: upload_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - uploads
+      responses:
+        '200':
+          description: No response body
+  /api/v1/uploads/{upload_id}/content:
+    put:
+      operationId: uploads_content_update
+      description: |-
+        PUT raw bytes for a reservation. Bounded by the reserved size; hashed server-side. Not a
+        kernel command: a retried transfer simply replaces the staged bytes before completion.
+      parameters:
+      - in: path
+        name: upload_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - uploads
+      responses:
+        '200':
+          description: No response body
+components: {}

@@ -70,6 +70,14 @@ jobs:
           uv run pytest tests/unit tests/integration tests/security tests/readiness -q
           -p no:cacheprovider --cov=agni --cov=config --cov-report=term
           --cov-report=xml:coverage.xml --cov-fail-under=80
+      - name: OpenAPI contract (G-15) - the generated document must match the committed one
+        # drf-spectacular describes every route, method and path parameter (request/response
+        # bodies are validated in the handlers, not by serializers, so they are not described).
+        # Regenerate with `uv run python manage.py spectacular --file openapi.yaml` when a route
+        # changes on purpose.
+        run: |
+          uv run python manage.py spectacular --validate --file /tmp/openapi.yaml 2>/tmp/spectacular.log
+          diff -u openapi.yaml /tmp/openapi.yaml
       - name: Coverage report artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
