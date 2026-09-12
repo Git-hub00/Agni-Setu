@@ -43,10 +43,18 @@ infra/**/data/
 *.sqlite3
 *.db
 
-# Evidence: keep the directory structure, exclude generated sensitive output
-evidence/**
-!evidence/README.md
-!evidence/.gitkeep
+# Local-only material (kept on the developer machine, never published):
+# working notes, specification pack, agent instructions, prototype, release evidence, test evidence
+project-notes/
+docs/
+references/
+release/
+evidence/
+handover.md
+MANIFEST.sha256
+AGENTS.md
+CLAUDE.md
+Agni_Setu_Interactive_Prototype.html
 
 # Agent harness local permission files (per-developer, never shared)
 .claude/settings.local.json
