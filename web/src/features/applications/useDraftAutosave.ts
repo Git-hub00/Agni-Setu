@@ -154,10 +154,29 @@ export function useDraftAutosave({ applicationId, etag, draftRevision, onSaved }
     [flush],
   );
 
+  // Unsaved-change protection (UI spec s.6 / G-08): while an edit is waiting for the debounce, a
+  // save is in flight, or the last save failed with edits still pending, leaving the page would
+  // lose typed input - ask the browser to confirm. Once everything is saved the prompt is silent.
+  const unsaved = state === "dirty" || state === "saving" || state === "error";
+  useEffect(() => {
+    if (!unsaved) return undefined;
+    const guard = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      // Legacy browsers read returnValue; the text itself is never shown by modern browsers.
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", guard);
+    return () => window.removeEventListener("beforeunload", guard);
+  }, [unsaved]);
+
   useEffect(
     () => () => {
       if (timer.current) window.clearTimeout(timer.current);
+      // In-app navigation away from the wizard: persist what was still waiting for the debounce
+      // instead of dropping it (the request completes even though the component is gone).
+      if (hasPending() && !inFlight.current && !blocked.current) void flush();
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- unmount-only cleanup
     [],
   );
 
