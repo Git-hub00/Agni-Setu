@@ -4,8 +4,10 @@ content) are not kernel commands; every state-changing step is."""
 from __future__ import annotations
 
 import hashlib
+import re
 from collections.abc import Iterator
 from typing import Any
+from urllib.parse import quote
 from uuid import UUID
 
 from django.conf import settings
@@ -47,6 +49,22 @@ def _principal(request: Request) -> Principal:
     if not isinstance(user, Principal):
         raise AuthenticationRequired()
     return user
+
+
+_FALLBACK_UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def content_disposition(disposition: str, original_name: str) -> str:
+    """RFC 6266 / RFC 8187 header value for a user-supplied file name.
+
+    The quoted `filename` is an inert ASCII fallback (letters, digits, dot, dash, underscore;
+    no path segments, no markup, no control characters) and `filename*` carries the exact
+    original name percent-encoded, so nothing a user typed reaches the header raw (security s.9).
+    """
+    fallback = _FALLBACK_UNSAFE.sub("_", original_name).strip("._-") or "document"
+    fallback = re.sub(r"\.{2,}", ".", fallback)
+    encoded = quote(original_name, safe="")
+    return f"{disposition}; filename=\"{fallback}\"; filename*=UTF-8''{encoded}"
 
 
 class UploadListView(ApiView):
@@ -238,10 +256,9 @@ class DocumentContentView(ApiView):
                 return
 
         disposition = "inline" if access.purpose == "PREVIEW" else "attachment"
-        safe_name = document.original_name.replace('"', "").replace("\r", "").replace("\n", "")
         response = StreamingHttpResponse(body(), content_type=document.media_type)
         response["Content-Length"] = str(document.size_bytes)
-        response["Content-Disposition"] = f'{disposition}; filename="{safe_name}"'
+        response["Content-Disposition"] = content_disposition(disposition, document.original_name)
         response["X-Content-Type-Options"] = "nosniff"
         response["Cache-Control"] = "private, no-store"
         response["Content-Security-Policy"] = "sandbox; default-src 'none'"
