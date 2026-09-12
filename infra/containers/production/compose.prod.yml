@@ -88,6 +88,13 @@ services:
     <<: *api-common
     profiles: ["release"]
     restart: "no"
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      RUN_MIGRATIONS_ON_START: "false"
+      XDG_CACHE_HOME: /tmp/cache
+      TMPDIR: /tmp
+      # Schema changes run without the request-path statement timeout (G-06).
+      DB_STATEMENT_TIMEOUT_MS: "0"
     command: ["python", "manage.py", "migrate", "--noinput"]
     deploy:
       resources:
