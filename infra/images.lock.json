@@ -75,7 +75,11 @@
     "uv-distribution": {
       "image": "ghcr.io/astral-sh/uv",
       "tag": "0.11.28",
-      "index_digest": "NOT_RESOLVED - copied into the api image build stage by tag matching the host uv version; resolve digest at B18 packaging",
+      "index_digest": "sha256:0f36cb9361a3346885ca3677e3767016687b5a170c1a6b88465ec14aefec90aa",
+      "platforms": {
+        "linux/amd64": "sha256:5c3ab83183a73c5d319a77009eb425b60d5bb937f339fb7876788ebf567baf48"
+      },
+      "resolved_at": "2026-09-12T01:21Z (B18; docker buildx imagetools inspect)",
       "profile": "build",
       "role": "uv binary source for container builds"
     },

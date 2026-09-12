@@ -1,0 +1,229 @@
+# Agni Setu - PRODUCTION-SHAPED application stack (docs/12_DEPLOYMENT_AND_OPERATIONS.md s.1-3,
+# s.5, s.9; docs/10 s.13). This file packages the APPLICATION processes only. PostgreSQL 17,
+# RabbitMQ, Valkey, the private S3 object service, the staff identity provider, the malware
+# scanner, the TLS reverse proxy and backups are supplied by the operating environment and
+# reached through the environment file (README.md in this directory lists the contract).
+#
+# Shape (every point is checked by backend/tests/unit/test_release_packaging.py):
+#   - images referenced ONLY through ${AGNI_API_IMAGE} / ${AGNI_WEB_IMAGE}, which the release
+#     manifest sets to <registry>/<image>@sha256:<digest> - never a mutable tag
+#   - config.settings.production (fail-closed startup checks), RUN_MIGRATIONS_ON_START=false
+#     (migrations are a deliberate release step: `docker compose run --rm migrate`)
+#   - read-only root filesystems, tmpfs for the only writable paths, no new privileges, all
+#     capabilities dropped, non-root users baked into the images
+#   - no published ports except the web front end on the loopback address the TLS proxy
+#     forwards to; the api is reachable only on the internal network
+#   - two worker pools: `worker-heavy` (rendering, scanning, exports; more memory, low
+#     concurrency) and `worker-light` (short business jobs) so an expensive job never blocks
+#     notification fan-out or obligation thresholds
+#   - bounded memory / CPU per process, json-file logs with rotation, restart policies
+#
+# Usage (operator host, after the release manifest is approved):
+#   docker compose -p agni-prod --env-file /etc/agni/release.env -f compose.prod.yml pull
+#   docker compose -p agni-prod --env-file /etc/agni/release.env -f compose.prod.yml run --rm migrate
+#   docker compose -p agni-prod --env-file /etc/agni/release.env -f compose.prod.yml up -d --wait
+# `release.env` holds AGNI_API_IMAGE / AGNI_WEB_IMAGE / AGNI_ENV_FILE / bind settings only;
+# application secrets live in AGNI_ENV_FILE rendered from the approved secret store (mode 0600).
+
+name: agni-prod
+
+x-hardened: &hardened
+  restart: unless-stopped
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  logging:
+    driver: json-file
+    options:
+      max-size: "20m"
+      max-file: "5"
+  networks:
+    - internal
+
+x-api-common: &api-common
+  <<: *hardened
+  image: ${AGNI_API_IMAGE:?set AGNI_API_IMAGE to <registry>/<image>@sha256:<digest> from the release manifest}
+  env_file:
+    - ${AGNI_ENV_FILE:?set AGNI_ENV_FILE to the application environment file rendered from the secret store}
+  environment:
+    DJANGO_SETTINGS_MODULE: config.settings.production
+    RUN_MIGRATIONS_ON_START: "false"
+    XDG_CACHE_HOME: /tmp/cache
+    TMPDIR: /tmp
+  tmpfs:
+    - /tmp:rw,nosuid,nodev,size=256m,mode=1777
+
+services:
+  api:
+    <<: *api-common
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      RUN_MIGRATIONS_ON_START: "false"
+      XDG_CACHE_HOME: /tmp/cache
+      TMPDIR: /tmp
+      # Sized per host from measurement (docs/12 s.9); B17 measured 4 sync workers on a 3 GB VM.
+      GUNICORN_WORKERS: ${API_WORKERS:-4}
+      TRUST_X_FORWARDED_FOR: "true"
+    expose:
+      - "8000"
+    healthcheck:
+      # No curl in the image; the interpreter probes readiness.
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/ready', timeout=4).status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: ${API_MEMORY_LIMIT:-768M}
+          cpus: "${API_CPU_LIMIT:-2.0}"
+    stop_grace_period: 40s
+
+  migrate:
+    # One-shot release step (docs/12 s.5): expand-contract migrations applied BEFORE the new api /
+    # workers are rolled. Never started by `up` (profile), never loops, exits non-zero on failure.
+    <<: *api-common
+    profiles: ["release"]
+    restart: "no"
+    command: ["python", "manage.py", "migrate", "--noinput"]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  worker-light:
+    # Short business jobs: notification fan-out / delivery, obligation thresholds, partner
+    # inbox ordering and probes. Excludes the heavy kinds served by worker-heavy.
+    <<: *api-common
+    command:
+      - python
+      - manage.py
+      - process_jobs
+      - --loop
+      - --interval
+      - "5"
+      - --limit
+      - "10"
+      - --exclude-kind
+      - document.scan
+      - --exclude-kind
+      - certificate.issue
+      - --exclude-kind
+      - export.generate
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import sys; sys.exit(0)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      replicas: ${WORKER_LIGHT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: ${WORKER_LIGHT_MEMORY_LIMIT:-384M}
+          cpus: "${WORKER_LIGHT_CPU_LIMIT:-1.0}"
+    stop_grace_period: 130s   # > LEASE_SECONDS (120 s): an in-flight job finishes or its lease expires
+
+  worker-heavy:
+    # Rendering (WeasyPrint), malware scanning hand-off and export generation: bounded memory,
+    # low claim limit, separate scaling (docs/12 s.2 "separate document rendering/scanning workers").
+    <<: *api-common
+    command:
+      - python
+      - manage.py
+      - process_jobs
+      - --loop
+      - --interval
+      - "5"
+      - --limit
+      - "2"
+      - --kind
+      - document.scan
+      - --kind
+      - certificate.issue
+      - --kind
+      - export.generate
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import sys; sys.exit(0)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      replicas: ${WORKER_HEAVY_REPLICAS:-1}
+      resources:
+        limits:
+          memory: ${WORKER_HEAVY_MEMORY_LIMIT:-1024M}
+          cpus: "${WORKER_HEAVY_CPU_LIMIT:-2.0}"
+    stop_grace_period: 130s
+
+  scheduler:
+    # Due-obligation scan + outbox dispatcher (docs/08 s.5). Idempotent; a second instance is safe.
+    <<: *api-common
+    command:
+      - python
+      - manage.py
+      - run_schedulers
+      - --loop
+      - --scan-interval
+      - "30"
+      - --dispatch-interval
+      - "60"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import sys; sys.exit(0)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: ${SCHEDULER_MEMORY_LIMIT:-256M}
+          cpus: "0.5"
+
+  web:
+    # nginx serving the SPA and proxying /api/ to `api` (same-origin). The approved TLS reverse
+    # proxy on the host forwards to 127.0.0.1:${WEB_BIND_PORT}; nothing else is published.
+    <<: *hardened
+    image: ${AGNI_WEB_IMAGE:?set AGNI_WEB_IMAGE to <registry>/<image>@sha256:<digest> from the release manifest}
+    # mode=1777: a tmpfs mounted with explicit options is root-owned 0755 by default and the
+    # unprivileged nginx user could not create client_temp (found by prod_boot_check, B18).
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m,mode=1777
+      - /var/cache/nginx:rw,nosuid,nodev,size=64m,mode=1777
+    ports:
+      - "${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_BIND_PORT:-8080}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.5"
+    networks:
+      - internal
+      - edge
+
+networks:
+  # `internal` carries api <-> web and api <-> workers; the external services (database, broker,
+  # cache, object store, identity provider, scanner) are reached through the operating
+  # environment's network policy - restrict egress there (docs/12 s.2 "restricted egress").
+  internal:
+    driver: bridge
+  edge:
+    driver: bridge

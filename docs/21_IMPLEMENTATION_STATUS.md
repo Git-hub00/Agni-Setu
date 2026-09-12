@@ -31,7 +31,7 @@ Update this file at the end of each agent task. Read actual repository/branch/di
 | B15 | Integration contracts and reconciliation | READY_FOR_REVIEW (2026-09-11T22:1xZ; merged to `main` per D-009 - see s.3q) | NEW app `agni.integrations` (migration 0001: `integration` with mode SIMULATED/SANDBOX/LIVE, owned fields, endpoint allowlist, secret *reference*, state, freshness budget, health; `integration_inbox` unique per (integration, source_event_id) with payload hash and auth evidence; `integration_conflict` with owner queue, reason, evidence-based resolution; `partner_entity_state` = the local reflection of partner-owned fields with the applied sequence/version). Partner intake API-109 authenticated by HMAC-SHA256 over timestamp + raw body with a bounded skew (401 INTEGRATION_SIGNATURE_INVALID before any storage; 422 structural; 409 reused id with another body + PAYLOAD_MISMATCH conflict; exact duplicate acknowledged with the prior receipt; 202 PROCESSING is never applied success); durable `integration.apply` job with the pure ordering rule (applied+1 applies, lower is older or duplicate, higher is a gap; version/time when unsequenced), owned fields only, automatic release of the next-in-sequence event, conflicts audited + `integration.conflict_detected.v1`; API-107 sanitised cards (secret references only), API-108 allowlisted probes through the adapter (SANDBOX/LIVE unconfigured adapters report FAIL and degrade the row - nothing fabricated), API-110 scoped conflicts (ADMIN global / SUPERVISOR of the owner queue), API-111 resolution with reason + evidence + ETag: APPLY_VERIFIED_SOURCE fetches the record from the approved source, refuses a version the source does not confirm, refuses when unreachable (503) / ambiguous (409 EXTERNAL_OUTCOME_UNKNOWN) / missing; IGNORE_DUPLICATE / REQUEST_RESEND / KEEP_QUARANTINED keep data out of the reflection; production LIVE refuses demo partner secrets; seed rows `demo-partner-case-source` (SIMULATED, ENABLED) and `demo-external-certificate-source` (DISABLED); web UI-25 `/integrations` | Human review of `main`; B16 |
 | B16 | Security and accessibility hardening | READY_FOR_REVIEW (2026-09-11T23:5xZ; merged to `main` per D-009 - see s.3r) | Security: `HardeningMiddleware` (API-wide CSP `default-src 'none'; frame-ancestors 'none'`, nosniff, DENY, same-origin referrer, Permissions-Policy, CORP/COOP, `Cache-Control: private, no-store` on authenticated JSON, 1 MiB JSON body cap answered as problem+json 413 before any view; the file transfer endpoint keeps its reservation bound), `SafeJSONRenderer` (`<`, `>`, `&` emitted as JSON escapes so API bodies are inert as HTML), Django `RequestDataTooBig` mapped to 413, `SECURE_*`/`X_FRAME_OPTIONS` in every environment, nginx CSP for the SPA (`script-src 'self'`, `frame-ancestors 'none'`, `object-src 'none'`, COOP), `tests/security` (boundary matrix over anonymous / applicant / officer / supervisor / foreign supervisor / leadership / admin / policy approver; substituted ids; disallowed methods; injection-shaped params; caller-supplied authority; headers; cookie flags; login + command CSRF; oversized body; stored-XSS neutrality; verification rate limit; secrets/OTP absent from responses and logs), `scripts/ci/scan_secrets.py` (tracked-file secret scan, in verify.sh + CI). Accessibility: Playwright + axe-core suite `web/e2e` (`pnpm test:e2e`) over public, applicant (real OTP form) and staff (real Keycloak) routes at 360/390/768/1280/1440 with keyboard-only, reduced-motion, CSP-console and header checks; fixes it forced: muted text token 4.27:1 -> 5.3:1, content links underlined (link-in-text-block), header wraps below 640 px (no horizontal scroll), problem+json refusals now parsed by the client (codes/request ids were being dropped), OTP sign-in no longer orphans the session observer (stayed signed-out until reload) | Human review of `main`; B17 |
 | B17 | Reliability, performance and recovery proof | READY_FOR_REVIEW (2026-09-12T01:2xZ; merged to `main` per D-009 - see s.3s) | `tests/faults` on real PostgreSQL: worker crash after the signer accepted the request -> lease expiry -> the SAME logical action recovered, one certificate, the dead worker's late completion refused (LeaseLost); broker outage after commit -> intents stay PENDING, republished exactly once after recovery (deterministic fan-out ids); database unavailable -> 503 DEPENDENCY_UNAVAILABLE problem+json with Retry-After and no receipt (new JSON `handler400/403/404/500` fallbacks + middleware catch); approval vs revocation race with two connections (3 rounds) -> revocation always commits, the approval either precedes it or is refused; storage writes refused -> upload 503 with the reservation intact and completion refused, export job RETRY_WAIT then one artifact after recovery. Physical drills (`scripts/ops`): broker stop/start with commands accepted and 2 pending intents republished after restart; worker stop/kill/start around durable exports with lease recovery; `backup.sh` + `restore-check.sh` (pg_dump -> isolated `agni_restore_drill` -> `restore_integrity_report`: schema, counts, canonical relationships, audit chains, object hashes; measured restore time). Performance: Locust 2.46.5 workload model 70/20/10 (`tests/load/locustfile.py`) run reduced by `measure_load.py` with p50/p95/p99 and `docker stats` recorded - the declared 10,000-case / 100-user protocol is NOT met on this host (recorded gap) | Human review of `main`; B18 |
-| B18 | Production packaging and release evidence | NOT_STARTED | None | Complete prerequisites and task card |
+| B18 | Production packaging and release evidence | READY_FOR_REVIEW (2026-09-12T04:0xZ; merged to `main` per D-009 - see s.3t) | `infra/containers/production/` (hardened Compose shape: digest-only image variables, read-only root filesystems + tmpfs, cap_drop ALL, no-new-privileges, non-root, only `web` published on loopback, production settings with `RUN_MIGRATIONS_ON_START=false`, one-shot `migrate` release step, split `worker-light` / `worker-heavy` pools via `process_jobs --exclude-kind`, environment contract, release / expand-contract / rollback runbook); worker and scheduler loops survive a lost database; api image: uv pinned by digest, distro security upgrades, no curl, writes only under tmpfs; web image: distro upgrades (0 scan findings); `.github/workflows/release.yml` (manual dispatch; verify with migration compatibility -> build with SBOMs + Trivy gate on fixable findings -> publish only under the `production` environment); `scripts/ci/migration_compat.py` (PASS vs B16 and vs B13: previous code reads the upgraded schema), `scripts/ops/prod_boot_check.py` (23/23 on the final images: unsafe settings refused, read-only boot, demo routes absent, pools serve their kinds), `scripts/ops/release_manifest.py` (`release/2026.09.12-b18/`: manifest, CycloneDX SBOMs for Python 63 / web 88 runtime components, image SBOMs + scans: api 63 unfixed Debian OS advisories recorded, 0 Python), `tests/unit/test_release_packaging.py` (11); full suite 280 alone | Human review of `main`; B19 |
 | B19 | Full demonstration acceptance | NOT_STARTED | None | Complete prerequisites and task card |
 | B20 | Agency pilot activation | NOT_STARTED | None | Complete prerequisites and task card |
 
@@ -2106,6 +2106,235 @@ Self-review (D-009): task card B17 proofs - measured p95 and resource usage (red
 Required human input: host with the declared capacity (or CI runners) for the full performance
   protocol; approved backup custody / PITR tooling for the production restore objective; BL-007.
 Next safe task: B18 - Production packaging and release evidence.
+End commit and worktree status: recorded in handover.md B12 after commit/push.
+```
+
+## 3t. Handoff record - B18 session claude-20260910T172516Z-b00b (2026-09-12)
+
+```text
+Task: B18 - Production packaging and release evidence (task card B18; docs 12 s.1-3 stages /
+  hardening / health, s.5 safe release + expand-contract, s.6 backup design, s.9 capacity; 19 s.3
+  configuration gates, s.6 release evidence; 10 s.13 packaging is a separate gate;
+  DEPENDENCY_LOCK s.6 / s.9)
+Baseline: implementation spec 2.0.0
+Branch and start commit: feat/b18-packaging from main @ 0e940f1
+Files inspected: api/web Dockerfiles, docker-entrypoint.sh, config/settings/production.py and its
+  tests, compose.dev.yml, ci.yml, images.lock.json (uv digest NOT_RESOLVED since B00),
+  process_jobs / run_schedulers loops, nginx image entrypoint behaviour under a read-only root.
+Changes made and architecture decisions:
+  infra/containers/production/ (NEW):
+    compose.prod.yml - application processes only (api, worker-light, worker-heavy, scheduler,
+      web, one-shot `migrate` under profile `release`); images ONLY via ${AGNI_API_IMAGE} /
+      ${AGNI_WEB_IMAGE} (digest references from the release manifest; `:?` errors when unset);
+      every service read_only + explicit tmpfs (api /tmp for gunicorn heartbeat + fontconfig
+      cache via XDG_CACHE_HOME; web /tmp + /var/cache/nginx, mode=1777), cap_drop ALL,
+      no-new-privileges, json-file log rotation, memory/CPU limits, restart policy; ONLY `web`
+      publishes a port, on ${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_BIND_PORT:-8080} for the TLS
+      proxy; api on the internal network only; production settings + RUN_MIGRATIONS_ON_START=
+      false everywhere; worker pools: heavy = document.scan, certificate.issue, export.generate
+      (limit 2, 1 GiB), light = everything else (`--exclude-kind`); stop_grace_period 130 s >
+      LEASE_SECONDS 120 s.
+    production.env.example - the AGNI_ENV_FILE contract (placeholders only; https origins;
+      explicit hosts incl. `api` for the proxy and 127.0.0.1 for the readiness probe; demo
+      controls false; partner demo secrets empty).
+    README.md - hardening contract, environment contract, release procedure (tag -> verify ->
+      build -> evidence review -> approved publish -> staging -> production roll), expand-contract
+      rules, rollback playbook (application rollback, never a schema downgrade; explicit recovery
+      decision after destructive migrations or accepted events), backup/restore pointers, local
+      proof commands.
+  backend/agni/platform/management/commands/process_jobs.py - `--exclude-kind` and
+    `selected_kinds()` (unknown kinds refused with CommandError at start; include/exclude
+    mutually exclusive; start line prints "serving: ..."); the `--loop` worker now survives a
+    lost database / name resolution (OperationalError / InterfaceError -> close connections,
+    one warning line, retry next tick; `--once` still raises). run_schedulers.py gained the same
+    guard. Found by the boot check: the first worker start during a Docker engine stall died
+    with a stack trace and was only rescued by the restart policy.
+  infra/containers/api.Dockerfile - uv distribution pinned by digest (images.lock.json
+    "uv-distribution" resolved: index sha256:0f36cb93...90aa), `apt-get upgrade -y` on top of the
+    pinned base, XDG_CACHE_HOME=/tmp/cache + TMPDIR=/tmp so nothing under /app is written;
+    web.Dockerfile - `apk --no-cache upgrade` (the pre-hardening scan found HIGH advisories with
+    fixes newer than the pinned nginx base: openssl, util-linux, libxml2, nghttp2).
+  .github/workflows/release.yml (NEW) - workflow_dispatch(version, previous_release, publish);
+    `verify` (tag must point at HEAD; every CI gate + full backend suite on real PostgreSQL;
+    `migration_compat.py --seed` against the previous release), `build` (both images from the
+    frozen lockfiles, Trivy image SBOMs + JSON scans, HIGH/CRITICAL WITH a fix fail the run,
+    `release_manifest.py`, artifacts), `publish` (GitHub environment `production` = required
+    reviewers; pushes to GHCR under the immutable version tag, records registry digests into
+    the manifest, writes release.env). Nothing deploys from the workflow.
+  .github/workflows/ci.yml + scripts/ci/verify.sh - render compose.prod.yml with placeholder
+    release variables; shellcheck covers scripts/ops/*.sh.
+  scripts/ci/migration_compat.py (NEW) - isolated `agni_migcheck` database; previous release in
+    a temporary git worktree: `uv sync --frozen`, migrate, seed_demo; current tree: `migrate
+    --plan`, migrate, `migrate --check`, `makemigrations --check`, `restore_integrity_report`;
+    then the PREVIOUS release's code runs `check` and reads every model table on the upgraded
+    schema (forward-compatible rollback proof); database dropped, worktree removed.
+  scripts/ops/prod_boot_check.py (NEW) - A: production image with the dev env + LIVE + placeholder
+    key + wildcard hosts must refuse to start listing every problem (no secret values printed);
+    B: compose.prod.yml boots in project `agni-prodcheck` on the agni-dev network with a
+    generated production env (secrets in a temp dir, never printed): config renders, only web
+    published, read_only / cap_drop / no-new-privileges / non-root per `docker inspect`,
+    one-shot migrate, readiness 200, web shell + /api proxy, demo inbox 404, hardening headers,
+    /app unwritable, /tmp writable, worker pools log exactly their kinds, scheduler clean;
+    project removed afterwards.
+  scripts/ops/release_manifest.py (NEW) - release/<version>/manifest.json (git state, sha256 of
+    every lockfile + packaging file, image ids / repo digests, migration heads, tool versions),
+    sbom-python.cdx.json (`uv export --format cyclonedx1.5`, runtime only), sbom-web.cdx.json
+    (pnpm-lock v9 graph walk: runtime closure scope=required, dev-only scope=excluded, sha512
+    hashes), and with --scan Trivy image SBOM + JSON vulnerability report from a `docker save`
+    archive (evidence/release/<version>/, hashes in the manifest).
+  backend/tests/unit/test_release_packaging.py (NEW, 11 tests) - the packaging contract above,
+    `selected_kinds`, the env example holds placeholders only, the release workflow is manual
+    and approval-gated, `process_jobs --once` surfaces a lost database.
+  Decisions: (1) the production Compose file packages the application only - PostgreSQL,
+    broker, cache, object service, IdP, scanner, TLS and backups are operating-environment
+    services (docs/12 s.1); a bundled "production database container" would misrepresent the
+    recovery objectives; (2) images are referenced by digest variables, never tags, so a
+    release is exactly the manifest; (3) `docker scout` is installed but requires a Docker Hub
+    login - not used (no account action without the user); Trivy runs from a container and is
+    pinned in the workflow to the version observed today (0.74.0); (4) HIGH/CRITICAL findings
+    WITHOUT an upstream fix (Debian perl-base / util-linux / ncurses in python:3.12-slim) are
+    recorded for treatment, not hidden and not "fixed" by hand-editing the image - the release
+    gate fails only on fixable ones (`--ignore-unfixed`), rebuilding on a newer base digest is
+    the treatment (DEPENDENCY_LOCK s.9 discipline); (5) migration compatibility is proven
+    against the previous phase commit (`c9ccf1d`) because no release tag exists yet; the
+    workflow takes the previous release tag; (6) the pilot backup objective (encrypted, WAL /
+    PITR, off-host custody) is NOT claimed - the rehearsal tooling and the runbook state what
+    the operating environment must add (B20 gate); (7) the api image no longer ships curl -
+    the first post-hardening scan attributed 8 of the 72 unfixed HIGH advisories to
+    curl/libcurl, which existed only for the health probe; the Docker HEALTHCHECK, both Compose
+    files and the boot check now probe with the interpreter (`urllib`), so the runtime surface
+    is Python + WeasyPrint libraries + fonts only.
+Migrations/data impact: none (no schema change). New dev dependency pyyaml 6.0.3 (DEV-09).
+Tests actually executed (Windows host, 2026-09-12):
+  uv run --directory backend ruff check . / ruff format --check . / mypy config agni tests ->
+    clean; "Success: no issues found in 338 source files"
+  uv run --directory backend pytest tests/unit/test_release_packaging.py -q -> **11 passed**
+  Trivy 0.74.0 (aquasec/trivy:latest, container over the Docker socket) BEFORE hardening on the
+    B17 images (01:2x-01:39Z): api HIGH/CRITICAL only in OS packages with no fix available
+    (perl-base CVE-2026-13221 CRITICAL, util-linux CVE-2026-7664x/7840x, ncurses CVE-2025-69720,
+    perl-Archive-Tar fix_deferred); web HIGH with fixes available (libssl3 -> 3.5.8, libuuid ->
+    2.41.6, libxml2 2.13.9-r1, nghttp2 1.68.1) -> both Dockerfiles upgrade distribution packages;
+    the first socket-based attempt died on Trivy's 5-min deadline on the 3 GB VM, the retry with
+    --timeout 40m completed (evidence/B18-trivy-scan-before-hardening.log)
+  Container builds: web:b18 `3a6aaca70c2f` (01:44Z); api:b18 built alone after two BuildKit
+    failures ("DeadlineExceeded" / "frontend grpc server closed unexpectedly") while the scan and
+    the migration check loaded the VM concurrently -> `f79da530857a` (01:54Z), then rebuilt with
+    the worker/scheduler retry guard -> **api:b18 `84e1847be440`** (02:13Z, the image under test
+    below)
+  prod_boot_check.py run 1 (01:55-02:02Z, api f79da530857a / web 3a6aaca70c2f): A1/A3 PASS,
+    A2 FAIL on the check's own expectation (the dev file already carries generated secrets and
+    explicit hosts, so only the http origin tripped the check -> the check now also injects
+    LIVE + placeholder key + wildcard hosts), B1-B5 PASS (config, only web published, read_only,
+    cap_drop, one-shot migrate "No migrations to apply"), B6 FAIL: `web` restart-looped with
+    "mkdir() /var/cache/nginx/client_temp failed (13: Permission denied)" - a tmpfs mounted with
+    explicit options is root-owned 0755 -> `mode=1777` added; api / scheduler / both worker
+    pools were healthy read-only (their start lines show the exact kind split); the Docker
+    engine then answered 500 to every API call for ~10 min (VM starvation, BL-008 family) and
+    the check could not tear down until it recovered. The light worker's first start had died
+    on "failed to resolve host 'postgres'" and been restarted by the policy -> retry guard added.
+  prod_boot_check.py run 2 (02:18Z, final images) -> 22/23: everything above PASS incl. the
+    nginx tmpfs fix; B13 answered 400 because the probe presented the container name as Host
+    and Django's ALLOWED_HOSTS refused it (correct behaviour; the TLS proxy presents the public
+    host) -> the probe now sends `Host: agni.example.test`.
+  prod_boot_check.py run 3 (02:20-02:24Z, api 84e1847be440 / web 3a6aaca70c2f) -> **PRODUCTION
+    BOOT CHECK PASSED 23/23 in 129 s**: A1 refusal (non-zero exit), A2 seven problems listed
+    together (secret key, wildcard hosts, http origin, demo controls in LIVE, OTP / notification
+    / signing demo sinks in LIVE), A3 no secret value in the output; B1 config renders, B2 only
+    `web` publishes, B3/B4 read_only + cap_drop everywhere, B5 one-shot migrate ("No migrations
+    to apply"), B6 api + worker-light + worker-heavy + scheduler + web healthy read-only, B7-B9
+    `docker inspect`: ReadonlyRootfs, no-new-privileges, users `agni` / `nginx`, B10 only web
+    bound on 127.0.0.1:18080, B11 readiness 200 under production settings, B12 web shell 200,
+    B13 /api proxied under the public host 200, B14 demo inbox 404, B15 CSP + nosniff on API
+    responses, B16 `touch /app/...` refused, B17 /tmp writable, B18 worker-light serving
+    integration.apply, integration.test, notification.deliver, notification.fanout,
+    obligation.threshold, B19 worker-heavy serving certificate.issue, document.scan,
+    export.generate, B20 scheduler without errors; project removed (evidence/B18-prod-boot-check.log)
+  uv run --directory backend python ../scripts/ci/migration_compat.py --base c9ccf1d --seed
+    (02:22-02:29Z) -> **MIGRATION COMPATIBILITY PASSED c9ccf1d -> 0e940f1 (+ working tree)**:
+    worktree of the previous release synced (`uv sync --frozen` 32.6 s), migrated, seeded;
+    `migrate --plan` from that schema: "No planned migration operations" (B17/B18 add no
+    schema); `migrate`, `migrate --check`, `makemigrations --check`, `restore_integrity_report`
+    OK on the upgraded database; the previous release's code passes `check` and reads all 73
+    model tables on the upgraded schema; `agni_migcheck` dropped, worktree removed. Run 1 had
+    failed inside the script (the worktree has no `.env.local`, so the previous release's
+    seed_demo lacked OIDC_ISSUER) - the script now passes the local file through the
+    environment (evidence/B18-migration-compat.log)
+  uv run --directory backend python ../scripts/ci/migration_compat.py --base a485335 --seed
+    (02:29-02:38Z; B13 = before the reporting / integrations migrations, so the plan is a real
+    delta) -> **MIGRATION COMPATIBILITY PASSED a485335 -> 0e940f1 (+ working tree)**: B13
+    schema + seed, then the current migrations applied, `migrate --check` /
+    `makemigrations --check` clean, integrity report OK, and the B13 code passes `check` and
+    reads all 68 of its model tables on the upgraded schema (expand-only additions) -
+    application rollback to B13 would start (evidence/B18-migration-compat-a485335.log)
+  prod_boot_check.py run 4 (03:10-03:18Z, api 1e655ce8e881 without curl) -> 22/23 in 449 s (the
+    VM was slow: `up --wait` alone took minutes): only B13 failed, the urllib probe through the
+    proxy timed out after 8 s right after start-up while B11/B12 answered -> probe timeout 30 s
+    + one retry; run 5 (03:28-03:32Z) -> B13 answered **400** and a diagnostic run with
+    `--keep` explained both symptoms: the check joined the whole project to the dev network,
+    where a second service named `api` (the dev stack's) exists, and Docker DNS handed nginx's
+    `resolver`-based `api` lookup either container - the DEV api (DEBUG HTML 400 for the
+    public host), the prodcheck api (200), or a stalled one (timeout). Not a product defect
+    (a production host runs one project); the check now keeps `internal` project-scoped and
+    attaches only the application services to the dev network for postgres / broker / cache /
+    object store. Run 6 (03:40-03:44Z, api 1e655ce8e881 / web 3a6aaca70c2f, final images):
+    **PRODUCTION BOOT CHECK PASSED 23/23 in 195 s** - the run of record for EV-B18-03
+    (evidence/B18-prod-boot-check.log)
+  uv run --directory backend python ../scripts/ops/release_manifest.py --version 2026.09.12-b18
+    --api-image agni-setu-api:b18 --web-image agni-setu-web:b18 --scan (final run 03:19-03:27Z;
+    two earlier runs fixed the script: Windows `corepack.cmd` lookup via shutil.which, and
+    pnpm 12's two-document `pnpm-lock.yaml` - the pnpm binaries and the project - merged before
+    the graph walk) -> release/2026.09.12-b18/manifest.json (commit 0e940f1 + pending tree,
+    recorded as such: the authoritative manifest is produced by the workflow at tag time; this
+    one is the local demonstration), sbom-python.cdx.json (uv CycloneDX 1.5, **63 runtime
+    components**), sbom-web.cdx.json (CycloneDX 1.5 from the lock graph, **694 components, 88
+    runtime**, sha512 hashes), sha256 of uv.lock / requirements.txt / pyproject / pnpm-lock /
+    package.json / images.lock.json and of both Dockerfiles + compose.prod.yml, image ids (api
+    `1e655ce8e881` 123 MB, web `3a6aaca70c2f` 35.5 MB; repo digests empty until pushed),
+    migration heads of all 16 apps, tool versions (uv 0.11.28, Docker 28.5.1, Compose
+    v2.40.3, pnpm 12.3.4). Trivy 0.74.0 from `docker save` archives (api 429 s, web 64 s):
+    evidence/release/2026.09.12-b18/{sbom-image-api,sbom-image-web}.cdx.json +
+    scan-image-{api,web}.json (hashes in the manifest). **web:b18: 0 findings of any severity**
+    (the pinned nginx base had 4 HIGH packages with fixes -> `apk upgrade` removed them all).
+    **api:b18: 63 HIGH/CRITICAL (4 CRITICAL), all Debian OS packages of python:3.12-slim, 0
+    with a fix available** (status affected 60 / fix_deferred 3): perl-base 8, libglib2.0 7,
+    util-linux family (bsdutils, libblkid1, liblastlog2, libmount1, libsmartcols1, libuuid1,
+    login, mount, util-linux) 4 each, libexpat1 2, libsqlite3 2, gzip / libacl1 / ncurses /
+    libsystemd0 / libudev1 1 each; **0 Python package findings** (pip-audit agrees). Removing
+    curl took the count from 72 to 63. Treatment: recorded in the manifest; the release gate
+    fails only on fixable findings (`--ignore-unfixed`); rebuild on a newer python:3.12-slim
+    digest when Debian ships fixes (DEPENDENCY_LOCK s.9 change note required)
+    (evidence/B18-release-manifest.log)
+  Container proof on the dev stack: `docker tag agni-setu-api:b18 agni-setu-api:dev` (+ web),
+    `docker compose ... up -d --wait api worker scheduler web` (03:46Z) -> api / worker /
+    scheduler / web healthy on `1e655ce8e881` / `3a6aaca70c2f` (python-based health probes,
+    the worker start line shows "serving: all"); `smoke_identity.py` -> ALL OTP SMOKE STEPS
+    PASSED.
+  uv run --directory backend pytest -q -p no:cacheprovider (full suite ALONE, 03:49-04:00Z) ->
+    **280 passed in 664.84 s** (269 + 11 packaging tests; slower than B17's 466 s because the
+    VM was still settling after the recreations) (evidence/B18-backend-tests.log)
+  Web: no source change in B18 (Dockerfile only) - web gates/tests not re-run; the web image
+    was rebuilt from the unchanged lockfile and proven by the boot check.
+Tests not executed and concrete reason: the release workflow itself (needs a pushed tag, GitHub
+  runners and the `production` environment configured with reviewers - repository settings the
+  user owns); GHCR publish (same); staging roll; encrypted / PITR restore (operating environment);
+  `docker scout` (Docker Hub login).
+Screens inspected: none required (packaging phase).
+Security/privacy or external-effect considerations: generated production secrets live only in a
+  temp directory removed by the check; no secret is printed by any script; the check project is
+  removed; no image was pushed anywhere; the demo routes are proven absent under production
+  settings; findings without fixes are recorded, not suppressed.
+Remaining defects and reproduction: NONE known in the product after the fixes above.
+Self-review (D-009): task card B18 proofs - production checks fail unsafe settings (A1-A3 on the
+  real image), migration compatibility tested (previous release -> current -> previous code on
+  the new schema), image scans and backup rehearsal attached (Trivy reports; B17 restore drill
+  re-usable through the runbook); forbidden shortcuts respected: no dev server, no sample key,
+  no debug endpoint and no public console in the live packaging (asserted by tests and by the
+  boot check).
+Required human input: configure the GitHub `production` environment with required reviewers;
+  choose the container registry namespace; decide the previous-release tag naming; provide the
+  operating-environment services (managed PostgreSQL with PITR, broker, cache, object service,
+  IdP, scanner, TLS proxy) before any staging roll.
+Next safe task: B19 - Full demonstration acceptance.
 End commit and worktree status: recorded in handover.md B12 after commit/push.
 ```
 

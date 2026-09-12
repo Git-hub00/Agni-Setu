@@ -47,4 +47,10 @@ tmp_env="$(mktemp)"; trap 'rm -f "$tmp_env"' EXIT
 sed -e 's/<[^>]*>/verify-placeholder/g' backend/.env.example > "$tmp_env"
 docker compose -p agni-verify --env-file "$tmp_env" -f infra/compose/compose.dev.yml --profile full --profile app config -q
 
+step "compose: production-shaped file renders (placeholder release variables)"
+tmp_release="$(mktemp)"; trap 'rm -f "$tmp_env" "$tmp_release"' EXIT
+printf 'AGNI_API_IMAGE=ghcr.io/example/agni-setu-api@sha256:%s\nAGNI_WEB_IMAGE=ghcr.io/example/agni-setu-web@sha256:%s\nAGNI_ENV_FILE=%s\n' \
+  "$(printf 'a%.0s' $(seq 64))" "$(printf 'b%.0s' $(seq 64))" "$REPO_ROOT/infra/containers/production/production.env.example" > "$tmp_release"
+docker compose -p agni-verify-prod --env-file "$tmp_release" -f infra/containers/production/compose.prod.yml --profile release config -q
+
 printf '\n\033[1;32mALL GATES PASSED\033[0m\n'

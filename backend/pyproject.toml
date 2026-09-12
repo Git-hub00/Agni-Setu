@@ -51,6 +51,7 @@ dev = [
     "types-jsonschema>=4.23,<5",
     "pip-audit>=2.9,<3",
     "locust>=2.32,<3",
+    "pyyaml>=6,<7",
 ]
 
 [tool.uv]
@@ -83,7 +84,7 @@ plugins = ["mypy_django_plugin.main"]
 # django-environ, Authlib and boto3/botocore ship no type information (no py.typed / stubs).
 module = [
     "environ", "environ.*", "authlib", "authlib.*", "boto3", "boto3.*", "botocore", "botocore.*",
-    "kombu", "kombu.*", "qrcode", "qrcode.*", "weasyprint", "weasyprint.*",
+    "kombu", "kombu.*", "qrcode", "qrcode.*", "weasyprint", "weasyprint.*", "yaml", "yaml.*",
 ]
 ignore_missing_imports = true
 

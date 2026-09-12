@@ -109,11 +109,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Syntax check
         run: |
-          for f in scripts/dev/*.sh scripts/ci/*.sh backend/docker-entrypoint.sh; do bash -n "$f"; done
+          for f in scripts/dev/*.sh scripts/ci/*.sh scripts/ops/*.sh backend/docker-entrypoint.sh; do bash -n "$f"; done
       - name: shellcheck
         run: |
           sudo apt-get update -q && sudo apt-get install -y -q shellcheck
-          shellcheck -S warning scripts/dev/*.sh scripts/ci/*.sh backend/docker-entrypoint.sh
+          shellcheck -S warning scripts/dev/*.sh scripts/ci/*.sh scripts/ops/*.sh backend/docker-entrypoint.sh
       - uses: astral-sh/setup-uv@v5
         with:
           version: ${{ env.UV_VERSION }}
@@ -137,6 +137,11 @@ jobs:
           printf '{"identities":[{"name":"ci","credentials":[{"accessKey":"ci-placeholder-value","secretKey":"ci-placeholder-value"}],"actions":["Admin","Read","Write","List","Tagging"]}]}\n' > infra/volumes/objectstore/s3-identities.json
       - name: Validate Compose configuration (all profiles)
         run: docker compose -p agni-ci --env-file .env.local -f infra/compose/compose.dev.yml --profile full --profile app config -q
+      - name: Validate the production-shaped Compose file (placeholder release variables)
+        run: |
+          printf 'AGNI_API_IMAGE=ghcr.io/example/agni-setu-api@sha256:%s\nAGNI_WEB_IMAGE=ghcr.io/example/agni-setu-web@sha256:%s\nAGNI_ENV_FILE=%s\n' \
+            "$(printf 'a%.0s' $(seq 64))" "$(printf 'b%.0s' $(seq 64))" "$PWD/infra/containers/production/production.env.example" > /tmp/release.env
+          docker compose -p agni-ci-prod --env-file /tmp/release.env -f infra/containers/production/compose.prod.yml --profile release config -q
       - name: Build API image
         run: docker build -f infra/containers/api.Dockerfile -t agni-setu-api:ci backend
       - name: Build web image

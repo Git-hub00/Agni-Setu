@@ -1,0 +1,223 @@
+name: Release
+
+# Approval-gated release pipeline (docs/12_DEPLOYMENT_AND_OPERATIONS.md s.5, docs/19 s.6,
+# task card B18). Manual dispatch only. Stages:
+#   verify   - the same gates as CI on the exact commit, plus the migration compatibility check
+#              against the previous release tag (expand-contract proof)
+#   build    - reproducible image builds from the frozen lockfiles; SBOMs; Trivy scans (HIGH /
+#              CRITICAL with a fix available fail the run); release manifest artifact
+#   publish  - REQUIRES the `production` GitHub environment (configure required reviewers there);
+#              pushes the images by digest to GHCR, re-generates the manifest with the registry
+#              digests and attaches everything to the run
+# Nothing here deploys: the operator applies the manifest with compose.prod.yml (runbook in
+# infra/containers/production/README.md) after the go/no-go decision (docs/19 s.6).
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release identifier (e.g. v0.18.0); must match a tag on the dispatched ref"
+        required: true
+        type: string
+      previous_release:
+        description: "Previous release tag for the migration compatibility check (empty = skip)"
+        required: false
+        default: ""
+        type: string
+      publish:
+        description: "Push images to GHCR (needs the production environment approval)"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+
+env:
+  UV_VERSION: "0.11.28"
+  PNPM_VERSION: "12.3.4"
+  NODE_VERSION: "24"
+  # Version observed from aquasec/trivy:latest on 2026-09-12 (B18 evidence); bump deliberately.
+  TRIVY_VERSION: "0.74.0"
+
+jobs:
+  verify:
+    name: Verify commit (gates + migration compatibility)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres@sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675
+        env:
+          POSTGRES_USER: agni_ci
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: agni_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U agni_ci -d agni_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://agni_ci:ci-only-password@127.0.0.1:5432/agni_ci
+      TEST_DATABASE_NAME: agni_ci_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: The dispatched ref must carry the release tag
+        run: |
+          git fetch --tags --force
+          test "$(git rev-parse "refs/tags/${{ inputs.version }}^{commit}")" = "$(git rev-parse HEAD)" \
+            || { echo "tag ${{ inputs.version }} does not point at HEAD"; exit 1; }
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Enable pinned pnpm via corepack
+        run: corepack enable && corepack prepare pnpm@${{ env.PNPM_VERSION }} --activate
+      - name: Backend gates and tests (real PostgreSQL)
+        working-directory: backend
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.test
+        run: |
+          uv sync --frozen
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy config agni tests
+          uv run python manage.py check
+          uv run python manage.py makemigrations --check --dry-run
+          uv run pytest -q
+          uv run pip-audit --progress-spinner off
+          uv run python ../scripts/ci/scan_secrets.py
+      - name: Web gates, tests and build
+        working-directory: web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm lint
+          pnpm typecheck
+          pnpm test --run
+          pnpm build
+          pnpm audit --audit-level low
+      - name: Migration compatibility against the previous release (expand-contract)
+        if: inputs.previous_release != ''
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.local
+        run: uv run --directory backend python ../scripts/ci/migration_compat.py --base "${{ inputs.previous_release }}" --seed
+
+  build:
+    name: Build images, SBOMs, scans, manifest
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Build api and web images (frozen lockfiles, digest-pinned bases)
+        run: |
+          docker build -f infra/containers/api.Dockerfile -t agni-setu-api:${{ inputs.version }} backend
+          docker build -f infra/containers/web.Dockerfile -t agni-setu-web:${{ inputs.version }} web
+      - name: Install Trivy
+        run: |
+          curl -sSfL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" -o /tmp/trivy.tgz
+          tar -xzf /tmp/trivy.tgz -C /tmp trivy && sudo install /tmp/trivy /usr/local/bin/trivy
+          trivy --version
+      - name: Image SBOMs (CycloneDX) and vulnerability scans
+        run: |
+          mkdir -p evidence/release/${{ inputs.version }}
+          for img in api web; do
+            trivy image --format cyclonedx --output "evidence/release/${{ inputs.version }}/sbom-image-$img.cdx.json" "agni-setu-$img:${{ inputs.version }}"
+            trivy image --scanners vuln --format json --output "evidence/release/${{ inputs.version }}/scan-image-$img.json" "agni-setu-$img:${{ inputs.version }}"
+            # Fail on HIGH/CRITICAL findings that have a fix available; unfixed ones are recorded for treatment.
+            trivy image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "agni-setu-$img:${{ inputs.version }}"
+          done
+      - name: Dependency SBOMs and release manifest
+        run: |
+          uv sync --frozen --directory backend
+          uv run --directory backend python ../scripts/ops/release_manifest.py --version "${{ inputs.version }}" \
+            --api-image "agni-setu-api:${{ inputs.version }}" --web-image "agni-setu-web:${{ inputs.version }}"
+      - name: Save images for the publish stage
+        run: docker save agni-setu-api:${{ inputs.version }} agni-setu-web:${{ inputs.version }} | gzip > /tmp/images.tgz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ inputs.version }}-evidence
+          path: |
+            release/${{ inputs.version }}/
+            evidence/release/${{ inputs.version }}/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ inputs.version }}-images
+          path: /tmp/images.tgz
+          retention-days: 7
+
+  publish:
+    name: Publish images (approval required)
+    needs: build
+    if: inputs.publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Configure this environment in the repository settings with required reviewers; the job
+    # waits for their approval before any image leaves the runner (docs/12 s.5).
+    environment:
+      name: production
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-${{ inputs.version }}-images
+          path: /tmp
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-${{ inputs.version }}-evidence
+          path: .
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push by immutable tag and record digests
+        id: push
+        run: |
+          docker load -i /tmp/images.tgz
+          owner="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          for img in api web; do
+            ref="ghcr.io/$owner/agni-setu-$img:${{ inputs.version }}"
+            docker tag "agni-setu-$img:${{ inputs.version }}" "$ref"
+            docker push "$ref"
+            digest="$(docker inspect --format '{{index .RepoDigests 0}}' "$ref")"
+            echo "$img=$digest" >> "$GITHUB_OUTPUT"
+            echo "$img -> $digest"
+          done
+      - name: Write release.env (image references by digest) for the operator runbook
+        run: |
+          {
+            echo "AGNI_API_IMAGE=${{ steps.push.outputs.api }}"
+            echo "AGNI_WEB_IMAGE=${{ steps.push.outputs.web }}"
+            echo "# AGNI_ENV_FILE=/etc/agni/agni.env   (rendered from the secret store on the operator host)"
+          } > release/${{ inputs.version }}/release.env
+          python3 - <<'EOF'
+          import json, pathlib
+          p = pathlib.Path("release/${{ inputs.version }}/manifest.json")
+          m = json.loads(p.read_text())
+          m["published"] = {"api": "${{ steps.push.outputs.api }}", "web": "${{ steps.push.outputs.web }}", "run": "${{ github.run_id }}", "approved_environment": "production"}
+          p.write_text(json.dumps(m, indent=2) + "\n")
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ inputs.version }}-published
+          path: release/${{ inputs.version }}/

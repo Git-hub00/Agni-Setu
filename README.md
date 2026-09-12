@@ -52,6 +52,15 @@ restart real containers, `backup.sh` + `restore-check.sh` rehearse an isolated d
 with an integrity report, and `measure_load.py` runs the Locust workload model (reduced size on a
 laptop; the declared 100-user protocol needs a larger host).
 
+Production packaging is separate from the development stack: `infra/containers/production/`
+holds the hardened Compose shape (read-only root filesystems, no published private ports, split
+heavy/light worker pools, one-shot `migrate` step, production settings that refuse unsafe
+configuration), the environment contract, and the release runbook (expand-contract migrations,
+application rollback). Releases are cut by the manual, approval-gated `Release` workflow
+(`.github/workflows/release.yml`): gates + migration compatibility, image builds, CycloneDX SBOMs,
+Trivy scans, a signed-off publish under the `production` GitHub environment, and a release manifest
+under `release/<version>/`. `scripts/ops/prod_boot_check.py` proves the packaging locally.
+
 Field officers can install the web app (PWA). The service worker caches only the static
 application shell and never API responses; case data for offline work is downloaded per attempt
 as a small package and synchronised explicitly from **Offline work and sync** (`/sync`).

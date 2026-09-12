@@ -2,7 +2,8 @@
 
 This is the **local** stack from docs/10_BUILD_GUIDE.md s.5. It is not the production
 deployment (docs/12 s.1, s.13): production uses hardened images, an approved TLS proxy, a
-supported PostgreSQL service and approved external providers.
+supported PostgreSQL service and approved external providers - see
+`infra/containers/production/` (Compose shape, environment contract, release/rollback runbook).
 
 | Profile | Services | Purpose |
 | --- | --- | --- |

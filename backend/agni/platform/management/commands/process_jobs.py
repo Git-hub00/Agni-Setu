@@ -3,15 +3,23 @@ of truth, so this loop is also the recovery path when broker wake-ups are lost. 
 `worker` container (Compose `app` profile) or once from the shell.
 
 Usage: manage.py process_jobs --once | --loop [--interval 5] [--limit 10] [--kind document.scan]
+       [--exclude-kind certificate.issue]
+
+`--kind` restricts a worker to the listed kinds; `--exclude-kind` runs every registered kind
+except the listed ones. Production runs two pools (docs/12 s.2, s.9): a "heavy" pool for
+rendering / scanning / export kinds with more memory and a "light" pool for the short business
+jobs, so one expensive job never blocks notification fan-out or obligation thresholds.
 """
 
 from __future__ import annotations
 
 import signal
 import time
+from collections.abc import Sequence
 from typing import Any
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
+from django.db import InterfaceError, OperationalError, connections
 
 import agni.certificates.application.issuance  # noqa: F401  (certificate.issue kind)
 import agni.documents.scanning  # noqa: F401  (importing registers the job kind)
@@ -33,10 +41,16 @@ class Command(BaseCommand):
         parser.add_argument("--interval", type=float, default=5.0)
         parser.add_argument("--limit", type=int, default=10)
         parser.add_argument("--kind", action="append", default=None)
+        parser.add_argument("--exclude-kind", action="append", default=None)
 
     def handle(self, *args: Any, **options: Any) -> None:
         owner = jobs.default_owner()
         stop = {"flag": False}
+        kinds = selected_kinds(
+            registered=sorted(jobs.handlers()),
+            include=options["kind"],
+            exclude=options["exclude_kind"],
+        )
 
         def _stop(_signum: int, _frame: Any) -> None:
             stop["flag"] = True
@@ -45,11 +59,29 @@ class Command(BaseCommand):
             signal.signal(signal.SIGTERM, _stop)
             signal.signal(signal.SIGINT, _stop)
         registered = ", ".join(sorted(jobs.handlers())) or "-"
-        self.stdout.write(f"[jobs] worker {owner} handlers: {registered}")
+        serving = "all" if kinds is None else (", ".join(kinds) or "-")
+        self.stdout.write(f"[jobs] worker {owner} handlers: {registered}; serving: {serving}")
+        interval = max(0.5, float(options["interval"]))
         while True:
-            report = jobs.run_due_jobs(
-                owner=owner, limit=options["limit"], kinds=options["kind"], clock=get_clock()
-            )
+            try:
+                report = jobs.run_due_jobs(
+                    owner=owner, limit=options["limit"], kinds=kinds, clock=get_clock()
+                )
+            except (OperationalError, InterfaceError) as exc:
+                # The database (or its name resolution) is unavailable: a long-running worker
+                # waits and polls again instead of dying with a stack trace (docs/08 s.6 -
+                # dependency outage is retried, never treated as job failure). `--once` callers
+                # get the error so scripts and tests see it.
+                if not options["loop"]:
+                    raise
+                connections.close_all()
+                self.stderr.write(
+                    f"[jobs] database unavailable ({type(exc).__name__}); retrying in {interval:g}s"
+                )
+                if stop["flag"]:
+                    break
+                time.sleep(interval)
+                continue
             if report.claimed:
                 self.stdout.write(
                     f"[jobs] claimed={report.claimed} complete={report.completed} "
@@ -58,4 +90,27 @@ class Command(BaseCommand):
                 )
             if not options["loop"] or stop["flag"]:
                 break
-            time.sleep(max(0.5, float(options["interval"])))
+            time.sleep(interval)
+
+
+def selected_kinds(
+    *, registered: Sequence[str], include: Sequence[str] | None, exclude: Sequence[str] | None
+) -> list[str] | None:
+    """Resolve --kind / --exclude-kind into the kinds this worker serves (None = every kind).
+
+    Unknown names are refused instead of silently serving nothing: a typo in a production
+    worker command must fail at start, not leave a job kind unserved.
+    """
+    unknown = sorted(set(include or []) | set(exclude or []))
+    unknown = [kind for kind in unknown if kind not in registered]
+    if unknown:
+        raise CommandError(
+            f"unknown job kind(s): {', '.join(unknown)}; registered: {', '.join(registered)}"
+        )
+    if include and exclude:
+        raise CommandError("--kind and --exclude-kind are mutually exclusive")
+    if include:
+        return [kind for kind in registered if kind in set(include)]
+    if exclude:
+        return [kind for kind in registered if kind not in set(exclude)]
+    return None

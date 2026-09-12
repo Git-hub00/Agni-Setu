@@ -19,8 +19,11 @@ RUN pnpm build
 # ---------------------------------------------------------------------------------------------
 FROM nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de AS runtime
 
-# Run nginx as the unprivileged `nginx` user: listen on 8080, write pid/cache to writable paths.
-RUN rm /etc/nginx/conf.d/default.conf \
+# Apply the distribution's security updates on top of the pinned base (B18 scan found fixed
+# openssl / util-linux / libxml2 / nghttp2 advisories newer than the base digest), then run nginx
+# as the unprivileged `nginx` user: listen on 8080, write pid/cache to writable paths.
+RUN apk --no-cache upgrade \
+    && rm /etc/nginx/conf.d/default.conf \
     && sed -i -E 's#^pid\s+.*;#pid /tmp/nginx.pid;#' /etc/nginx/nginx.conf \
     && sed -i -E 's#^user\s+.*;##' /etc/nginx/nginx.conf \
     && grep -q '^pid /tmp/nginx.pid;' /etc/nginx/nginx.conf \

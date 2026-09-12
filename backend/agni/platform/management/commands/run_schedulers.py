@@ -12,6 +12,7 @@ import time
 from typing import Any
 
 from django.core.management.base import BaseCommand
+from django.db import InterfaceError, OperationalError, connections
 
 import agni.notifications.application.fanout  # noqa: F401  (registers job kinds)
 import agni.obligations.application.scheduler as scheduler
@@ -38,21 +39,37 @@ class Command(BaseCommand):
             signal.signal(signal.SIGTERM, _stop)
             signal.signal(signal.SIGINT, _stop)
         last_dispatch = 0.0
+        interval = max(1.0, float(options["scan_interval"]))
         while True:
             now = get_clock().now()
-            scan = scheduler.scan_due_obligations(now=now)
-            if scan["created"]:
-                self.stdout.write(
-                    f"[scheduler] thresholds created={scan['created']} scanned={scan['scanned']}"
-                )
-            if options["once"] or time.monotonic() - last_dispatch >= options["dispatch_interval"]:
-                report = dispatch.dispatch_pending(now=now)
-                last_dispatch = time.monotonic()
-                if report.scanned:
+            try:
+                scan = scheduler.scan_due_obligations(now=now)
+                if scan["created"]:
                     self.stdout.write(
-                        f"[dispatch] scanned={report.scanned} published={report.published} "
-                        f"failed={report.failed}"
+                        f"[scheduler] thresholds created={scan['created']} "
+                        f"scanned={scan['scanned']}"
                     )
+                if (
+                    options["once"]
+                    or time.monotonic() - last_dispatch >= options["dispatch_interval"]
+                ):
+                    report = dispatch.dispatch_pending(now=now)
+                    last_dispatch = time.monotonic()
+                    if report.scanned:
+                        self.stdout.write(
+                            f"[dispatch] scanned={report.scanned} published={report.published} "
+                            f"failed={report.failed}"
+                        )
+            except (OperationalError, InterfaceError) as exc:
+                # Database unavailable: keep the process alive and retry on the next tick
+                # (docs/08 s.6); `--once` callers see the error.
+                if not options["loop"]:
+                    raise
+                connections.close_all()
+                self.stderr.write(
+                    f"[scheduler] database unavailable ({type(exc).__name__}); "
+                    f"retrying in {interval:g}s"
+                )
             if not options["loop"] or stop["flag"]:
                 break
-            time.sleep(max(1.0, float(options["scan_interval"])))
+            time.sleep(interval)

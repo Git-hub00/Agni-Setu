@@ -1,0 +1,724 @@
+{
+  "schema": "agni-release-manifest/1",
+  "version": "2026.09.12-b18",
+  "created_at": "2026-09-12T03:18:06+00:00",
+  "git": {
+    "commit": "0e940f1baf1a26d8695e0429c2b5134a0ddb8ce6",
+    "branch": "feat/b18-packaging",
+    "describe": "0e940f1-dirty",
+    "tracked_changes_pending": true
+  },
+  "locks": {
+    "backend/uv.lock": {
+      "sha256": "40b3088c13a3de5d587568b60fe3a9841fdcbfafae7648949e65f310a40356be",
+      "bytes": 191539
+    },
+    "backend/requirements.txt": {
+      "sha256": "158639af9a031b03e66dcbf3125309bc4d868d83095460c583d7af6eafe850f2",
+      "bytes": 3499
+    },
+    "backend/pyproject.toml": {
+      "sha256": "a636f4ec783d35d37d2bc452b8dfe9b77bcb3a2bcbd167e56edde53f117b1f47",
+      "bytes": 3688
+    },
+    "web/pnpm-lock.yaml": {
+      "sha256": "05ace3e57f2188f42e51f1bef207c33df0470ccc852d8067d7d9e8873c60eabd",
+      "bytes": 301524
+    },
+    "web/package.json": {
+      "sha256": "3f6559b8640c716e74b9bf9e0fbf03632847c5efb8bd406aa74d5ee26bb2167d",
+      "bytes": 1594
+    },
+    "infra/images.lock.json": {
+      "sha256": "fa6dcaff1316f3e088fafec7275facb12eff823e038b45bc5ab6b9fcaa2bf402",
+      "bytes": 5515
+    }
+  },
+  "packaging_files": {
+    "infra/containers/api.Dockerfile": "42afbfde90cfe6aa12b48adb6a2ad03afbe22456b6d316ab05c4696f7375dc3b",
+    "infra/containers/web.Dockerfile": "0c08857151716c855f165b9b099e150fd38c656ff7d3bbe7b78018807d187307",
+    "infra/containers/production/compose.prod.yml": "bfde0309393cbce7b023c2fd689fc482d6dabe058904d76572eec13e1c9651e6"
+  },
+  "images": {
+    "api": {
+      "reference": "agni-setu-api:b18",
+      "image_id": "sha256:1e655ce8e881cfcebc9042006012f03f3384bb37701c19b9ebc8e5435b59fba1",
+      "repo_digests": [
+        "agni-setu-api@sha256:1e655ce8e881cfcebc9042006012f03f3384bb37701c19b9ebc8e5435b59fba1"
+      ],
+      "created": "2026-09-12T03:05:14.419777609Z",
+      "size_bytes": 123164569,
+      "user": "agni",
+      "labels": {},
+      "note": "repo_digests is empty for a locally built image; the registry digest is recorded by the release workflow after push"
+    },
+    "web": {
+      "reference": "agni-setu-web:b18",
+      "image_id": "sha256:3a6aaca70c2fa5d69da93fdc6ccf16503582f59b583534c72f2014b282f62240",
+      "repo_digests": [
+        "agni-setu-web@sha256:3a6aaca70c2fa5d69da93fdc6ccf16503582f59b583534c72f2014b282f62240"
+      ],
+      "created": "2026-09-12T01:43:42.558593165Z",
+      "size_bytes": 35525309,
+      "user": "nginx",
+      "labels": {
+        "maintainer": "NGINX Docker Maintainers <docker-maint@nginx.com>"
+      },
+      "note": "repo_digests is empty for a locally built image; the registry digest is recorded by the release workflow after push"
+    }
+  },
+  "migration_heads": {
+    "cases": "0005_casehold",
+    "certificates": "0003_certificatestatusinstrument",
+    "decisions": "0001_initial",
+    "documents": "0001_initial",
+    "identity": "0003_alter_authoritygrant_capability_delegation",
+    "inspections": "0002_reports",
+    "integrations": "0001_initial",
+    "notices": "0001_initial",
+    "notifications": "0002_notifications_deliveries_preferences",
+    "obligations": "0002_clocks_thresholds_escalations",
+    "offline": "0001_initial",
+    "platform": "0002_logicaljob_jobattempt_logicaljob_idx_job_due_and_more",
+    "policies": "0003_service_public_summary_policyartifact_policyversion_and_more",
+    "reporting": "0001_initial",
+    "routing": "0003_routingexception",
+    "support": "0001_initial"
+  },
+  "tools": {
+    "python_host": "3.12.7",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "uv": "uv 0.11.28 (ebf0f43d7 2026-07-07 x86_64-pc-windows-msvc)",
+    "docker": "Docker version 28.5.1, build e180ab8",
+    "compose": "Docker Compose version v2.40.3-desktop.1",
+    "pnpm": "12.3.4"
+  },
+  "sboms": {
+    "python": {
+      "file": "release/2026.09.12-b18/sbom-python.cdx.json",
+      "sha256": "d9c70ad98b03b9698037b2cf124d60a602457f94afda966df9ab53cf631b7714",
+      "components": 63,
+      "generator": "uv export --format cyclonedx1.5 (runtime dependencies only)"
+    },
+    "web": {
+      "file": "release/2026.09.12-b18/sbom-web.cdx.json",
+      "sha256": "6b5c4e6b34f66b7e7e8f468ce69556521cf0a60748365154dcd745a0fea37168",
+      "components": 694,
+      "runtime_components": 88,
+      "generator": "pnpm-lock.yaml v9.0 graph (scope=required for the runtime closure, excluded for dev-only)"
+    }
+  },
+  "image_scan": {
+    "api": {
+      "tool": "Version: 0.74.0",
+      "seconds": 428.6,
+      "sbom": {
+        "file": "evidence/release/2026.09.12-b18/sbom-image-api.cdx.json",
+        "sha256": "61895a1a2cd45991f0246ba505dd72061d79b2ab0bece1f2b5271cf5ef0310ac"
+      },
+      "scan": {
+        "file": "evidence/release/2026.09.12-b18/scan-image-api.json",
+        "sha256": "96717b47de86cc9213afdaae73a83c0436f7453e73648f81226353664fb800b2",
+        "severity_counts": {
+          "LOW": 61,
+          "HIGH": 59,
+          "MEDIUM": 67,
+          "UNKNOWN": 10,
+          "CRITICAL": 4
+        },
+        "high_and_critical": [
+          {
+            "id": "CVE-2026-76642",
+            "package": "bsdutils",
+            "installed": "1:2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78408",
+            "package": "bsdutils",
+            "installed": "1:2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78409",
+            "package": "bsdutils",
+            "installed": "1:2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78410",
+            "package": "bsdutils",
+            "installed": "1:2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-41992",
+            "package": "gzip",
+            "installed": "1.13-1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-54369",
+            "package": "libacl1",
+            "installed": "2.3.2-2+b1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-76642",
+            "package": "libblkid1",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78408",
+            "package": "libblkid1",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78409",
+            "package": "libblkid1",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78410",
+            "package": "libblkid1",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-76956",
+            "package": "libexpat1",
+            "installed": "2.8.3-1~deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-76957",
+            "package": "libexpat1",
+            "installed": "2.8.3-1~deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-58016",
+            "package": "libglib2.0-0t64",
+            "installed": "2.84.4-3~deb13u3",
+            "fixed": null,
+            "severity": "CRITICAL",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-58010",
+            "package": "libglib2.0-0t64",
+            "installed": "2.84.4-3~deb13u3",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-58011",
+            "package": "libglib2.0-0t64",
+            "installed": "2.84.4-3~deb13u3",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-58012",
+            "package": "libglib2.0-0t64",
+            "installed": "2.84.4-3~deb13u3",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-58013",
+            "package": "libglib2.0-0t64",
+            "installed": "2.84.4-3~deb13u3",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-58014",
+            "package": "libglib2.0-0t64",
+            "installed": "2.84.4-3~deb13u3",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-58015",
+            "package": "libglib2.0-0t64",
+            "installed": "2.84.4-3~deb13u3",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-76642",
+            "package": "liblastlog2-2",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78408",
+            "package": "liblastlog2-2",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78409",
+            "package": "liblastlog2-2",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78410",
+            "package": "liblastlog2-2",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-76642",
+            "package": "libmount1",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78408",
+            "package": "libmount1",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78409",
+            "package": "libmount1",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78410",
+            "package": "libmount1",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2025-69720",
+            "package": "libncursesw6",
+            "installed": "6.5+20250216-2",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-76642",
+            "package": "libsmartcols1",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78408",
+            "package": "libsmartcols1",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78409",
+            "package": "libsmartcols1",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78410",
+            "package": "libsmartcols1",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-11822",
+            "package": "libsqlite3-0",
+            "installed": "3.46.1-7+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-11824",
+            "package": "libsqlite3-0",
+            "installed": "3.46.1-7+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-16742",
+            "package": "libsystemd0",
+            "installed": "257.13-1~deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2025-69720",
+            "package": "libtinfo6",
+            "installed": "6.5+20250216-2",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-16742",
+            "package": "libudev1",
+            "installed": "257.13-1~deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-76642",
+            "package": "libuuid1",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78408",
+            "package": "libuuid1",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78409",
+            "package": "libuuid1",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78410",
+            "package": "libuuid1",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-76642",
+            "package": "login",
+            "installed": "1:4.16.0-2+really2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78408",
+            "package": "login",
+            "installed": "1:4.16.0-2+really2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78409",
+            "package": "login",
+            "installed": "1:4.16.0-2+really2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78410",
+            "package": "login",
+            "installed": "1:4.16.0-2+really2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-76642",
+            "package": "mount",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78408",
+            "package": "mount",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78409",
+            "package": "mount",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78410",
+            "package": "mount",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2025-69720",
+            "package": "ncurses-base",
+            "installed": "6.5+20250216-2",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2025-69720",
+            "package": "ncurses-bin",
+            "installed": "6.5+20250216-2",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-13221",
+            "package": "perl-base",
+            "installed": "5.40.1-6",
+            "fixed": null,
+            "severity": "CRITICAL",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-42496",
+            "package": "perl-base",
+            "installed": "5.40.1-6",
+            "fixed": null,
+            "severity": "CRITICAL",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-8376",
+            "package": "perl-base",
+            "installed": "5.40.1-6",
+            "fixed": null,
+            "severity": "CRITICAL",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-42497",
+            "package": "perl-base",
+            "installed": "5.40.1-6",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-48962",
+            "package": "perl-base",
+            "installed": "5.40.1-6",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-57432",
+            "package": "perl-base",
+            "installed": "5.40.1-6",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-57433",
+            "package": "perl-base",
+            "installed": "5.40.1-6",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-9538",
+            "package": "perl-base",
+            "installed": "5.40.1-6",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-76642",
+            "package": "util-linux",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78408",
+            "package": "util-linux",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78409",
+            "package": "util-linux",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          },
+          {
+            "id": "CVE-2026-78410",
+            "package": "util-linux",
+            "installed": "2.41.5-0+deb13u1",
+            "fixed": null,
+            "severity": "HIGH",
+            "target": "/out/image-api.tar (debian 13.6)",
+            "class": "os-pkgs"
+          }
+        ],
+        "os": {
+          "Family": "debian",
+          "Name": "13.6"
+        }
+      }
+    },
+    "web": {
+      "tool": "Version: 0.74.0",
+      "seconds": 64.2,
+      "sbom": {
+        "file": "evidence/release/2026.09.12-b18/sbom-image-web.cdx.json",
+        "sha256": "c5de271cb6662583e4af957ef649ea7de9023fb82fbc5d1bad20ddb726199cbb"
+      },
+      "scan": {
+        "file": "evidence/release/2026.09.12-b18/scan-image-web.json",
+        "sha256": "e0b70525e210040c7804144fba58f68f299b88d98232c05c488c3533738e6434",
+        "severity_counts": {},
+        "high_and_critical": [],
+        "os": {
+          "Family": "alpine",
+          "Name": "3.23.4"
+        }
+      }
+    }
+  },
+  "completed_at": "2026-09-12T03:26:37+00:00"
+}
