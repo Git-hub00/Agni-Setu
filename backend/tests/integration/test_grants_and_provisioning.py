@@ -378,6 +378,7 @@ def test_at_02_02_expired_and_revoked_grants_are_denied(
 
 
 @pytest.mark.django_db
+# E2E-18 (deactivation revokes access and keeps history; an administrator holds no case authority)
 def test_at_02_03_disable_revokes_bindings_and_bumps_epoch_but_keeps_history(
     actors: dict[str, Principal], clock: FrozenClock
 ) -> None:

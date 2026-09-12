@@ -42,7 +42,7 @@ export function IntegrationsPage() {
       </div>
       <ul className="grid gap-4 md:grid-cols-2">
         {list.data.items.map((item) => (
-          <li key={item.integration_id} className={CARD}>
+          <li key={item.integration_id} className={`${CARD} min-w-0`}>
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <h2 className="text-base font-semibold">{item.display_name}</h2>
@@ -226,9 +226,11 @@ function ConflictRow({ conflict }: { conflict: IntegrationConflict }) {
   });
   const ready = reason.trim().length >= 10 && evidence.trim().length > 0 && (outcome !== "APPLY_VERIFIED_SOURCE" || version.trim().length > 0);
   return (
-    <li className="rounded-md border border-border p-3 text-sm">
+    <li className="min-w-0 rounded-md border border-border p-3 text-sm">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
+        {/* min-w-0: a flex child defaults to min-width:auto, so the JSON <pre> below would widen
+            the page instead of scrolling (360 px overflow found by journeys.spec.ts, B19). */}
+        <div className="min-w-0 flex-1 break-words">
           <p className="font-medium">
             {conflict.reason_code} · {conflict.source_entity_id}
             <span className="ml-2 rounded-md bg-canvas px-2 py-0.5 text-xs">{conflict.state}</span>

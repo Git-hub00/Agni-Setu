@@ -47,6 +47,7 @@ def test_authorized_pause_shifts_due_by_the_pause() -> None:
     ) == local(7, 14)
 
 
+# PROP-06 (overlapping pauses are unioned; elapsed time never negative)
 def test_overlapping_pauses_are_subtracted_once() -> None:
     pauses = [Pause(local(7, 10), local(7, 11)), Pause(local(7, 10, 30), local(7, 11, 30))]
     assert due_instant(

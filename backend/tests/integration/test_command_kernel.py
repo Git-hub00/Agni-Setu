@@ -121,6 +121,7 @@ def test_happy_path_bumps_version_and_writes_receipt_audit_outbox(
 
 
 @pytest.mark.django_db
+# PROP-04 (replaying an accepted command creates nothing new)
 def test_duplicate_command_returns_original_result_once(
     applicant: Principal, premises: Premises, clock: FrozenClock
 ) -> None:
@@ -143,6 +144,7 @@ def test_duplicate_command_returns_original_result_once(
 
 
 @pytest.mark.django_db
+# PROP-05 (same key, different normalised payload never reuses the previous success)
 def test_same_key_different_payload_is_idempotency_conflict(
     applicant: Principal, premises: Premises, clock: FrozenClock
 ) -> None:
@@ -194,6 +196,7 @@ def test_missing_idempotency_key_is_malformed(
 
 
 @pytest.mark.django_db
+# DS-22 (exception before commit rolls back completely; with tests/faults for after-commit cases)
 def test_rollback_after_write_leaves_no_receipt_outbox_or_change(
     applicant: Principal, premises: Premises, clock: FrozenClock
 ) -> None:

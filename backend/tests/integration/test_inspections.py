@@ -298,6 +298,7 @@ def test_at_08_02_ineligible_unavailable_and_overlapping_bookings_fail_atomicall
 
 
 @pytest.mark.django_db(transaction=True)
+# PROP-09 (two competing bookings cannot overlap after commit); DS-10 (scheduling race)
 def test_at_08_05_concurrent_bookings_for_one_officer_yield_exactly_one_assignment(
     applicant: Principal,
     supervisor: Principal,
@@ -360,6 +361,8 @@ def test_at_08_05_concurrent_bookings_for_one_officer_yield_exactly_one_assignme
 
 
 @pytest.mark.django_db
+# PROP-07 (reassignment and failed appointments do not reset the case clock); DS-06 (inaccessible
+# site -> FAILED attempt + owned next action); E2E-06
 def test_at_08_03_11_02_11_03_reassign_check_in_failed_visit_and_cancel_preserve_history_and_clock(
     applicant: Principal,
     supervisor: Principal,

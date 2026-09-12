@@ -92,6 +92,7 @@ def sync(
 
 
 @pytest.mark.django_db
+# Cases: AT-12-03 (lost receipt -> same operation id replayed -> one canonical receipt); DS-07
 def test_at_12_01_offline_package_then_one_accepted_sync_with_replay_and_lost_receipt(
     visit: dict[str, Any],  # noqa: F811
     clock: FrozenClock,
@@ -303,6 +304,8 @@ def test_at_12_02_revoked_authority_blocks_synchronisation_and_is_recorded(
 
 
 @pytest.mark.django_db
+# AT-X-01 (offline failed visit synchronised twice -> one outcome) AT-X-02 (report vs failed-visit
+# race -> one terminal outcome); DS-08
 def test_at_12_05_failed_visit_operation_and_report_versus_failure_race(
     visit: dict[str, Any],  # noqa: F811
     clock: FrozenClock,

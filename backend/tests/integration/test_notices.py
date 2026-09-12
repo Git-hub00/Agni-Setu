@@ -469,6 +469,7 @@ def test_at_15_03_superseding_notice_retains_original_and_its_clock_disposition(
 
 
 @pytest.mark.django_db
+# PROP-14 (a response from one case cannot satisfy an item of another case)
 def test_at_16_02_16_04_unrelated_or_quarantined_evidence_and_wrong_actors_are_refused(
     info_round: dict[str, Any],
     other_applicant: Principal,

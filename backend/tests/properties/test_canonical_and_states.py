@@ -88,6 +88,8 @@ def test_state_vocabulary_is_exactly_the_eleven_states() -> None:
 
 
 @given(st.sampled_from(list(ApplicationStatus)))
+# PROP-01 (structural part: the transition table admits exactly the permitted moves; the
+# per-command guard is exercised by every integration test that asserts an unchanged state)
 def test_terminal_states_have_no_outgoing_transitions(state: ApplicationStatus) -> None:
     outgoing = allowed_transitions(state)
     if state in TERMINAL_STATES:

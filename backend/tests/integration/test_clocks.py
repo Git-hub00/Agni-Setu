@@ -158,6 +158,7 @@ def test_at_18_01_18_02_persisted_pauses_move_the_due_instant_and_union_overlaps
 
 
 @pytest.mark.django_db(transaction=True)
+# Cases: AT-18-05 (two schedulers, one logical action per obligation cycle) PROP-08
 def test_at_19_01_19_02_two_schedulers_yield_one_threshold_action_and_one_escalation(
     scrutiny_case: dict[str, Any], supervisor: Principal, clock: FrozenClock
 ) -> None:
@@ -326,6 +327,8 @@ def test_at_19_04_19_05_manual_escalation_is_scoped_idempotent_and_never_satisfi
 
 
 @pytest.mark.django_db
+# Cases: AT-23-04 (recipient scoping: nobody reads another recipient's notification); DS-13
+# (provider outage keeps the case accepted and the notification PENDING / FAILED, never "sent")
 def test_at_23_01_23_05_dispatch_fanout_delivery_outage_and_recipient_scoping(
     scrutiny_case: dict[str, Any],
     applicant: Principal,

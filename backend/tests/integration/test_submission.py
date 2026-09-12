@@ -368,6 +368,7 @@ def test_at_06_05_concurrent_submissions_produce_exactly_one_revision(
 
 
 @pytest.mark.django_db
+# DS-11 / E2E-04 (routing exception is visible, owned and resolved with a reviewed mapping)
 def test_at_07_02_03_no_match_creates_owned_exception_resolved_by_supervisor(
     applicant: Principal,
     supervisor: Principal,

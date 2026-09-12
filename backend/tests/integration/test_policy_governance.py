@@ -312,6 +312,7 @@ def test_at_27_02_contributors_cannot_approve_and_approval_needs_simulation(
 
 
 @pytest.mark.django_db
+# AT-X-03 (an old simulation cannot authorise a changed candidate); E2E-17 with the approval tests
 def test_simulation_runs_deterministic_checks_and_rejects_stale_candidate(
     governance_actors: dict[str, Principal],
     service: Service,

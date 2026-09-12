@@ -192,6 +192,7 @@ def test_user_text_is_stored_and_returned_as_data_never_as_markup(
 
 
 @pytest.mark.django_db
+# Cases: AT-22-04 (anonymous lookups are throttled per client; no enumeration)
 def test_public_verification_is_rate_limited_per_client(settings: Any) -> None:
     client = Client()
     limit = int(settings.PUBLIC_VERIFY_RATE_LIMIT)

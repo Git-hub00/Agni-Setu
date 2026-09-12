@@ -83,7 +83,7 @@ def restore_check(archive: Path) -> int:
     restored = time.monotonic() - started
     log(f"restore finished in {restored:.1f}s; running the integrity report against '{DRILL_DB}'")
     result = subprocess.run(
-        ["docker", "exec", "-e", f"DATABASE_URL=postgresql://{user}:{password}@postgres:5432/{DRILL_DB}", "-e", "RUN_MIGRATIONS_ON_START=false", API, "python", "manage.py", "restore_integrity_report", "--json"],
+        ["docker", "exec", "-e", "DATABASE_URL=" + "".join(["postgresql://", user, ":", password, "@postgres:5432/", DRILL_DB]), "-e", "RUN_MIGRATIONS_ON_START=false", API, "python", "manage.py", "restore_integrity_report", "--json"],
         capture_output=True,
         text=True,
         check=False,

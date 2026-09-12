@@ -35,6 +35,9 @@ def _reset_signer() -> Iterator[None]:
 
 
 @pytest.mark.django_db
+# Cases: AT-21-05 (crash / replay yields one certificate) PROP-03 (exactly one artifact per final
+# decision) PROP-11 (a stale lease cannot complete); E2E-13 analogue (renderer / worker failure ->
+# safe recovery -> one certificate)
 def test_worker_crash_after_signing_recovers_the_same_action_with_one_certificate(
     visit: dict[str, Any],  # noqa: F811
     supervisor: Principal,

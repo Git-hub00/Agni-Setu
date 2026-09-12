@@ -49,6 +49,8 @@ def envelope(
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("round_trip", range(3))
+# PROP-10 (revocation and a sensitive command serialise through one fence); DS-19 (revocation
+# race, real PostgreSQL connections)
 def test_privileged_command_and_revocation_race_yield_one_consistent_outcome(
     actors: dict[str, Principal],  # noqa: F811
     clock: FrozenClock,

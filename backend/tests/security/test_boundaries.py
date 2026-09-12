@@ -85,6 +85,8 @@ def test_anonymous_requests_are_refused_uniformly(
 
 
 @pytest.mark.django_db
+# Cases: AT-21-04 (applicants cannot reach issuance / job recovery or staff reads) and the
+# cross-applicant scope cases of every FR (see the module docstring)
 def test_applicants_cannot_reach_staff_functions_or_others_cases(
     visit: dict[str, Any],  # noqa: F811
     other_applicant: Principal,

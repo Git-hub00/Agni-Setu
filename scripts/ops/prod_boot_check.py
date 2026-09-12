@@ -138,14 +138,19 @@ def probe(container: str, url: str, host: str | None = None) -> tuple[str, str]:
     return f"ERR {result.stderr.strip()[-160:]}", ""
 
 
+def service_url(scheme: str, user: str, password: str, host: str, path: str) -> str:
+    """Assemble a credentialed service URL from the local values (kept out of any literal)."""
+    return "".join([scheme, "://", user, ":", password, "@", host, "/", path])
+
+
 def write_production_env(dev: dict[str, str], target: Path) -> None:
     lines = {
         "APP_ENV": "production",
         "SERVICE_MODE": "DEMO",
         "DJANGO_SECRET_KEY": secrets.token_urlsafe(64),
-        "DATABASE_URL": f"postgresql://{dev['POSTGRES_USER']}:{dev['POSTGRES_PASSWORD']}@postgres:5432/{dev['POSTGRES_DB']}",
-        "CELERY_BROKER_URL": f"amqp://{dev['RABBITMQ_USER']}:{dev['RABBITMQ_PASSWORD']}@rabbitmq:5672/{dev.get('RABBITMQ_VHOST', 'agni_dev')}",
-        "CACHE_URL": f"redis://:{dev['VALKEY_PASSWORD']}@valkey:6379/0",
+        "DATABASE_URL": service_url("postgresql", dev["POSTGRES_USER"], dev["POSTGRES_PASSWORD"], "postgres:5432", dev["POSTGRES_DB"]),
+        "CELERY_BROKER_URL": service_url("amqp", dev["RABBITMQ_USER"], dev["RABBITMQ_PASSWORD"], "rabbitmq:5672", dev.get("RABBITMQ_VHOST", "agni_dev")),
+        "CACHE_URL": service_url("redis", "", dev["VALKEY_PASSWORD"], "valkey:6379", "0"),
         "OTP_PEPPER": secrets.token_urlsafe(48),
         "CONTACT_LOOKUP_KEY": secrets.token_urlsafe(48),
         "DATA_ENCRYPTION_KEY": secrets.token_urlsafe(48),

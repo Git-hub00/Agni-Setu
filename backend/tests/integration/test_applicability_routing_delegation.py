@@ -40,6 +40,8 @@ from .test_policy_governance import approved_active_v1, env
 
 
 @pytest.mark.django_db
+# Cases: AT-03-01 (supported category -> exact form and document list) AT-03-02 (unknown category /
+# ambiguous policy reports uncertainty, never fabricated eligibility)
 def test_at_03_applicability_reports_exact_requirements_or_uncertainty(
     governance_actors: dict[str, Principal],
     service: Service,
@@ -244,6 +246,8 @@ def _delegate_env(
 
 
 @pytest.mark.django_db
+# Cases: AT-10-01 AT-10-02 AT-10-03 (inline below) AT-10-04 (scope: unconfirmed delegate sees
+# nothing; revoked delegate loses access) AT-10-05 (stale version -> VERSION_CONFLICT 412)
 def test_at_10_delegation_lifecycle_and_scope(
     applicant: Principal,
     other_applicant: Principal,

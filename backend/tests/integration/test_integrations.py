@@ -153,6 +153,7 @@ def test_at_29_01_duplicate_event_acknowledged_without_a_second_effect(
 
 
 @pytest.mark.django_db
+# PROP-13 (an older source version cannot overwrite a newer authoritative projection)
 def test_at_29_02_older_or_out_of_order_events_never_overwrite(
     partner: Integration,
     signed_client: Callable[[Principal], Client],

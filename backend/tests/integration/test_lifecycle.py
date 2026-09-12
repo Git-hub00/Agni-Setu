@@ -64,6 +64,9 @@ def stranger(signed_client: Callable[[Principal], Client]) -> Client:
 
 
 @pytest.mark.django_db
+# Cases: AT-30-01 (allowed-stage withdrawal disposes open work) AT-30-02 (terminal case refuses a
+# second withdrawal and a hold; empty reason 422) AT-30-04 (staff 403, stranger 404) AT-30-05
+# (replay of the terminal command is a 409, never a second disposition)
 def test_at_30_01_withdrawal_is_guarded_and_disposes_open_work(
     scheduled_visit: dict[str, Any],  # noqa: F811
     signed_client: Callable[[Principal], Client],
@@ -316,6 +319,11 @@ def status_grant(subject: Principal, jurisdiction: Jurisdiction, clock: FrozenCl
 
 
 @pytest.mark.django_db
+# Cases: AT-24-01 (suspend / reinstate / revoke instruments, linked renewal, public status)
+# AT-24-02 (missing evidence 422, inadmissible after expiry 409, revoked is final, renewal from a
+# revoked record refused) AT-24-04 (no status grant 403, staff cannot renew 403, holder sees the
+# public reason only) AT-24-05 (stale ETag 412, second renewal 409); E2E-16 (renewal leaves the
+# source validity untouched)
 def test_at_24_status_instruments_renewal_and_expiry(
     visit: dict[str, Any],  # noqa: F811
     supervisor: Principal,
@@ -491,6 +499,9 @@ def attach(client: Client, ticket_id: str, code: str, data: bytes) -> str:
 
 
 @pytest.mark.django_db
+# Cases: AT-30-01 (ticket lifecycle with attributed replies) AT-30-02 (disabled appeal route ->
+# SERVICE_DISABLED referral; out-of-scope case 422) AT-30-04 (stranger sees nothing, internal notes
+# hidden, requester cannot write INTERNAL or resolve); E2E-20 (support never reopens a decision)
 def test_at_30_support_tickets_referrals_and_attachments(
     visit: dict[str, Any],  # noqa: F811
     signed_client: Callable[[Principal], Client],

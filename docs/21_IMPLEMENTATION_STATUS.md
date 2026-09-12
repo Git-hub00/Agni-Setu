@@ -32,8 +32,8 @@ Update this file at the end of each agent task. Read actual repository/branch/di
 | B16 | Security and accessibility hardening | READY_FOR_REVIEW (2026-09-11T23:5xZ; merged to `main` per D-009 - see s.3r) | Security: `HardeningMiddleware` (API-wide CSP `default-src 'none'; frame-ancestors 'none'`, nosniff, DENY, same-origin referrer, Permissions-Policy, CORP/COOP, `Cache-Control: private, no-store` on authenticated JSON, 1 MiB JSON body cap answered as problem+json 413 before any view; the file transfer endpoint keeps its reservation bound), `SafeJSONRenderer` (`<`, `>`, `&` emitted as JSON escapes so API bodies are inert as HTML), Django `RequestDataTooBig` mapped to 413, `SECURE_*`/`X_FRAME_OPTIONS` in every environment, nginx CSP for the SPA (`script-src 'self'`, `frame-ancestors 'none'`, `object-src 'none'`, COOP), `tests/security` (boundary matrix over anonymous / applicant / officer / supervisor / foreign supervisor / leadership / admin / policy approver; substituted ids; disallowed methods; injection-shaped params; caller-supplied authority; headers; cookie flags; login + command CSRF; oversized body; stored-XSS neutrality; verification rate limit; secrets/OTP absent from responses and logs), `scripts/ci/scan_secrets.py` (tracked-file secret scan, in verify.sh + CI). Accessibility: Playwright + axe-core suite `web/e2e` (`pnpm test:e2e`) over public, applicant (real OTP form) and staff (real Keycloak) routes at 360/390/768/1280/1440 with keyboard-only, reduced-motion, CSP-console and header checks; fixes it forced: muted text token 4.27:1 -> 5.3:1, content links underlined (link-in-text-block), header wraps below 640 px (no horizontal scroll), problem+json refusals now parsed by the client (codes/request ids were being dropped), OTP sign-in no longer orphans the session observer (stayed signed-out until reload) | Human review of `main`; B17 |
 | B17 | Reliability, performance and recovery proof | READY_FOR_REVIEW (2026-09-12T01:2xZ; merged to `main` per D-009 - see s.3s) | `tests/faults` on real PostgreSQL: worker crash after the signer accepted the request -> lease expiry -> the SAME logical action recovered, one certificate, the dead worker's late completion refused (LeaseLost); broker outage after commit -> intents stay PENDING, republished exactly once after recovery (deterministic fan-out ids); database unavailable -> 503 DEPENDENCY_UNAVAILABLE problem+json with Retry-After and no receipt (new JSON `handler400/403/404/500` fallbacks + middleware catch); approval vs revocation race with two connections (3 rounds) -> revocation always commits, the approval either precedes it or is refused; storage writes refused -> upload 503 with the reservation intact and completion refused, export job RETRY_WAIT then one artifact after recovery. Physical drills (`scripts/ops`): broker stop/start with commands accepted and 2 pending intents republished after restart; worker stop/kill/start around durable exports with lease recovery; `backup.sh` + `restore-check.sh` (pg_dump -> isolated `agni_restore_drill` -> `restore_integrity_report`: schema, counts, canonical relationships, audit chains, object hashes; measured restore time). Performance: Locust 2.46.5 workload model 70/20/10 (`tests/load/locustfile.py`) run reduced by `measure_load.py` with p50/p95/p99 and `docker stats` recorded - the declared 10,000-case / 100-user protocol is NOT met on this host (recorded gap) | Human review of `main`; B18 |
 | B18 | Production packaging and release evidence | READY_FOR_REVIEW (2026-09-12T04:0xZ; merged to `main` per D-009 - see s.3t) | `infra/containers/production/` (hardened Compose shape: digest-only image variables, read-only root filesystems + tmpfs, cap_drop ALL, no-new-privileges, non-root, only `web` published on loopback, production settings with `RUN_MIGRATIONS_ON_START=false`, one-shot `migrate` release step, split `worker-light` / `worker-heavy` pools via `process_jobs --exclude-kind`, environment contract, release / expand-contract / rollback runbook); worker and scheduler loops survive a lost database; api image: uv pinned by digest, distro security upgrades, no curl, writes only under tmpfs; web image: distro upgrades (0 scan findings); `.github/workflows/release.yml` (manual dispatch; verify with migration compatibility -> build with SBOMs + Trivy gate on fixable findings -> publish only under the `production` environment); `scripts/ci/migration_compat.py` (PASS vs B16 and vs B13: previous code reads the upgraded schema), `scripts/ops/prod_boot_check.py` (23/23 on the final images: unsafe settings refused, read-only boot, demo routes absent, pools serve their kinds), `scripts/ops/release_manifest.py` (`release/2026.09.12-b18/`: manifest, CycloneDX SBOMs for Python 63 / web 88 runtime components, image SBOMs + scans: api 63 unfixed Debian OS advisories recorded, 0 Python), `tests/unit/test_release_packaging.py` (11); full suite 280 alone | Human review of `main`; B19 |
-| B19 | Full demonstration acceptance | NOT_STARTED | None | Complete prerequisites and task card |
-| B20 | Agency pilot activation | NOT_STARTED | None | Complete prerequisites and task card |
+| B19 | Full demonstration acceptance | READY_FOR_REVIEW (2026-09-12T06:2xZ; merged to `main` per D-009 - see s.3u) | `scripts/dev/acceptance_run.py` (13 role journeys in order against the live stack: **13/13 PASS** across runs 2-6, every intermediate failure environmental or a harness precondition and written down); `scripts/ci/acceptance_matrix.py` -> `docs/ACCEPTANCE_MATRIX.md` (180 core cases: 160 AUTOMATED / 1 BLOCKED / 19 NOT_RUN; PROP 16/16; E2E 8 + 10 SMOKE / 1 BLOCKED / 1 NOT_RUN; DS 8 + 14 / 2 BLOCKED); `web/e2e/journeys.spec.ts` (every role, every route, reload, 360 px, axe, first records: 11/15 with the B16 specs on this host, the misses being the OTP hourly limit and Keycloak stalls); two real 360 px overflows found and fixed (`/integrations`, `/audit`); docs/23 s.7 evidence for 94 controls + 20 forms (71 IMPLEMENTED / 6 PARTIAL / 2 REPLACED / 15 NOT_IMPLEMENTED demo conveniences); `docs/RELEASE_NOTES_DEMO.md`; 29 tests annotated with their exact cases; RabbitMQ busy-wait tuning; gaps G-01..G-07 recorded for the owner (D-011 demo console, D-012 fixture inventory) | Human review of `main`; B20 |
+| B20 | Agency pilot activation | CHECKLIST_ONLY (2026-09-12T06:xxZ; owner instruction: no live activation - see s.3v) | `docs/B20_LIVE_ACTIVATION_CHECKLIST.md`: LIVE-01..20 with owner / repository evidence / READY-OWNER-BLOCKED status, configuration gates enforced in code, release-evidence inventory, carried gaps; final code-quality pass recorded in s.3v | Owner decisions (docs/19 s.2), D-011 / D-012, GitHub `production` reviewers; no live case until every gate is closed |
 
 ## 3. Required handoff record
 
@@ -2335,6 +2335,202 @@ Required human input: configure the GitHub `production` environment with require
   operating-environment services (managed PostgreSQL with PITR, broker, cache, object service,
   IdP, scanner, TLS proxy) before any staging roll.
 Next safe task: B19 - Full demonstration acceptance.
+End commit and worktree status: recorded in handover.md B12 after commit/push.
+```
+
+## 3u. Handoff record - B19 session claude-20260910T172516Z-b00b (2026-09-12)
+
+```text
+Task: B19 - Full demonstration acceptance (task card B19; docs 11 s.3 core cases / s.4
+  properties / s.5 journeys / s.9 evidence format / s.10 exit criteria / s.12 preservation
+  tests; 13 s.5 count assertions / s.8 scenario scripts; 23 control + form inventory)
+Baseline: implementation spec 2.0.0
+Branch and start commit: feat/b19-acceptance from main @ 6aa6967
+Files inspected: docs 11/13/23 in full, router.tsx, every web/src/api module, the smoke scripts,
+  existing Playwright specs, seed_demo (no AS-2026 inventory), config/urls.py demo routes.
+Changes made and architecture decisions:
+  scripts/dev/acceptance_run.py (NEW) - runs the 13 role-journey smoke scripts in the
+    documented order against the live stack, one log per step under evidence/, PASS/FAIL table
+    with durations; exit 1 on any failure. This is the API + database level of the acceptance.
+  scripts/ci/acceptance_matrix.py (NEW) -> docs/ACCEPTANCE_MATRIX.md (generated): scans tests,
+    browser specs and scripts for AT-xx-yy (explicit, ranges, test function names), AT-X, PROP,
+    E2E and DS references and labels each of the 180 + 5 + 16 + 20 + 24 identifiers AUTOMATED /
+    SMOKE / MANUAL / BLOCKED (with reason) / NOT_RUN. A reference is a claim, the run records
+    are the proof; `--check` fails when the committed matrix is stale.
+  web/e2e/journeys.spec.ts (NEW) - public / applicant / supervisor / officer / administrator
+    route walks: direct navigation, h1, reload, 360 px without horizontal overflow, axe, first
+    record of every owned list opened, keyboard reach; the applicant test creates real premises
+    and a draft through the same API the wizard uses and opens them in the UI. Annotated with
+    the 30 AT-xx-06 screen cases it covers (partially: loading / failed / stale states stay
+    with the vitest page tests).
+  docs/23_PROTOTYPE_COVERAGE.md s.7 (NEW) - implementation evidence for all 94 named actions
+    and 20 forms: IMPLEMENTED 71 / PARTIAL 6 / REPLACED 2 / NOT_IMPLEMENTED 15 actions;
+    forms 18 / 2. Every NOT_IMPLEMENTED item is a demo convenience or client nicety (UI-28
+    demo console, fixture-fill buttons, print, clipboard copy); no regulatory command is
+    missing. Non-button coverage and the visual-parity status recorded.
+  docs/RELEASE_NOTES_DEMO.md (NEW) - what the demonstration shows, how to run it, evidence
+    pointers, the honest limitation list (G-01..G-07 below), defects fixed.
+  infra/compose/compose.dev.yml - RabbitMQ `RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS="+sbwt none
+    +sbwtdcpu none +sbwtdio none"`: the Erlang busy-wait pegged a CPU (122 %) with no traffic on
+    the 3 GB VM and starved the api during the acceptance run.
+  Gaps recorded (decisions for the owner, not silently closed):
+    G-01 UI-28 demo console / API-120 not built (persona switcher, clock advance, provider
+      toggles, reset, snapshot). Alternatives: real sign-ins, seed_demo, demo inbox, injected
+      test clock, scripts/ops drills. Live packaging never had these routes.
+    G-02 docs/13 fixture inventory (28 cases, 5 certificates, 28/27/20/5/1/1 oracle, CLOCK
+      fixtures as seed data) is not reproduced by seed_demo; the baseline is smaller and the
+      smoke scripts generate the rest. Metrics reconciliation is proven against the real
+      dataset (test_reporting_audit), not against that oracle.
+    G-03 print / copy / draft detach / policy create-edit browser controls absent (API exists
+      where applicable).
+    G-04 visual parity snapshots not captured.
+    G-05 performance protocol not executed on this host (B17).
+    G-06 BLOCKED cases needing live providers / sandboxes (matrix s.6).
+    G-07 the 30 "-06" screen cases are covered for navigation / reload / viewport / axe only.
+Migrations/data impact: none.
+Tests actually executed (Windows host, 2026-09-12):
+  uv run --directory backend python ../scripts/ci/acceptance_matrix.py -> docs/ACCEPTANCE_MATRIX.md
+    (totals in the file's s.6; before journeys.spec.ts: 107 AUTOMATED / 2 BLOCKED / 71 NOT_RUN
+    of 180)
+  Acceptance run 1 (04:07-04:2xZ, evidence/B19-acceptance-run.log + B19-smoke-*.log): identity
+    PASS (OTP + OIDC), policy PASS; drafts FAIL - a GET through nginx hit the script's 15 s read
+    timeout while the api ran at 110 % CPU and RabbitMQ at 122 % (Erlang busy-wait); submission
+    FAIL after 472 s - "all three uploads scanned CLEAN" never came true; inspections and
+    reports FAIL as consequences (no SCRUTINY case, evidence QUARANTINED). Root cause: the
+    ClamAV daemon had died inside its container (health "Unable to contact server", 2 MiB RSS;
+    BL-007), so every real scan went to RETRY_WAIT with backoff and the smoke's demo one-off
+    pass could not claim those jobs. Environmental, not a defect: quarantined evidence stayed
+    quarantined exactly as designed. Remedy: `docker restart agni-dev-clamav-1` (signature
+    load ~5 min) and the RabbitMQ busy-wait tuning; run 1 stopped after the diagnosis.
+  Acceptance run 2 (`--only drafts..integrations`, started automatically when ClamAV reported
+    healthy at 04:38:59Z; evidence/B19-acceptance-run2.log): **drafts, notices, clocks, offline,
+    lifecycle, reporting, integrations PASS (7/11)**; submission FAIL in its staff phase (the
+    applicant phase incl. three CLEAN scans through the real ClamAV and the TR-01 receipt
+    AS-2026-1006 passed; then a 30 s read timeout on the Keycloak-backed staff requests while
+    the VM was loaded), inspections + reports FAIL as consequences (no SCRUTINY case), decisions
+    FAIL on timing (the worker had claimed and was still rendering when the smoke checked TR-11;
+    `docker logs agni-dev-worker-1` shows `certificate.issue complete=1` for that job).
+  Acceptance run 3 (`--only submission,inspections,reports,decisions`, alone, 05:05-05:09Z;
+    evidence/B19-acceptance-run3.log): **submission PASS (staff phase incl. exception
+    resolution + scrutiny), inspections PASS, decisions PASS** (approve -> issuance job ->
+    sample PDF -> registry -> public verification); reports FAIL: `schedule Priya (API-041)`
+    409 APPOINTMENT_CONFLICT - the smoke booked a FIXED slot (next Monday 08:30 UTC) that the
+    earlier runs had already filled, so the overlap guard (PROP-09) refused it correctly. The
+    smoke now walks Monday's working hours until a free slot answers 200 (idempotent across
+    runs); not a product defect.
+  Acceptance run 4 (`--only reports`, 05:10Z): FAIL on its precondition - no SCRUTINY case was
+    left (run 3's inspections and decisions had consumed them) - the reports journey needs a
+    fresh submission first. Run 5 (`--only submission,reports`, 05:23-05:34Z): submission FAIL
+    "all three uploads scanned CLEAN" after 645 s - self-inflicted: ClamAV had been STOPPED to
+    free memory for the browser suite, so every real scan went to RETRY_WAIT again (the same
+    designed behaviour as run 1). Run 6 (ClamAV restarted, `--only submission,reports`, alone):
+    **submission PASS (104 s), reports PASS (38 s)** (06:04-06:11Z, real ClamAV scans;
+    evidence/B19-acceptance-run6.log). Net result across runs 2-6: **all 13 journeys PASS on the
+    live stack** (identity, policy in run 1; drafts, notices, clocks, offline, lifecycle,
+    reporting, integrations in run 2; inspections, decisions in run 3; submission, reports in
+    run 6) - each failure along the way was environmental (dead scanner, stopped scanner, host
+    stall) or a smoke-harness precondition, and each is written down above.
+  Observation kept for the operators: with ClamAV down the product keeps evidence QUARANTINED
+    and retries with backoff; the smoke's demo one-off pass cannot claim jobs that are in
+    RETRY_WAIT, so a demo host without ClamAV must run with SCANNER_PROVIDER=demo (the worker
+    then scans through the simulator) rather than expect the one-off pass to catch up.
+  Browser suite run 1 (Playwright 1.63 / Chromium, 04:50-05:04Z, in the same background chain
+    right after run 2, ClamAV + Keycloak + the app stack + Chromium on the 5.9 GB laptop):
+    **6 passed / 9 failed in 14.2 min** - every failure is a 60 s `waitForURL` on the Keycloak
+    form, a "Checking your session..." shell (the /me call not answering within 10 s), or an h1
+    not appearing 10 s after reload; `docker exec` answered HTTP 500 during the same minutes.
+    The B16 run of the same three specs was 10/10 on a quiet host. Treated as environment;
+    re-run alone below with ClamAV stopped. One spec expectation was corrected on the way
+    (officer negative check moved from /team to /operations, the route B16 proved).
+  Browser suite run 2 (alone, ClamAV stopped, 05:13-05:21Z): 8 passed / 7 failed in 7.7 min -
+    public-a11y 4/4 and staff-a11y 3/3 green again; failures: applicant OTP field never shown
+    (the per-IP hourly OTP send limit - 20/h - was exhausted by the day's smoke + browser
+    sign-ins: the abuse control working), the journeys walks' 10 s waits after a reload too
+    short for this VM (raised to 30 s; test timeout 300 s), the verify-unknown assertion
+    (page says "Record not found"; the rate-limited answer is accepted too, ACTIVE never), and
+    **a real UI defect: `/integrations` overflowed the viewport by 284 px at 360 px** (a JSON
+    `<pre>` inside a flex child without `min-w-0`) -> fixed.
+  Browser suite run 3 (alone, after `compose build web` + `up -d web`, 05:40-05:53Z):
+    **11 passed / 4 failed in 13.3 min** - journeys public, applicant (premises + draft through
+    the wizard's API, every applicant route reloaded at 360 px), supervisor (14 routes + first
+    case / review / inspection / certificate / ticket records) and officer PASS; failures: the
+    applicant-a11y OTP sign-in (same hourly limit), staff-a11y 14/15 (Keycloak's form did not
+    answer `fill` within 60 s - Keycloak stalls intermittently on this VM; the same sign-in had
+    passed for anita/priya/arjun minutes earlier), and **a second real UI defect found by the
+    arjun walk: `/audit` overflowed by 173 px at 360 px** (grid children without `min-w-0`
+    around the nowrap results table) -> fixed in AuditPage.tsx (web lint/tsc/vitest clean);
+    the arjun / priya walks were re-launched after a second `compose build web`, but the Docker
+    Desktop engine stalled (HTTP 500 on every API call) during that build with `pnpm build`
+    running inside BuildKit and had not recovered 15 min later, so the browser re-check of the
+    `/audit` fix is **NOT_RUN on this host**; the fix is the same `min-w-0` pattern that made
+    `/integrations` pass in run 3 and is covered by lint / tsc / the 43 vitest page tests. It
+    is the first item of the next browser run (evidence/B19-e2e.log holds run 3; earlier runs
+    are summarised here).
+  Annotation pass: 26 existing tests whose names carried only the FR family (AT-24, AT-30,
+    AT-25/26/28, AT-03/10, properties, faults) were read and given explicit case comments for
+    what they actually assert (e.g. test_at_24_status_instruments... -> AT-24-01/02/04/05 and
+    E2E-16; the exports test -> AT-26-01..04 and E2E-19); nothing was claimed without reading
+    the assertion. Regenerated matrix (docs/ACCEPTANCE_MATRIX.md s.6): **AT 160 AUTOMATED / 1
+    BLOCKED (AT-23-03 bounce needs a real provider) / 19 NOT_RUN** (AT-03-03/05, 16-03/05,
+    17-04/05, 18-03/04, 20-03/05, 22-03, 23-02, 24-03, 25-03/05, 26-05, 28-03/05, 30-03 - mostly
+    recovery-path and concurrency variants of families whose other cases are automated);
+    AT-X 4/5 (AT-X-05 renderer-restart token recovery not isolated); **PROP 16/16 AUTOMATED**;
+    E2E 8 AUTOMATED + 10 SMOKE + 1 BLOCKED (E2E-14 live signer) + 1 NOT_RUN (E2E-12 two
+    reviewers deciding concurrently - the kernel's same-key race and the authority race are
+    tested, the two-reviewer decision race is not); DS 8 + 14 SMOKE + 2 BLOCKED (DS-15, DS-23)
+    + 0 NOT_RUN.
+Tests not executed and concrete reason: see the BLOCKED rows of docs/ACCEPTANCE_MATRIX.md
+  (live signer / registry / partner / notification provider sandboxes; real ClamAV concurrency
+  under BL-007; screen-reader and camera/GPS manual walks); the docs/13 28-case oracle (G-02);
+  the 10k-case performance protocol (G-05).
+Screens inspected: every enabled route per role through journeys.spec.ts (see E2E line).
+Security/privacy or external-effect considerations: synthetic personas and files only; the
+  acceptance scripts create synthetic cases, tickets, exports and partner events in the demo
+  database; OTP codes flow to the demo inbox; nothing is sent or signed for real.
+Remaining defects and reproduction: NONE known in the product. Acceptance-harness defects fixed:
+  smoke_reports fixed slot (409 on repeated runs); journeys.spec officer negative route; the
+  prod_boot_check items are in s.3t. Environmental findings recorded, not hidden: ClamAV daemon
+  death under RAM pressure (BL-007), Docker Desktop engine 500s under concurrent load, Erlang
+  busy-wait (mitigated in compose.dev.yml).
+Self-review (D-009): task card B19 proofs - the 180 core assertions and the concurrency /
+  security suites are accounted for in the matrix with an honest label each; every enabled
+  route is walked per role in the browser and every regulatory control is exercised through
+  the acceptance scripts; a test blocked by missing credentials is labelled BLOCKED, never
+  PASS (forbidden shortcut respected).
+Required human input: decisions on G-01 (demo console) and G-02 (fixture inventory) - build,
+  defer or accept; provider sandboxes for the BLOCKED cases; a host for the performance
+  protocol.
+Next safe task: B20 - gate checklist (docs/19) and the final code-quality pass.
+End commit and worktree status: recorded in handover.md B12 after commit/push.
+```
+
+## 3v. Handoff record - B20 checklist + final quality pass, session claude-20260910T172516Z-b00b (2026-09-12)
+
+```text
+Task: B20 - Agency pilot activation, delivered as a GATE CHECKLIST only (owner instruction: no live
+  activation; docs/19 s.2 owner decisions, s.3 configuration gates, s.6 release evidence), plus
+  the final code-quality pass the owner asked for ("do the code quality test at final").
+Baseline: implementation spec 2.0.0
+Branch and start commit: feat/b20-gates from main @ B19_COMMIT_PLACEHOLDER
+Changes made:
+  docs/B20_LIVE_ACTIVATION_CHECKLIST.md (NEW) - one row per LIVE-01..20 gate with the accountable
+    owner, what the repository provides today (with the test / drill that proves it) and the
+    status READY / OWNER / BLOCKED; the configuration gates enforced in code; the docs/19 s.6
+    release-evidence list with what exists and what only an owner can add; the B19 gaps.
+    Nothing is marked approved; no credential, legal threshold or provider acceptance is
+    assumed (docs/19 s.5).
+Final quality pass (Windows host, 2026-09-12, commands and results):
+  FINAL_QA_PLACEHOLDER
+Tests not executed and concrete reason: live activation itself (owner gates OPEN); the release
+  workflow on GitHub (repository environment not configured by the owner); performance protocol
+  (host); everything BLOCKED in docs/ACCEPTANCE_MATRIX.md.
+Security/privacy or external-effect considerations: none new; the checklist names no real person,
+  credential or authority.
+Remaining defects and reproduction: NONE known in the product.
+Required human input: the 20 owner decisions in the checklist; the two proposed decisions D-011
+  (demo console) and D-012 (fixture inventory); GitHub `production` environment reviewers.
+Next safe task: human review of `main`; owner decisions; then either the follow-up phase for
+  D-011/D-012 or staging on the operating environment.
 End commit and worktree status: recorded in handover.md B12 after commit/push.
 ```
 

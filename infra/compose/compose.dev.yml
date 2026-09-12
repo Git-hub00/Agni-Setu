@@ -45,6 +45,10 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?set in .env}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?set in .env}
       RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-agni_dev}
+      # Erlang scheduler busy-waiting burns a whole CPU in a small container VM (B17 load run and
+      # B19 acceptance run showed rabbitmq at >100 % CPU with no traffic and its 10 s health ping
+      # timing out under load); RabbitMQ documents disabling it for constrained hosts.
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "+sbwt none +sbwtdcpu none +sbwtdio none"
     ports:
       - "127.0.0.1:5672:5672"
       - "127.0.0.1:15672:15672"

@@ -45,6 +45,9 @@ def metrics(client: Client, **params: str) -> Any:
 
 
 @pytest.mark.django_db
+# Cases: AT-25-01 (one cutoff, reconciled) AT-25-02 (future cutoff and unknown ids 422) AT-25-04
+# (own cases / strangers / leadership / foreign supervisor / officers 403); PROP-16 (every scoped
+# drill-down reconciles to the same population and cutoff)
 def test_at_25_01_metrics_reconcile_at_one_cutoff_within_scope(
     visit: dict[str, Any],  # noqa: F811
     other_applicant: Principal,
@@ -125,6 +128,10 @@ def request_export(client: Client, payload: dict[str, Any]) -> Any:
 
 
 @pytest.mark.django_db
+# Cases: AT-26-01 (frozen population, neutralised cells, ticketed access) AT-26-02 (PDF disabled,
+# unknown field set / short purpose 422, AUDIT kind without capability 403) AT-26-03 (expired
+# artifact -> EXPORT_EXPIRED 410, regeneration is the remedy) AT-26-04 (stranger 404, ticket bound
+# to the requester, no applicant identity in the field set); E2E-19 (formula injection blocked)
 def test_at_26_01_exports_freeze_scope_neutralise_cells_and_expire(
     visit: dict[str, Any],  # noqa: F811
     supervisor: Principal,
@@ -232,6 +239,9 @@ def test_at_26_01_exports_freeze_scope_neutralise_cells_and_expire(
 
 
 @pytest.mark.django_db
+# Cases: AT-28-01 (scoped read, integrity metadata, the read itself audited) AT-28-02 (malformed
+# filter 422) AT-28-04 (foreign supervisor sees nothing / 404, applicants 403, leadership and
+# administrators read redacted)
 def test_at_28_01_audit_reader_is_scoped_redacted_and_self_audited(
     visit: dict[str, Any],  # noqa: F811
     supervisor: Principal,

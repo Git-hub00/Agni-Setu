@@ -64,7 +64,9 @@ export function AuditPage() {
       {list.isPending ? <p className="text-sm text-muted">{t("audit.loading")}</p> : null}
       {list.isError ? <ProblemNotice error={list.error} /> : null}
       {list.data ? (
-        <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
+        // [&>*]:min-w-0: grid children default to min-width:auto, so the nowrap results table
+        // widened the page at 360 px instead of scrolling inside its card (journeys.spec, B19).
+        <div className="grid gap-6 lg:grid-cols-[3fr_2fr] [&>*]:min-w-0">
           <section className={`${CARD} overflow-x-auto`} aria-labelledby="audit-results">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 id="audit-results" className="text-base font-semibold">{t("audit.results")}</h2>

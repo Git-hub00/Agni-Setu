@@ -339,6 +339,7 @@ def test_at_05_04_scope_other_applicant_cannot_upload_read_or_use_tickets(
 
 
 @pytest.mark.django_db
+# PROP-15 and AT-X-04 (bytes replaced after completion cannot change the accepted object)
 def test_at_05_05_completion_replay_and_byte_replacement_are_safe(
     draft: tuple[Client, str], clock: FrozenClock
 ) -> None:

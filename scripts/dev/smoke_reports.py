@@ -105,14 +105,19 @@ def main() -> None:
         inspection = r.json()["data"]
     app_id = inspection["application_id"]
     roster = {o["display_name"]: o["officer_id"] for o in boss.get(f"{BASE}/api/v1/officers", timeout=T).json()["data"]["items"]}
-    start, end = next_monday_slot(8)
-    r = boss.post(
-        f"{BASE}/api/v1/inspections/{inspection['inspection_id']}/schedule",
-        json={"officer_id": roster["Priya Nair"], "starts_at": start, "ends_at": end, "appointment_timezone": "Asia/Kolkata", "reason": "Smoke: Priya takes the follow-up visit", "application_version": inspection["application_version"]},
-        headers=cmd(bh, f'"inspection:{inspection["inspection_id"]}:v{inspection["version"]}"'),
-        timeout=T,
-    )
-    step("schedule Priya (API-041)", r.status_code == 200 and r.json()["data"]["status"] == "SCHEDULED", f"[{r.status_code}] {r.json().get('detail', '')[:100]}")
+    # Repeated runs leave Priya booked on earlier slots; the overlap guard (PROP-09) answers 409
+    # for those, so walk the working hours of next Monday until a free two-hour slot is found.
+    for hour in range(8, 18, 2):
+        start, end = next_monday_slot(hour)
+        r = boss.post(
+            f"{BASE}/api/v1/inspections/{inspection['inspection_id']}/schedule",
+            json={"officer_id": roster["Priya Nair"], "starts_at": start, "ends_at": end, "appointment_timezone": "Asia/Kolkata", "reason": "Smoke: Priya takes the follow-up visit", "application_version": inspection["application_version"]},
+            headers=cmd(bh, f'"inspection:{inspection["inspection_id"]}:v{inspection["version"]}"'),
+            timeout=T,
+        )
+        if not (r.status_code == 409 and r.json().get("code") == "APPOINTMENT_CONFLICT"):
+            break
+    step("schedule Priya (API-041)", r.status_code == 200 and r.json()["data"]["status"] == "SCHEDULED", f"[{r.status_code}] {start} {r.json().get('detail', '')[:100]}")
     scheduled, etag = r.json()["data"], r.headers.get("ETag", "")
 
     priya, ph = keycloak_login("priya", "demo-priya-password")

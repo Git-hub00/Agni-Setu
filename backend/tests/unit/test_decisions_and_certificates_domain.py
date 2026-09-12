@@ -49,6 +49,7 @@ def test_clean_case_with_authority_is_ready_for_either_outcome() -> None:
     assert result.can_approve and result.can_reject
 
 
+# PROP-02 (a favourable decision implies every mandatory guard passed; nothing compensates)
 def test_every_guard_produces_its_own_blocker_and_none_is_compensated() -> None:
     blocked = replace(
         CLEAN,
@@ -109,6 +110,8 @@ def test_existing_decision_and_wrong_status_block_approval() -> None:
     )
 
 
+# Cases: AT-22-02 (expired / revoked / suspended never verify ACTIVE) PROP-12 (expiry wins without
+# any projection refresh)
 def test_effective_status_precedence_and_expiry_at_the_boundary() -> None:
     now = datetime(2026, 9, 11, 9, 0, tzinfo=UTC)
 
