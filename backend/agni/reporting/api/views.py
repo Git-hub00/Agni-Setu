@@ -21,6 +21,7 @@ from agni.identity.authz import load_snapshot
 from agni.identity.domain.roles import RoleKey
 from agni.identity.models import Principal, PrincipalKind
 from agni.platform import audit
+from agni.platform.api.throttles import FailClosedScopedRateThrottle
 from agni.platform.api.views import ApiView, ok
 from agni.platform.clock import get_clock
 from agni.platform.correlation import current_request_id
@@ -94,6 +95,8 @@ class ExportListView(ApiView):
     """API-082 (POST) and the requester's export list for UI-22 tracking."""
 
     permission_classes = [IsAuthenticated]
+    throttle_classes = [FailClosedScopedRateThrottle]
+    throttle_scope = "export-request"
 
     def get(self, request: Request) -> Response:
         principal = _principal(request)
