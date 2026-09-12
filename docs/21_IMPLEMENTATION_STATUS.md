@@ -2511,7 +2511,7 @@ Task: B20 - Agency pilot activation, delivered as a GATE CHECKLIST only (owner i
   activation; docs/19 s.2 owner decisions, s.3 configuration gates, s.6 release evidence), plus
   the final code-quality pass the owner asked for ("do the code quality test at final").
 Baseline: implementation spec 2.0.0
-Branch and start commit: feat/b20-gates from main @ B19_COMMIT_PLACEHOLDER
+Branch and start commit: feat/b20-gates from main @ 034e4e5 (B19)
 Changes made:
   docs/B20_LIVE_ACTIVATION_CHECKLIST.md (NEW) - one row per LIVE-01..20 gate with the accountable
     owner, what the repository provides today (with the test / drill that proves it) and the
@@ -2520,7 +2520,40 @@ Changes made:
     Nothing is marked approved; no credential, legal threshold or provider acceptance is
     assumed (docs/19 s.5).
 Final quality pass (Windows host, 2026-09-12, commands and results):
-  FINAL_QA_PLACEHOLDER
+  Tree: main @ 034e4e5 (B19) + this record. Host-side gates (06:26-06:38Z):
+    uv run --directory backend ruff check .            -> All checks passed!
+    uv run --directory backend ruff format --check .   -> 340 files already formatted
+    uv run --directory backend mypy config agni tests  -> Success: no issues found in 338 source files
+    uv run --directory backend pip-audit               -> No known vulnerabilities found
+    uv run --directory backend python ../scripts/ci/scan_secrets.py -> first run FAILED on two
+      credentialed URL literals in scripts/ops/prod_boot_check.py and scripts/ops/backup_restore.py
+      (both already on `main` from B17/B18, i.e. the CI scan step on `main` would have failed) ->
+      URLs are now assembled from parts; rerun: "secret scan: 546 files, no findings"
+    uv run --directory backend python ../scripts/ci/acceptance_matrix.py --check -> up to date
+    corepack pnpm --dir web lint / typecheck            -> clean
+    corepack pnpm --dir web test --run                  -> 22 files, 43 passed
+    corepack pnpm --dir web build                       -> built (Vite 8)
+    corepack pnpm --dir web audit --audit-level low     -> No known vulnerabilities found
+  Docker-dependent gates:
+    docker compose -p agni-verify --env-file <placeholder env> -f infra/compose/compose.dev.yml
+      --profile full --profile app config -q -> OK (06:43Z; client-side render while the engine
+      API was still down)
+    docker compose -p agni-verify-prod --env-file <placeholder release env>
+      -f infra/containers/production/compose.prod.yml --profile release config -q -> OK
+    uv run --directory backend pytest -q -p no:cacheprovider (ALONE, 06:39Z) -> **NOT_RUN /
+      aborted**: every test errored at set-up because PostgreSQL on 127.0.0.1:55432 is published
+      through Docker Desktop's port proxy, which was down with the stalled engine (HTTP 500 on
+      every API call since ~06:2xZ, still down at 06:47Z). The run was stopped. The last complete
+      run of this backend code is the B18 run (**280 passed alone, 03:49-04:00Z**); B19 and B20
+      changed no backend product code (test comments, scripts, web, docs only - `git diff
+      6aa6967..034e4e5 --stat -- backend/agni backend/config` is empty). A re-run is the first
+      action once the engine answers (handover B11), recorded as EV-B20-03 with a follow-up
+      commit if it lands after this one.
+    Browser re-check of the `/audit` fix -> NOT_RUN for the same reason (the rebuilt web image
+      could not be started); same follow-up.
+  Not re-run in this pass and why: the physical drills, boot check, migration compatibility and
+    image scans (B17/B18 evidence stands; product code unchanged since); the acceptance journeys
+    (B19 evidence, 13/13).
 Tests not executed and concrete reason: live activation itself (owner gates OPEN); the release
   workflow on GitHub (repository environment not configured by the owner); performance protocol
   (host); everything BLOCKED in docs/ACCEPTANCE_MATRIX.md.
