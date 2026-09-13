@@ -14,10 +14,9 @@
  */
 import { expect, test, type Page } from "@playwright/test";
 
-import { expectAccessible, signInApplicant, signInStaff } from "./helpers";
+import { expectAccessible, SLOW_HOST_MS, signInApplicant, signInStaff } from "./helpers";
 
-/** Generous waits: each walk reloads and re-bootstraps the session on a small Docker VM. */
-const SLOW_HOST_MS = 30_000;
+// Generous waits: each walk reloads and re-bootstraps the session on a small Docker VM.
 test.describe.configure({ timeout: 300_000 });
 
 async function csrfToken(page: Page): Promise<string> {
@@ -66,7 +65,7 @@ async function walk(page: Page, path: string, label = path): Promise<void> {
 /** Open the first record linked from a list route; records whether a row existed. */
 async function walkFirstDetail(page: Page, listPath: string, hrefPrefix: string): Promise<string | null> {
   await page.goto(listPath);
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: SLOW_HOST_MS });
   const link = page.locator(`main a[href^="${hrefPrefix}"]`).first();
   if ((await link.count()) === 0) {
     test.info().annotations.push({ type: "note", description: `${listPath}: no ${hrefPrefix} record to open` });

@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-import { collectCspViolations, expectAccessible, expectNoHorizontalOverflow, signInStaff } from "./helpers";
+import { collectCspViolations, expectAccessible, expectNoHorizontalOverflow, SLOW_HOST_MS, signInStaff } from "./helpers";
+
+// Keycloak sign-ins and route bootstraps run against the live stack (see SLOW_HOST_MS).
+test.describe.configure({ timeout: 300_000 });
 
 test.describe("staff workspaces (UI-09..15, UI-20..25)", () => {
   test("supervisor routes are accessible after the real Keycloak sign-in", async ({ page }) => {
@@ -9,7 +12,7 @@ test.describe("staff workspaces (UI-09..15, UI-20..25)", () => {
     for (const path of ["/overview", "/inspections", "/schedule", "/reviews", "/monitoring", "/reports", "/audit", "/team", "/certificates"]) {
       await page.goto(path);
       await expect(page.getByRole("main")).toBeVisible();
-      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: SLOW_HOST_MS });
       await expectAccessible(page, `anita ${path}`);
     }
     await page.goto("/reports");
@@ -21,20 +24,20 @@ test.describe("staff workspaces (UI-09..15, UI-20..25)", () => {
     await signInStaff(page, "arjun");
     for (const path of ["/operations", "/integrations", "/team", "/policy", "/audit"]) {
       await page.goto(path);
-      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: SLOW_HOST_MS });
       await expectAccessible(page, `arjun ${path}`);
     }
     await page.goto("/integrations");
-    await expect(page.getByText("SIMULATED").first()).toBeVisible();
+    await expect(page.getByText("SIMULATED").first()).toBeVisible({ timeout: SLOW_HOST_MS });
     await expect(page.getByRole("main")).not.toContainText("demo-partner-shared-secret-not-for-live");
   });
 
   test("an officer is kept out of the management planes by the server", async ({ page }) => {
     await signInStaff(page, "priya");
     await page.goto("/operations");
-    await expect(page.getByRole("main")).toContainText(/not permitted|forbidden|no access|Action is not permitted/i);
+    await expect(page.getByRole("main")).toContainText(/not permitted|forbidden|no access|Action is not permitted/i, { timeout: SLOW_HOST_MS });
     await page.goto("/inspections");
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: SLOW_HOST_MS });
     await expectAccessible(page, "priya /inspections");
   });
 });
