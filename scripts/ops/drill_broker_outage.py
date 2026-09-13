@@ -26,6 +26,23 @@ def docker(*args: str) -> str:
     return subprocess.run(["docker", *args], check=True, capture_output=True, text=True).stdout.strip()
 
 
+def dispatch_lines(since: str) -> list[str]:
+    """Dispatcher pass lines (`[dispatch] scanned=.. published=.. failed=..`) logged after `since`."""
+    log = docker("logs", "--since", since, "agni-dev-scheduler-1")
+    return [line for line in log.splitlines() if "[dispatch]" in line and "failed=" in line]
+
+
+def wait_for_dispatch_lines(since: str, *, want_failures: bool, budget: int) -> list[str]:
+    """Poll (5 s) up to `budget` s for dispatcher passes after `since` that recorded failures
+    (want_failures=True) or were clean (False). Returns the matching lines, empty on timeout."""
+    deadline = time.time() + budget
+    while True:
+        matching = [line for line in dispatch_lines(since) if ("failed=0" not in line) == want_failures]
+        if matching or time.time() >= deadline:
+            return matching
+        time.sleep(5)
+
+
 def summary(ops: reports.requests.Session) -> dict:
     return ops.get(f"{BASE}/api/v1/jobs", timeout=T).json()["data"]["summary"]
 
@@ -50,10 +67,12 @@ def main() -> None:
         hold = held.json()["data"]
         released = boss.post(f"{BASE}/api/v1/holds/{hold['hold_id']}/release", json={"reason": REASON}, headers=cmd(bh, hold["etag"]), timeout=T)
         step("second command accepted while the broker is down", released.status_code == 200, f"[{released.status_code}]")
-        time.sleep(70)  # at least one dispatcher pass (every 60 s) happens while the broker is down
-        scheduler_log = docker("logs", "--since", outage_since, "agni-dev-scheduler-1")
-        failed_lines = [line for line in scheduler_log.splitlines() if "[dispatch]" in line and "failed=" in line and "failed=0" not in line]
-        step("dispatcher recorded failed publishes while the broker was down (intents kept, attempts counted)", bool(failed_lines), failed_lines[-1] if failed_lines else scheduler_log[-200:])
+        # The dispatcher passes every 60 s and, with the broker down, every publish attempt first
+        # waits out its 5 s connect timeout, so the pass that overlaps the outage is logged only
+        # after those attempts (2026-09-13: 78 s after the stop, 6 s after a fixed 70 s wait had
+        # already looked). Poll for the pass instead of sleeping a fixed time.
+        failed_lines = wait_for_dispatch_lines(outage_since, want_failures=True, budget=150)
+        step("dispatcher recorded failed publishes while the broker was down (intents kept, attempts counted)", bool(failed_lines), failed_lines[-1] if failed_lines else "no dispatcher pass with failed publishes within 150 s")
         during = summary(ops)
         # Architecture s.2 / docs 08 s.2: the broker is only a wake-up. The durable fan-out job is
         # enqueued in the database before publishing, so the polling worker still completes the
@@ -69,11 +88,21 @@ def main() -> None:
             break
     step("broker back and healthy", docker("inspect", "-f", "{{.State.Health.Status}}", BROKER) == "healthy")
     recovered_since = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    time.sleep(70)  # one dispatcher pass after recovery
-    later = docker("logs", "--since", recovered_since, "agni-dev-scheduler-1")
-    new_failures = [line for line in later.splitlines() if "[dispatch]" in line and "failed=" in line and "failed=0" not in line]
-    pending = summary(ops)["outbox"]["pending"]
-    step("after recovery: no failed publishes and no pending intents", not new_failures and pending == 0, f"pending={pending} new_failures={len(new_failures)} after {int(time.time() - started)}s total")
+    # The dispatcher logs a pass only when it had rows to scan, so an idle recovery produces no
+    # line at all; a pass that began during the outage may still log its failures right after the
+    # broker is back. Observe at least one dispatcher interval (65 s, up to 150 s) and require that
+    # nothing stays pending and that the newest pass, if any, is clean.
+    recovery_started = time.time()
+    while True:
+        lines = dispatch_lines(recovered_since)
+        pending = summary(ops)["outbox"]["pending"]
+        latest_clean = not lines or "failed=0" in lines[-1]
+        elapsed = time.time() - recovery_started
+        if (elapsed >= 65 and pending == 0 and latest_clean) or elapsed >= 150:
+            break
+        time.sleep(5)
+    straddling = [line for line in lines if "failed=0" not in line]
+    step("after recovery: no intent stays pending and the newest dispatcher pass (if any) is clean", pending == 0 and latest_clean, f"pending={pending} passes={len(lines)} straddling_passes_with_failures={len(straddling)} after {int(time.time() - started)}s total")
     after = boss.get(f"{BASE}/api/v1/applications/{app_id}", timeout=T).json()["data"]
     timeline = boss.get(f"{BASE}/api/v1/applications/{app_id}/timeline", timeout=T).json()["data"]["items"]
     started_events = [e for e in timeline if e["event_type"] == "case.hold_started.v1"]
