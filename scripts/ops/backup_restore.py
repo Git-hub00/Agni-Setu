@@ -3,7 +3,9 @@ guide s.9). Python implementation behind `scripts/ops/backup.sh` and `scripts/op
 so it runs identically from Git Bash, PowerShell or CI. Reads credentials from the repository
 `.env.local` and never prints them.
 
-  backup            -> pg_dump -Fc of the live database to evidence/backups/agni_<utc>.dump
+  backup [--database NAME] [TARGET]
+                    -> pg_dump -Fc of the live database (or of NAME, for example a freshly
+                       seeded rehearsal database) to TARGET or evidence/backups/agni_<utc>.dump
   restore-check DUMP -> restore DUMP into the isolated database `agni_restore_drill` inside the
                        PostgreSQL container, run `manage.py restore_integrity_report --json`
                        against it from the api container, record restore/report durations,
@@ -50,8 +52,11 @@ def docker(args: list[str], *, stdin: bytes | None = None) -> bytes:
     return result.stdout
 
 
-def backup(target: Path | None) -> Path:
-    user, database, password = env_value("POSTGRES_USER"), env_value("POSTGRES_DB"), env_value("POSTGRES_PASSWORD")
+def backup(target: Path | None, database: str | None = None) -> Path:
+    """Dump the live database, or `database` when given (a rehearsal copy seeded from scratch,
+    so the restore drill can also be proven on data that carries no historical anomalies)."""
+    user, password = env_value("POSTGRES_USER"), env_value("POSTGRES_PASSWORD")
+    database = database or env_value("POSTGRES_DB")
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     out = target or ROOT / "evidence" / "backups" / f"agni_{stamp}.dump"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -108,8 +113,16 @@ def main(argv: list[str]) -> int:
         print(__doc__)
         return 2
     if argv[0] == "backup":
-        target = Path(argv[1]) if len(argv) > 1 else None
-        print(backup(target))
+        rest = list(argv[1:])
+        database: str | None = None
+        if "--database" in rest:
+            index = rest.index("--database")
+            if index + 1 >= len(rest):
+                raise SystemExit("usage: backup_restore.py backup [--database NAME] [TARGET]")
+            database = rest[index + 1]
+            del rest[index : index + 2]
+        target = Path(rest[0]) if rest else None
+        print(backup(target, database))
         return 0
     if len(argv) < 2:
         raise SystemExit("usage: backup_restore.py restore-check <backup.dump>")
