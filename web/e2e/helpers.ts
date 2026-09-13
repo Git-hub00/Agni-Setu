@@ -3,6 +3,12 @@ import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
 export const VIEWPORTS = [360, 390, 768, 1280, 1440] as const;
 
+/** One budget for every wait that depends on the live stack answering. The 3 GB Docker VM
+ *  regularly needs more than Playwright's 10 s expect default for a session bootstrap, an OTP
+ *  challenge or a Keycloak page (production-readiness regression #1, 2026-09-13: 7-21 s on an
+ *  idle API). The assertions are unchanged; only the time allowed for the host is. */
+export const SLOW_HOST_MS = 30_000;
+
 /** WCAG 2.2 AA scan; fails on serious/critical violations and reports the rest for review. */
 export async function expectAccessible(page: Page, label: string): Promise<void> {
   const results = await new AxeBuilder({ page })
@@ -50,7 +56,7 @@ export async function signInApplicant(page: Page, request: APIRequestContext): P
   await page.goto("/sign-in");
   await page.getByLabel(/Email address/i).fill(contact);
   await page.getByRole("button", { name: "Send code" }).click();
-  await expect(page.getByLabel("Six-digit code")).toBeVisible();
+  await expect(page.getByLabel("Six-digit code")).toBeVisible({ timeout: SLOW_HOST_MS });
   const inbox = await request.get(`/api/v1/demo/inbox?channel=EMAIL&contact=${encodeURIComponent(contact)}`);
   expect(inbox.ok()).toBeTruthy();
   const body = (await inbox.json()) as { data: { messages: { body: string }[] } };
@@ -61,7 +67,7 @@ export async function signInApplicant(page: Page, request: APIRequestContext): P
   await page.getByRole("button", { name: "Verify and sign in" }).click();
   const signedIn = page.getByRole("navigation", { name: "Workspaces" }).getByRole("link").first();
   const alert = page.getByRole("alert");
-  await expect(signedIn.or(alert)).toBeVisible();
+  await expect(signedIn.or(alert)).toBeVisible({ timeout: SLOW_HOST_MS });
   if (await alert.isVisible()) throw new Error(`sign-in refused: ${await alert.innerText()}`);
   return contact;
 }
@@ -74,5 +80,5 @@ export async function signInStaff(page: Page, username: string): Promise<void> {
   await page.locator("#password").fill(`demo-${username}-password`);
   await page.locator("#kc-login").click();
   await page.waitForURL(/127\.0\.0\.1:5173|localhost:5173/);
-  await expect(page.getByRole("navigation", { name: "Workspaces" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Workspaces" })).toBeVisible({ timeout: SLOW_HOST_MS });
 }
