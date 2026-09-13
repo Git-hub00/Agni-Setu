@@ -20,6 +20,24 @@ from .models import OutboxMessage, OutboxState
 
 REPUBLISH_AFTER = timedelta(minutes=5)
 
+# Wake-ups are a hint, never the source of truth: the worker's poll loop (process_jobs) finds
+# every fan-out job in the database by itself, and today nothing consumes the wake-up queue.
+# Without bounds each dispatched intent therefore left a durable message behind for ever (105
+# messages after two hours of the dev stack; in production that ends in the broker's memory
+# alarm, which blocks every publisher). A wake-up is worthless after one poll interval, so the
+# queue expires messages quickly and caps its length, dropping the oldest first.
+# `.v2`: RabbitMQ refuses to redeclare an existing queue with different arguments (406
+# PRECONDITION_FAILED) and the original `agni.wakeups` was declared without bounds; nothing
+# consumes that queue, so operators can delete it.
+WAKEUP_QUEUE = "agni.wakeups.v2"
+WAKEUP_TTL_SECONDS = 60
+WAKEUP_MAX_LENGTH = 1_000
+WAKEUP_QUEUE_ARGUMENTS: dict[str, Any] = {
+    "x-message-ttl": WAKEUP_TTL_SECONDS * 1000,
+    "x-max-length": WAKEUP_MAX_LENGTH,
+    "x-overflow": "drop-head",
+}
+
 
 class BrokerPublisher(Protocol):
     name: str
@@ -49,9 +67,10 @@ class AmqpBroker:
         from kombu import Connection
 
         with Connection(self._url, connect_timeout=5) as connection:
-            queue = connection.SimpleQueue(routing_key)
+            # Bounded queue (TTL + max length) and a per-message expiry: see WAKEUP_QUEUE.
+            queue = connection.SimpleQueue(routing_key, queue_args=dict(WAKEUP_QUEUE_ARGUMENTS))
             try:
-                queue.put(body)
+                queue.put(body, expiration=WAKEUP_TTL_SECONDS)
             finally:
                 queue.close()
 
@@ -109,7 +128,7 @@ def dispatch_pending(
             row.last_dispatched_at = now
             try:
                 broker.publish(
-                    routing_key="agni.wakeups",
+                    routing_key=WAKEUP_QUEUE,
                     body={
                         "logical_action_id": str(row.logical_action_id),
                         "event_type": row.event_type,
