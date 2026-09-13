@@ -88,4 +88,28 @@ describe("ApplicationsListPage (UI-05)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("DEPENDENCY_UNAVAILABLE");
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
+
+  it("keeps the list table inside a positioned horizontal scroll region so 360 px viewports scroll the table, not the page", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string) => {
+        const url = String(input);
+        if (url === "/api/v1/me") return Promise.resolve(json(200, { data: PRINCIPAL }));
+        if (url.startsWith("/api/v1/applications")) {
+          return Promise.resolve(json(200, { data: { items: [ROW], next_cursor: null, has_more: false } }));
+        }
+        return Promise.resolve(json(404, { code: "RESOURCE_NOT_FOUND" }));
+      }),
+    );
+    renderAt("/applications");
+    const table = await screen.findByRole("table");
+    // jsdom applies no stylesheet, so the contract is the wrapper's utility classes: a scroll
+    // container that is also positioned, because the sr-only "Actions" header is absolutely
+    // positioned and would otherwise escape the clipped region and widen the page
+    // (regression #1: the six columns measured 381 px inside a 360 px viewport).
+    const region = table.parentElement;
+    expect(region).toHaveClass("overflow-x-auto");
+    expect(region).toHaveClass("relative");
+    expect(region?.querySelector("th .sr-only")).not.toBeNull();
+  });
 });

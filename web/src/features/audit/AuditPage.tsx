@@ -66,8 +66,11 @@ export function AuditPage() {
       {list.data ? (
         // [&>*]:min-w-0: grid children default to min-width:auto, so the nowrap results table
         // widened the page at 360 px instead of scrolling inside its card (journeys.spec, B19).
+        // The scrolling card is also `relative`: the sr-only "Open" header is absolutely
+        // positioned, and without a positioned scroll ancestor it escaped the clipped card and
+        // widened the page by the table's overflow (regression #1, 179 px at 360 px).
         <div className="grid gap-6 lg:grid-cols-[3fr_2fr] [&>*]:min-w-0">
-          <section className={`${CARD} overflow-x-auto`} aria-labelledby="audit-results">
+          <section className={`${CARD} relative overflow-x-auto`} aria-labelledby="audit-results">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 id="audit-results" className="text-base font-semibold">{t("audit.results")}</h2>
               <p className="text-xs text-muted">

@@ -44,10 +44,21 @@ async function walk(page: Page, path: string, label = path): Promise<void> {
   // A reload re-bootstraps the session (/me) before the page renders; on the 3 GB demo VM that
   // can take well over 10 s while the api serves the previous page's queries.
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: SLOW_HOST_MS });
+  // Measure the loaded page, not its loading placeholder: a list still fetching has no table
+  // that could overflow, which let a real 360 px overflow pass unnoticed until regression #1.
+  await page.waitForLoadState("networkidle", { timeout: SLOW_HOST_MS }).catch(() => undefined);
   await page.setViewportSize({ width: 360, height: 780 });
   await page.waitForTimeout(150);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(overflow, `${label} overflows at 360 px by ${overflow}px`).toBeLessThanOrEqual(0);
+  const culprits = overflow > 0
+    ? await page.evaluate(() =>
+        Array.from(document.querySelectorAll("body *"))
+          .filter((el) => el.getBoundingClientRect().right > document.documentElement.clientWidth + 1)
+          .slice(0, 5)
+          .map((el) => `${el.tagName.toLowerCase()}.${el.className.toString().split(" ").slice(0, 3).join(".")} right=${Math.round(el.getBoundingClientRect().right)}`),
+      )
+    : [];
+  expect(overflow, `${label} overflows at 360 px by ${overflow}px: ${culprits.join(" | ")}`).toBeLessThanOrEqual(0);
   await page.setViewportSize({ width: 1280, height: 900 });
   await expectAccessible(page, label);
 }

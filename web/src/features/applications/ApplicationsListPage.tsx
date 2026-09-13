@@ -116,38 +116,43 @@ export function ApplicationsListPage() {
         <p className="text-sm text-muted">{status || q ? t("applications.noResults") : t("applications.empty")}</p>
       ) : null}
       {items.length > 0 ? (
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="text-xs uppercase tracking-wide text-muted">
-              <th scope="col" className="py-2">{t("applications.col.reference")}</th>
-              <th scope="col" className="py-2">{t("applications.col.premises")}</th>
-              <th scope="col" className="py-2">{t("applications.col.status")}</th>
-              <th scope="col" className="py-2">{t("applications.col.unit")}</th>
-              <th scope="col" className="py-2">{t("applications.col.updated")}</th>
-              <th scope="col" className="py-2"><span className="sr-only">{t("applications.col.actions")}</span></th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((a) => (
-              <tr key={a.application_id} className="border-t border-border">
-                <td className="py-2 font-medium">
-                  <Link to={`/applications/${a.application_id}`} className="text-primary">{a.public_reference ?? a.draft_reference}</Link>
-                </td>
-                <td className="py-2">{a.premises.display_name} · {a.premises.category_key}</td>
-                <td className="py-2">{a.status}</td>
-                <td className="py-2">{a.owner_queue}</td>
-                <td className="py-2">{new Date(a.updated_at).toLocaleString()}</td>
-                <td className="py-2 text-right">
-                  {a.status === "DRAFT" && canCreate ? (
-                    <Link to={`/applications/${a.application_id}/edit`} className="text-primary">{t("applications.continue")}</Link>
-                  ) : (
-                    <Link to={`/applications/${a.application_id}`} className="text-primary">{t("applications.view")}</Link>
-                  )}
-                </td>
+        // relative + overflow-x-auto: at 360 px the six columns are wider than the viewport, so
+        // the table scrolls inside this region instead of widening the page; `relative` keeps
+        // the absolutely positioned sr-only header inside the clipped region (journeys.spec).
+        <div className="relative overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="text-xs uppercase tracking-wide text-muted">
+                <th scope="col" className="py-2">{t("applications.col.reference")}</th>
+                <th scope="col" className="py-2">{t("applications.col.premises")}</th>
+                <th scope="col" className="py-2">{t("applications.col.status")}</th>
+                <th scope="col" className="py-2">{t("applications.col.unit")}</th>
+                <th scope="col" className="py-2">{t("applications.col.updated")}</th>
+                <th scope="col" className="py-2"><span className="sr-only">{t("applications.col.actions")}</span></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {items.map((a) => (
+                <tr key={a.application_id} className="border-t border-border">
+                  <td className="py-2 font-medium">
+                    <Link to={`/applications/${a.application_id}`} className="text-primary">{a.public_reference ?? a.draft_reference}</Link>
+                  </td>
+                  <td className="py-2">{a.premises.display_name} · {a.premises.category_key}</td>
+                  <td className="py-2">{a.status}</td>
+                  <td className="py-2">{a.owner_queue}</td>
+                  <td className="py-2">{new Date(a.updated_at).toLocaleString()}</td>
+                  <td className="py-2 text-right">
+                    {a.status === "DRAFT" && canCreate ? (
+                      <Link to={`/applications/${a.application_id}/edit`} className="text-primary">{t("applications.continue")}</Link>
+                    ) : (
+                      <Link to={`/applications/${a.application_id}`} className="text-primary">{t("applications.view")}</Link>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : null}
       {query.data?.has_more && query.data.next_cursor ? (
         <button
