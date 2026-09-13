@@ -12,7 +12,9 @@ throwaway production environment and proves, on the real images:
 
 Everything runs in its own Compose project `agni-prodcheck` on the existing `agni-dev` network;
 the database is the developer database (read + idempotent migrate only). The project is removed
-at the end (it owns no volumes). Secrets are generated into a temporary directory and never
+at the end (it owns no volumes) and the removal is verified (B23): an engine under memory
+pressure can leave containers behind after `compose down`, and with `restart: unless-stopped`
+they come back with the engine. Secrets are generated into a temporary directory and never
 printed. Usage (repository root):
 
   uv run --directory backend python ../scripts/ops/prod_boot_check.py [--api-image X] [--web-image Y]
@@ -28,6 +30,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -84,6 +87,40 @@ def run(
             f"command failed ({result.returncode}): {' '.join(args[:4])} ...\n{result.stderr[-1500:]}"
         )
     return result
+
+
+Runner = Callable[..., subprocess.CompletedProcess[str]]
+
+
+def leftover_resources(project: str, runner: Runner = run) -> list[str]:
+    """Containers and networks that still carry the Compose project label.
+
+    `docker compose down` can exit non-zero, or silently leave resources behind, when the engine
+    is under memory pressure (2026-09-13: two containers and both networks of the check project
+    survived, restarted with the engine because of `restart: unless-stopped`, and sat next to
+    the developer stack for hours). The teardown therefore verifies instead of trusting."""
+    names: list[str] = []
+    label = f"label=com.docker.compose.project={project}"
+    queries = (
+        ("container", ["docker", "ps", "-a", "--filter", label, "--format", "{{.Names}}"]),
+        ("network", ["docker", "network", "ls", "--filter", label, "--format", "{{.Name}}"]),
+    )
+    for kind, args in queries:
+        result = runner(args, check_exit=False)
+        names.extend(
+            f"{kind}:{line.strip()}" for line in result.stdout.splitlines() if line.strip()
+        )
+    return names
+
+
+def force_remove(leftovers: list[str], runner: Runner = run) -> None:
+    """Remove what `compose down` left behind (containers first, then their networks)."""
+    containers = [name.split(":", 1)[1] for name in leftovers if name.startswith("container:")]
+    networks = [name.split(":", 1)[1] for name in leftovers if name.startswith("network:")]
+    if containers:
+        runner(["docker", "rm", "-f", *containers], check_exit=False)
+    if networks:
+        runner(["docker", "network", "rm", *networks], check_exit=False)
 
 
 def compose(
@@ -495,7 +532,15 @@ def main(argv: list[str]) -> int:
             compose(
                 release_env, "--profile", "release", "down", "--remove-orphans", check_exit=False
             )
-            log("check project removed (no volumes were created)")
+            remaining = leftover_resources(PROJECT)
+            if remaining:
+                log(f"compose down left {len(remaining)} resource(s) behind: {remaining}; removing")
+                force_remove(remaining)
+                remaining = leftover_resources(PROJECT)
+            check(
+                not remaining,
+                f"B23 check project fully removed, no volumes were created (leftovers={remaining})",
+            )
             shutil.rmtree(workdir, ignore_errors=True)
         else:
             log(
