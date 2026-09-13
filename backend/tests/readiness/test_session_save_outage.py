@@ -27,6 +27,19 @@ def _lost_connection(self: SessionStore, must_create: bool = False) -> None:
         raise UpdateError from None
 
 
+def _connection_gone(self: SessionStore, must_create: bool = False) -> None:
+    # PostgreSQL in crash recovery (observed live 2026-09-13 02:11Z): the session row cannot even
+    # be loaded or saved because connecting fails. Django wraps the driver error in
+    # django.db.OperationalError and nothing converts it to UpdateError, so it escapes
+    # process_response. With DEBUG on (the dev stack) Django then renders its technical 500 page;
+    # with production settings the `handler500` fallback (`fallbacks.server_error`) must turn it
+    # into the same 503 problem. This test pins that production contract.
+    raise OperationalError(
+        'connection failed: connection to server at "db", port 5432 failed: '
+        "FATAL:  the database system is in recovery mode"
+    )
+
+
 def _row_gone(self: SessionStore, must_create: bool = False) -> None:
     try:
         raise DatabaseError("Forced update did not affect any rows.")
@@ -76,6 +89,23 @@ def test_database_loss_during_session_save_is_a_503_problem(
     assert response["Retry-After"] == "30"
     assert len(response.content) < 2048
     assert b"Traceback" not in response.content and b"deleted" not in response.content
+
+
+@pytest.mark.django_db
+def test_connection_loss_during_session_save_is_a_503_problem(
+    applicant: Principal,
+    signed_client: Callable[[Principal], Client],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    browser = _browser(signed_client(applicant))
+    monkeypatch.setattr(SessionStore, "save", _connection_gone)
+    response: Any = browser.get("/api/v1/me")
+    assert response.status_code == 503, (response.status_code, response.content[:300])
+    body = response.json()
+    assert body["code"] == "DEPENDENCY_UNAVAILABLE" and body["request_id"]
+    assert response["Retry-After"] == "30"
+    assert len(response.content) < 2048
+    assert b"Traceback" not in response.content and b"recovery mode" not in response.content
 
 
 @pytest.mark.django_db
