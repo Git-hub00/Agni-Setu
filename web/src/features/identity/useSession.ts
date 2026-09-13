@@ -6,6 +6,8 @@ export interface SessionState {
   principal: Principal | null;
   isLoading: boolean;
   isError: boolean;
+  /** The bootstrap failure (ApiError for a problem such as 503, NetworkError otherwise). */
+  error: unknown;
   refetch: () => Promise<unknown>;
 }
 
@@ -15,6 +17,7 @@ export function useSession(): SessionState {
     principal: query.data ?? null,
     isLoading: query.isPending,
     isError: query.isError,
+    error: query.error,
     refetch: () => query.refetch(),
   };
 }

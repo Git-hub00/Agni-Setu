@@ -164,6 +164,7 @@ export const en = {
   "operations.next.RECONCILE": "Reconcile with provider",
 
   "session.checking": "Checking your session...",
+  "session.retry": "Try again",
 
   "signIn.applicant.title": "Applicant sign-in",
   "signIn.applicant.body": "Verify a contact to open your applications. A verified contact is not proof of building ownership.",
