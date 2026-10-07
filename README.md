@@ -33,7 +33,25 @@ scripts/dev/doctor.sh
 
 It checks Docker, free ports and tooling and tells you exactly what is missing.
 
-## 4. Start the application
+## 4. Command-line workflows
+
+Run the complete local setup as one command line:
+
+```bash
+scripts/dev/doctor.sh && scripts/dev/up.sh app && docker exec agni-dev-api-1 python manage.py seed_demo --scenario baseline --require-demo
+```
+
+For a slower workflow, run each step separately and check the output before continuing:
+
+```bash
+scripts/dev/doctor.sh
+scripts/dev/up.sh app
+docker compose -p agni-dev -f infra/compose/compose.dev.yml --env-file .env.local ps
+docker exec agni-dev-api-1 python manage.py seed_demo --scenario baseline --require-demo
+curl --fail http://127.0.0.1:8000/api/v1/health/ready
+```
+
+## 5. Start the application
 
 ```bash
 scripts/dev/up.sh app
@@ -51,7 +69,7 @@ scripts/dev/up.sh all        # also starts Keycloak (staff sign-in) and ClamAV (
 
 Without ClamAV, uploaded files stay in "quarantined" until a scanner is available.
 
-## 5. Load the demonstration data
+## 6. Load the demonstration data
 
 ```bash
 docker exec agni-dev-api-1 python manage.py seed_demo --scenario baseline --require-demo
@@ -59,7 +77,7 @@ docker exec agni-dev-api-1 python manage.py seed_demo --scenario baseline --requ
 
 Safe to run again; it never duplicates data.
 
-## 6. Open it
+## 7. Open it
 
 | What | Address |
 | --- | --- |
@@ -78,14 +96,14 @@ http://127.0.0.1:8000/api/v1/demo/inbox?channel=EMAIL&contact=<the email you typ
 example `anita` (supervisor), `priya` / `suresh` (officers), `arjun` (administrator),
 `meera` (policy approver). The password of each persona is `demo-<name>-password`.
 
-## 7. Stop and restart
+## 8. Stop and restart
 
 ```bash
 scripts/dev/down.sh          # stop containers, keep all data
 scripts/dev/up.sh app        # start again
 ```
 
-## 8. Run the tests (optional)
+## 9. Run the tests (optional)
 
 ```bash
 uv run --directory backend pytest -q                       # backend (needs the stack running)
@@ -97,7 +115,7 @@ uv run --directory backend python ../scripts/dev/acceptance_run.py   # end-to-en
 Backend tests need `uv` (https://docs.astral.sh/uv/) and web tests need Node 24 with corepack
 enabled (`corepack enable`).
 
-## 9. If something goes wrong
+## 10. If something goes wrong
 
 - `scripts/dev/doctor.sh` explains missing tools and busy ports.
 - `docker compose -p agni-dev -f infra/compose/compose.dev.yml --env-file .env.local ps` shows
